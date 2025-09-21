@@ -42,7 +42,7 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "./Front/build" # Pre-built app content directory
+          app_location: "./Front/dist" # Pre-built app content directory
           api_location: "" # Api source code path - optional
           output_location: "" # No build output since we're using pre-built files
           skip_app_build: true # Skip building since we're using pre-built files
