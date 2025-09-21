@@ -5,13 +5,13 @@ on:
     branches:
       - main
     paths:
-      - 'Front/build/**'
+      - 'Front/dist/**'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
       - main
     paths:
-      - 'Front/build/**'
+      - 'Front/dist/**'
 
 jobs:
   build_and_deploy_job:
