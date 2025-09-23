@@ -1,12 +1,12 @@
-import { BrowserRouter, Link, Switch, Route } from "react-router-dom";
-import { PageLogin } from "./pages/login/pageLogin.tsx";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { PageHome } from "./pages/home/PageHome";
 
 function App() {
 	return (
 		<BrowserRouter>
-			<Switch>
-				<Route path="/login" component={PageLogin} />
-			</Switch>
+			<Routes>
+				<Route path="/" element={<PageHome />} />
+			</Routes>
 		</BrowserRouter>
 	);
 }
