@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@fontsource/noto-sans-jp':
-        specifier: ^5.2.8
-        version: 5.2.8
       pdfjs-dist:
         specifier: ^5.4.149
         version: 5.4.149
@@ -339,9 +336,6 @@ packages:
   '@eslint/plugin-kit@0.3.5':
     resolution: {integrity: sha512-Z5kJ+wU3oA7MMIqVR9tyZRtjYPr4OC004Q4Rw7pgOKUOKkJfZ3O24nz3WYfGRpMDNmcOi3TwQOmgm7B7Tpii0w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@fontsource/noto-sans-jp@5.2.8':
-    resolution: {integrity: sha512-ngWXPtSV3XH8ZmNX9hnfeQ+x/3mCoaAOA3BVDcyS5jQdh4FYqKjf/S9tEUEYDPwGa2pULJVXTO2+oFg42gWvSw==}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -1452,8 +1446,6 @@ snapshots:
     dependencies:
       '@eslint/core': 0.15.2
       levn: 0.4.1
-
-  '@fontsource/noto-sans-jp@5.2.8': {}
 
   '@humanfs/core@0.19.1': {}
 

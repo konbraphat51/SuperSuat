@@ -3,12 +3,12 @@ import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 // pdf.js v5+ ships ESM worker; we import the URL so bundler (Vite) can create a worker blob
 // Type declaration added in src/types/pdfjs-worker.d.ts
-// eslint-disable-next-line import/no-unresolved
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs";
-// Import base font (variable or aggregated weights). Some packages expose an index.css covering common weights.
-import "@fontsource/noto-sans-jp";
+// Use pdf.js official CDN for worker to avoid bundling it. Pin exact version to prevent breakage.
+// You can adjust the version by editing the string below.
+const PDFJS_CDN_VERSION = "5.4.149"; // keep in sync with installed pdfjs-dist version
+const pdfjsWorker = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_CDN_VERSION}/pdf.worker.min.mjs`;
 
-GlobalWorkerOptions.workerSrc = pdfjsWorker as any; // Vite will transform this into a URL
+GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export interface PdfPageRendererProps {
 	/** URL or binary data for the PDF */
@@ -150,8 +150,7 @@ export const PdfPageRenderer: React.FC<PdfPageRendererProps> = ({
 		<div
 			className={className}
 			style={{
-				fontFamily:
-					'"Noto Sans JP", "Noto Sans JP Variable", "Noto Sans", system-ui, sans-serif',
+				fontFamily: '"Noto Sans JP", "Noto Sans", system-ui, sans-serif',
 				lineHeight: 1.4,
 				position: "relative",
 				...style,

@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fontsource/noto-sans-jp": "^5.2.8",
     "pdfjs-dist": "^5.4.149",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
