@@ -1,3 +1,9 @@
+export interface OcrData {
+	pages: OcrPage[];
+	paragraphs: OcrParagraph[];
+	figures: OcrFigure[];
+}
+
 export interface OcrPage {
 	width: number;
 	height: number;
