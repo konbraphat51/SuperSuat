@@ -22,6 +22,7 @@ def extract_response_data(ocr_response: dict) -> dict:
         adding = {}
         adding["width"] = page["width"]
         adding["height"] = page["height"]
+        result["pages"].append(adding)
 
     result["paragraphs"] = analyze_result["paragraphs"]
 
