@@ -24,7 +24,11 @@ def extract_response_data(ocr_response: dict) -> dict:
         adding["height"] = page["height"]
         result["pages"].append(adding)
 
-    result["paragraphs"] = analyze_result["paragraphs"]
+    result["paragraphs"] = []
+    for idx, paragraph in enumerate(analyze_result.get("paragraphs", []), start=1):
+        adding = paragraph.copy()
+        adding["index"] = idx
+        result["paragraphs"].append(adding)
 
     result["figures"] = analyze_result["figures"]
 
