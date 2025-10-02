@@ -34,5 +34,5 @@ if __name__ == "__main__":
     with open("./sample_data/sample_ocr.json", "r", encoding="utf-8") as f:
         sample_data = json.load(f)
     extracted_data = extract_response_data(sample_data)
-    with open("./extracted_data.json", "w", encoding="utf-8") as f:
+    with open("./sample_data/extracted_data.json", "w", encoding="utf-8") as f:
         f.write(json.dumps(extracted_data, indent=2))
