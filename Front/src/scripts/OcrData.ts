@@ -15,3 +15,18 @@ export interface OcrParagraph {
 	role: string;
 	content: string;
 }
+
+export interface OcrFigure {
+	id: string;
+	boundingRegions: {
+		pageNumber: number;
+		polygon: [number, number];
+	}[];
+	caption: {
+		content: string;
+		boundingRegions: {
+			pageNumber: number;
+			polygon: [number, number];
+		}[];
+	} | null;
+}
