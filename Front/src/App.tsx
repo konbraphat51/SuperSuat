@@ -3,7 +3,7 @@ import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { PageHome } from "./components/pages/home/PageHome";
 import { PageLogin } from "./components/pages/login/PageLogin";
-import { PagePdfOrdering } from "./components/pages/pdfOrdering/PagePdfOrdering";
+import { OriginCreation } from "./components/pages/OriginCreation/OriginCreation";
 
 function App() {
 	return (
@@ -13,7 +13,7 @@ function App() {
 				<Routes>
 					<Route path="/" element={<PageHome />} />
 					<Route path="/login" element={<PageLogin />} />
-					<Route path="/ordering" element={<PagePdfOrdering />} />
+					<Route path="/origin-creation" element={<OriginCreation />} />
 				</Routes>
 			</BrowserRouter>
 			<Footer />
