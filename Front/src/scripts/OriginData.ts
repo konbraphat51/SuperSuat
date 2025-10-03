@@ -2,7 +2,7 @@ import { XMLParser, XMLBuilder } from "fast-xml-parser";
 
 export interface OriginData {
 	id: string;
-	items: OriginItem[];
+	items: { item: OriginItem[] };
 }
 
 export interface OriginItem {
