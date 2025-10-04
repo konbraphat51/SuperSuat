@@ -30,7 +30,27 @@ def extract_response_data(ocr_response: dict) -> dict:
         adding["index"] = idx
         result["paragraphs"].append(adding)
 
-    result["figures"] = analyze_result["figures"]
+    result["figures"] = []
+    for idx, figure in enumerate(analyze_result.get("figures", []), start=1):
+        adding = figure.copy()
+        adding["index"] = idx
+        result["figures"].append(adding)
+
+    result["order"] = []
+    for section in analyze_result.get("sections", []):
+        for element in section.get("elements", []):
+            category, element_id = element.split("/")[1:]
+            match category:
+                case "paragraphs":
+                    result["order"].append({
+                        "category": "paragraph",
+                        "id": int(element_id)-1
+                    })
+                case "figures":
+                    result["order"].append({
+                        "category": "figure",
+                        "id": int(element_id)
+                    })
 
     return result
 
