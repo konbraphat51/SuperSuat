@@ -15,6 +15,14 @@ class Paragraph:
         self.content = content
         self.paragraph_index = index  # 0-indexed
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "polygon": self.polygon,
+            "role": self.role,
+            "content": self.content,
+            "paragraph_index": self.paragraph_index,
+        }
+
 
 class Page:
     def __init__(
@@ -28,7 +36,15 @@ class Page:
         self.height = height
         self.paragraphs: list[Paragraph] = []
 
-def extract_response_data(ocr_response: dict[str, Any]) -> dict:
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "number": self.number,
+            "width": self.width,
+            "height": self.height,
+            "paragraphs": [p.to_dict() for p in self.paragraphs],
+        }
+
+def extract_response_data(ocr_response: dict[str, Any]) -> dict[str, Any]:
     """
     Extracts relevant data from the OCR response.
 
@@ -38,8 +54,6 @@ def extract_response_data(ocr_response: dict[str, Any]) -> dict:
     Returns:
         dict: A dictionary containing the extracted text and metadata.
     """
-    result = {}
-
     analyze_result: dict[str, Any] = ocr_response["analyzeResult"]
     
     # pages
@@ -67,7 +81,9 @@ def extract_response_data(ocr_response: dict[str, Any]) -> dict:
 
         pages[page_number - 1].paragraphs.append(paragraph_info)
 
-    return result
+    return {
+        "pages": [page.to_dict() for page in pages],
+    }
 
 if __name__ == "__main__":
     import json
