@@ -74,7 +74,7 @@ def extract_response_data(ocr_response: dict[str, Any]) -> dict[str, Any]:
         
         paragraph_info = Paragraph(
             polygon=paragraph_raw["boundingRegions"][0]["polygon"],
-            role=paragraph_raw["role"],
+            role=paragraph_raw.get("role", "unknown"),
             content=paragraph_raw["content"],
             index=idx
         )
