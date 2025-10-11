@@ -9,13 +9,11 @@ class Paragraph:
         role: str,
         content: str,
         index: int,
-        page: int,
     ) -> None:
         self.polygon = polygon
         self.role = role
         self.content = content
         self.paragraph_index = index  # 0-indexed
-        self.page = page    # 1-indexed
 
 
 class Page:
@@ -64,8 +62,7 @@ def extract_response_data(ocr_response: dict[str, Any]) -> dict:
             polygon=paragraph_raw["boundingRegions"][0]["polygon"],
             role=paragraph_raw["role"],
             content=paragraph_raw["content"],
-            index=idx,
-            page=page_number
+            index=idx
         )
 
         pages[page_number - 1].paragraphs.append(paragraph_info)
