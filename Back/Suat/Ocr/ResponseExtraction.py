@@ -58,7 +58,7 @@ def extract_response_data(ocr_response: dict[str, Any]) -> dict:
     # paragraphs
     for idx, paragraph_raw in enumerate(analyze_result["paragraphs"]):
         # 1-indexed
-        page_number = paragraph_raw["boundingRegions"][0]["pageNumber"]
+        page_number: int = paragraph_raw["boundingRegions"][0]["pageNumber"]
         
         paragraph_info = Paragraph(
             polygon=paragraph_raw["boundingRegions"][0]["polygon"],
