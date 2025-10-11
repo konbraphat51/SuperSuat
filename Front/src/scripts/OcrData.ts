@@ -1,27 +1,15 @@
-export interface OcrItem {
-	index_item: number;
-	type: "paragraph" | "figure";
-}
-
-export interface OcrParagraph extends OcrItem {
+export interface OcrParagraph {
 	polygon: [number, number, number, number, number, number, number, number];
 	role: string;
 	content: string;
-}
-
-export interface OcrFigure extends OcrItem {
-	polygon: [number, number, number, number, number, number, number, number];
-	caption: {
-		content: string;
-		polygon: [number, number, number, number, number, number, number, number];
-	} | null;
+	paragraph_index: number; // 0-indexed
 }
 
 export interface OcrPage {
 	width: number;
 	height: number;
 	number: number;
-	items: (OcrParagraph | OcrFigure)[];
+	paragraphs: OcrParagraph[];
 }
 
 export interface OcrData {
