@@ -2,18 +2,6 @@ from __future__ import annotations
 from typing import Any
 
 
-class Page:
-    def __init__(
-        self,
-        number: int,
-        width: float,
-        height: float
-    ) -> None:
-        self.number = number
-        self.width = width
-        self.height = height
-        self.paragraphs: list[Paragraph] = []
-
 class Paragraph:
     def __init__(
         self,
@@ -29,6 +17,18 @@ class Paragraph:
         self.paragraph_index = index  # 0-indexed
         self.page = page    # 1-indexed
 
+
+class Page:
+    def __init__(
+        self,
+        number: int,
+        width: float,
+        height: float
+    ) -> None:
+        self.number = number
+        self.width = width
+        self.height = height
+        self.paragraphs: list[Paragraph] = []
 
 def extract_response_data(ocr_response: dict[str, Any]) -> dict:
     """
