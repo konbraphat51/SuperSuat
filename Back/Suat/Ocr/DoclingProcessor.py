@@ -11,6 +11,8 @@ Requirements:
 """
 
 from __future__ import annotations
+import argparse
+import logging
 import os
 import json
 from pathlib import Path
@@ -29,6 +31,25 @@ from docling_core.types.doc import (
     PictureItem,
     TableItem,
 )
+
+# Configure module logger
+logger = logging.getLogger(__name__)
+
+
+def _parse_bool_env(env_name: str, default: bool = True) -> bool:
+    """Parse a boolean from an environment variable.
+    
+    Args:
+        env_name: The name of the environment variable.
+        default: The default value if the variable is not set.
+    
+    Returns:
+        True if the value is truthy ('true', '1', 'yes', 'on'), False otherwise.
+    """
+    value = os.environ.get(env_name)
+    if value is None:
+        return default
+    return value.lower() in ("true", "1", "yes", "on")
 
 
 class ElementType(str, Enum):
@@ -133,7 +154,7 @@ def process_pdf(pdf_path: str | Path, output_dir: str | Path) -> DocumentOutput:
 
     # Configure pipeline options for better extraction
     # OCR settings can be controlled via environment variable DOCLING_ENABLE_OCR
-    enable_ocr = os.environ.get("DOCLING_ENABLE_OCR", "true").lower() == "true"
+    enable_ocr = _parse_bool_env("DOCLING_ENABLE_OCR", default=True)
     
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = enable_ocr
@@ -204,9 +225,9 @@ def process_pdf(pdf_path: str | Path, output_dir: str | Path) -> DocumentOutput:
                         image.save(str(filepath), "PNG")
                 elif hasattr(item, "image") and item.image is not None:
                     item.image.pil_image.save(str(filepath), "PNG")
-            except Exception as e:
+            except (IOError, OSError, ValueError, AttributeError) as e:
                 # If image export fails, skip but log
-                print(f"Warning: Could not export image for {type_name}: {e}")
+                logger.warning("Could not export image for %s: %s", type_name, e)
                 filename = f"{type_name}_{image_counter[type_name]:03d}_missing.png"
 
             element = ImageElement(
@@ -279,14 +300,31 @@ def process_pdf_to_folder(pdf_path: str | Path) -> Path:
 
 def main():
     """Main entry point for command-line usage."""
-    import sys
-
-    if len(sys.argv) < 2:
-        print("Usage: python DoclingProcessor.py <pdf_path>")
-        sys.exit(1)
-
-    pdf_path = sys.argv[1]
-    output_folder = process_pdf_to_folder(pdf_path)
+    parser = argparse.ArgumentParser(
+        description="Process PDF files using Docling to extract OCR data, "
+                    "structure data, and export images for equations, figures, and tables."
+    )
+    parser.add_argument(
+        "pdf_path",
+        type=str,
+        help="Path to the PDF file to process"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose logging"
+    )
+    
+    args = parser.parse_args()
+    
+    # Configure logging based on verbosity
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+    
+    output_folder = process_pdf_to_folder(args.pdf_path)
     print(f"Output saved to: {output_folder}")
 
 
