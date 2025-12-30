@@ -1,4 +1,4 @@
-# Docling PDF Processor
+# OCR - Docling PDF Processor
 
 A Python module for processing PDF files using [Docling](https://github.com/DS4SD/docling), extracting OCR data, structure information, and exporting detected equations, figures, and tables as PNG images.
 
@@ -9,12 +9,14 @@ A Python module for processing PDF files using [Docling](https://github.com/DS4S
 - **Image Extraction**: Export equations (formulas), figures, charts, and tables as PNG files
 - **Reading Order**: Preserve the logical reading order of all document elements
 - **JSON Output**: Generate structured JSON output with text content, labels, and image references
+- **GPU Acceleration**: Support for NVIDIA CUDA and Apple Silicon (MPS) for faster processing
 
 ## Requirements
 
 - Python 3.12+
 - Docling (installed automatically with dependencies)
 - Internet access on first run (to download model weights)
+- (Optional) NVIDIA GPU with CUDA for accelerated processing
 
 ## Installation
 
@@ -36,22 +38,29 @@ uv sync
 
 ```bash
 # Basic usage
-python -m Suat.Ocr.DoclingProcessor path/to/document.pdf
+uv run -m ocr path/to/document.pdf
 
 # With verbose logging
-python -m Suat.Ocr.DoclingProcessor path/to/document.pdf -v
+uv run -m ocr path/to/document.pdf -v
+
+# Using NVIDIA GPU
+DOCLING_ACCELERATOR=cuda uv run -m ocr path/to/document.pdf
 ```
 
 ### Python API
 
 ```python
-from Suat.Ocr.DoclingProcessor import process_pdf_to_folder, DoclingProcessor, ProcessorConfig
+from ocr import process_pdf_to_folder, DoclingProcessor, ProcessorConfig, AcceleratorDevice
 
 # Simple usage - creates output folder with same name as PDF
 output_folder = process_pdf_to_folder("path/to/document.pdf")
 
-# Advanced usage with custom configuration
-config = ProcessorConfig(enable_ocr=True, images_scale=2.0)
+# Advanced usage with custom configuration and GPU
+config = ProcessorConfig(
+    enable_ocr=True,
+    images_scale=2.0,
+    accelerator=AcceleratorDevice.CUDA  # Use NVIDIA GPU
+)
 processor = DoclingProcessor(config)
 output = processor.process(pdf_path, output_dir)
 ```
@@ -61,6 +70,8 @@ output = processor.process(pdf_path, output_dir)
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DOCLING_ENABLE_OCR` | `true` | Enable/disable OCR processing |
+| `DOCLING_ACCELERATOR` | `auto` | Accelerator device: `auto`, `cpu`, `cuda` (NVIDIA), `mps` (Apple Silicon) |
+| `DOCLING_NUM_THREADS` | `4` | Number of threads for parallel processing |
 
 ## Output Structure
 
@@ -123,10 +134,19 @@ document/
 
 ## Architecture
 
-The module follows SOLID principles with clear separation of concerns:
+The module follows SOLID principles with clear separation of concerns across multiple files:
 
-- `ProcessorConfig`: Configuration management
-- `DocumentElement`: Base class for output elements (Single Responsibility)
+```
+ocr/
+├── __init__.py      # Public API and exports
+├── __main__.py      # CLI entry point
+├── config.py        # ProcessorConfig, AcceleratorDevice
+├── models.py        # Data models (TextElement, ImageElement, PageData, etc.)
+├── exporters.py     # ImageExporter, OutputWriter
+└── processor.py     # DoclingProcessor, ConverterFactory, ItemProcessor
+```
+
+- `ProcessorConfig`: Configuration management with GPU support
 - `LabelMapper`: Maps Docling labels to element types (Open/Closed)
 - `ImageExporter`: Handles image export logic
 - `ItemProcessor`: Processes individual document items
