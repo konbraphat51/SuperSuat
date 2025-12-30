@@ -44,7 +44,13 @@ uv run -m ocr path/to/document.pdf
 uv run -m ocr path/to/document.pdf -v
 
 # Using NVIDIA GPU
-DOCLING_ACCELERATOR=cuda uv run -m ocr path/to/document.pdf
+uv run -m ocr path/to/document.pdf -a cuda
+
+# Using Apple Silicon GPU
+uv run -m ocr path/to/document.pdf -a mps
+
+# Force CPU processing
+uv run -m ocr path/to/document.pdf -a cpu
 ```
 
 ### Python API
