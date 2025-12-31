@@ -8,4 +8,5 @@ dependencies = [
     "azure-functions>=1.23.0",
     "xmltodict>=0.13.0",
     "docling>=2.31.0",
+    "firebase-admin>=6.6.0",
 ]
