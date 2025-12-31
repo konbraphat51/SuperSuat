@@ -19,7 +19,7 @@ export const PageDocumentList = () => {
 				setDocuments(docs);
 			} catch (err) {
 				console.error("Error loading documents:", err);
-				setError("Failed to load documents. Please try again later.");
+				setError("ドキュメントの読み込みに失敗しました。後でもう一度お試しください。");
 			} finally {
 				setLoading(false);
 			}

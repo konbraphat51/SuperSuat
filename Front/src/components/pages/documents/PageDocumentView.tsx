@@ -278,12 +278,29 @@ const ParagraphWithHighlights = ({
 			paragraphElement.getAttribute("data-paragraph-index") || "0"
 		);
 
-		// Get text content before selection
+		// Get the actual character offsets using Range API
+		// Create a range from the start of the paragraph to the selection start
 		const fullText = paragraph.content;
-		const startOffset = fullText.indexOf(selectedText);
-		const endOffset = startOffset + selectedText.length;
+		
+		// Calculate the actual offset by walking through the text nodes
+		const getTextOffset = (container: Node, targetNode: Node, targetOffset: number): number => {
+			let offset = 0;
+			const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+			let node = walker.nextNode();
+			while (node) {
+				if (node === targetNode) {
+					return offset + targetOffset;
+				}
+				offset += (node.textContent || "").length;
+				node = walker.nextNode();
+			}
+			return offset;
+		};
 
-		if (startOffset >= 0 && endOffset <= fullText.length) {
+		const startOffset = getTextOffset(paragraphElement, range.startContainer, range.startOffset);
+		const endOffset = getTextOffset(paragraphElement, range.endContainer, range.endOffset);
+
+		if (startOffset >= 0 && endOffset <= fullText.length && startOffset < endOffset) {
 			onAddHighlight(paragraphIndex, startOffset, endOffset);
 			selection.removeAllRanges();
 		}

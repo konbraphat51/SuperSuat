@@ -24,11 +24,26 @@ const firebaseConfig = {
 	appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
 };
 
+// Validate Firebase configuration
+const validateFirebaseConfig = () => {
+	const requiredFields = ["apiKey", "projectId"] as const;
+	const missingFields = requiredFields.filter(
+		(field) => !firebaseConfig[field]
+	);
+	if (missingFields.length > 0) {
+		console.warn(
+			`Firebase configuration incomplete. Missing: ${missingFields.join(", ")}. ` +
+			`Set the following environment variables: ${missingFields.map((f) => `VITE_FIREBASE_${f.toUpperCase()}`).join(", ")}`
+		);
+	}
+};
+
 // Initialize Firebase
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 
 export const initializeFirebase = (): Firestore => {
+	validateFirebaseConfig();
 	if (!app) {
 		app = initializeApp(firebaseConfig);
 	}

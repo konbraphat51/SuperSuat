@@ -33,7 +33,11 @@ def initialize_firebase(credentials_path: str | None = None) -> firestore.firest
     Returns:
         Firestore client instance.
     """
-    if not firebase_admin._apps:
+    try:
+        # Check if app is already initialized
+        firebase_admin.get_app()
+    except ValueError:
+        # App not initialized, initialize it
         if credentials_path:
             cred = credentials.Certificate(credentials_path)
         else:
