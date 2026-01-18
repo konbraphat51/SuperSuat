@@ -6,10 +6,9 @@ A Python module for processing PDF files using [Docling](https://github.com/DS4S
 
 - **OCR Processing**: Extract text from scanned PDFs using Docling's OCR capabilities
 - **Structure Detection**: Identify document structure including headings, paragraphs, lists
-- **Hierarchy Preservation**: Maintain document hierarchy (sections, headings, nested content) as a tree structure
+- **Hierarchy Preservation**: Maintain document hierarchy via parent-child relationships using unique IDs
 - **Image Extraction**: Export equations (formulas), figures, charts, and tables as PNG files
 - **Reading Order**: Preserve the logical reading order of all document elements
-- **Dual Output Format**: Generate both flat pages array and hierarchical structure in JSON
 - **GPU Acceleration**: Support for NVIDIA CUDA and Apple Silicon (MPS) for faster processing
 
 ## Requirements
@@ -96,9 +95,7 @@ document/
 
 ## JSON Schema
 
-The output JSON contains two main structures:
-- **pages**: A flat array of elements organized by page number (preserves reading order)
-- **hierarchy**: A tree structure representing the document's logical organization (sections, headings, etc.)
+The output JSON contains elements organized by page with unique IDs and parent references to preserve hierarchy:
 
 ```json
 {
@@ -111,61 +108,48 @@ The output JSON contains two main structures:
           "type": "text",
           "content": "Document Title",
           "label": "title",
-          "reading_order": 0
+          "reading_order": 0,
+          "id": "elem_0"
+        },
+        {
+          "type": "text",
+          "content": "Introduction",
+          "label": "section_header",
+          "reading_order": 1,
+          "id": "elem_1",
+          "parent": "elem_0"
+        },
+        {
+          "type": "text",
+          "content": "This is the introduction text...",
+          "label": "paragraph",
+          "reading_order": 2,
+          "id": "elem_2",
+          "parent": "elem_1"
         },
         {
           "type": "figure",
           "filename": "figure_001.png",
-          "reading_order": 1
+          "reading_order": 3,
+          "exported": true,
+          "id": "elem_3",
+          "parent": "elem_1"
         },
         {
-          "type": "equation",
-          "filename": "equation_001.png",
-          "reading_order": 2
-        },
-        {
-          "type": "table",
-          "filename": "table_001.png",
-          "reading_order": 3
-        }
-      ]
-    }
-  ],
-  "hierarchy": [
-    {
-      "reading_order": 0,
-      "label": "title",
-      "content": "Document Title",
-      "children": [
-        {
-          "reading_order": 1,
-          "label": "section_header",
-          "content": "Introduction",
-          "children": [
-            {
-              "reading_order": 2,
-              "label": "paragraph",
-              "content": "This is the introduction text..."
-            },
-            {
-              "reading_order": 3,
-              "label": "picture",
-              "type": "figure",
-              "filename": "figure_001.png"
-            }
-          ]
-        },
-        {
-          "reading_order": 4,
-          "label": "section_header",
+          "type": "text",
           "content": "Methods",
-          "children": [
-            {
-              "reading_order": 5,
-              "label": "paragraph",
-              "content": "The methodology includes..."
-            }
-          ]
+          "label": "section_header",
+          "reading_order": 4,
+          "id": "elem_4",
+          "parent": "elem_0"
+        },
+        {
+          "type": "text",
+          "content": "The methodology includes...",
+          "label": "paragraph",
+          "reading_order": 5,
+          "id": "elem_5",
+          "parent": "elem_4"
         }
       ]
     }
@@ -184,21 +168,22 @@ The output JSON contains two main structures:
 
 ## Document Hierarchy
 
-The hierarchy structure preserves the logical organization of the document as detected by Docling:
+The hierarchy structure is preserved using parent-child relationships via unique IDs:
 
-- **Tree Structure**: Nested nodes representing document organization (sections → headings → paragraphs → etc.)
-- **Label-Based Hierarchy**: Uses Docling labels to determine nesting levels
+- **Unique IDs**: Each element has a unique `id` field (e.g., "elem_0", "elem_1")
+- **Parent References**: Each element includes a `parent` field referencing its parent's ID
+- **Label-Based Hierarchy**: Uses Docling labels to determine parent-child relationships
   - `section_header`: Highest level sections
   - `title`: Document or section titles
   - `subtitle`: Subsections
   - `caption`, `page_header`, `page_footer`: Supporting elements
   - `paragraph`, `list_item`, etc.: Content nodes
-- **Preserved Reading Order**: Each node retains its `reading_order` from the flat pages array
+- **Preserved Reading Order**: Each element retains its `reading_order` in the document
 - **Mixed Content**: Text and image elements can appear at any hierarchy level
 
 ### Hierarchy Levels
 
-The hierarchy builder organizes elements by their labels:
+Elements are organized by their labels to determine parent-child relationships:
 
 | Level | Labels | Description |
 |-------|--------|-------------|
@@ -209,6 +194,8 @@ The hierarchy builder organizes elements by their labels:
 | 4 | `page_header`, `page_footer` | Page-level elements |
 | 100 | All others | Leaf nodes (paragraphs, images, etc.) |
 
+Elements with lower hierarchy levels become parents of elements with higher levels.
+
 ## Architecture
 
 The module follows SOLID principles with clear separation of concerns across multiple files:
@@ -218,16 +205,15 @@ ocr/
 ├── __init__.py      # Public API and exports
 ├── __main__.py      # CLI entry point
 ├── config.py        # ProcessorConfig, AcceleratorDevice
-├── models.py        # Data models (TextElement, ImageElement, HierarchyNode, PageData, etc.)
+├── models.py        # Data models (TextElement, ImageElement, PageData, etc.)
 ├── exporters.py     # ImageExporter, OutputWriter
-└── processor.py     # DoclingProcessor, ConverterFactory, ItemProcessor, HierarchyBuilder
+└── processor.py     # DoclingProcessor, ConverterFactory, ItemProcessor
 ```
 
 - `ProcessorConfig`: Configuration management with GPU support
 - `LabelMapper`: Maps Docling labels to element types (Open/Closed)
 - `ImageExporter`: Handles image export logic
-- `ItemProcessor`: Processes individual document items
-- `HierarchyBuilder`: Constructs document hierarchy tree from items
+- `ItemProcessor`: Processes individual document items and assigns parent IDs
 - `ConverterFactory`: Creates configured Docling converters
 - `DoclingProcessor`: Main orchestrator class
 - `OutputWriter`: Handles file output

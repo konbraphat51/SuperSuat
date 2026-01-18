@@ -17,7 +17,6 @@ from .config import ProcessorConfig, AcceleratorDevice
 from .models import (
     DocumentElement,
     DocumentOutput,
-    HierarchyNode,
     ImageElement,
     LabelMapper,
     PageData,
@@ -68,15 +67,15 @@ class ItemProcessor:
         self._image_exporter = image_exporter
         self._doc = doc
 
-    def process(self, item: Any, reading_order: int) -> DocumentElement | None:
+    def process(self, item: Any, reading_order: int, element_id: str, parent_id: str | None) -> DocumentElement | None:
         """Process a document item and return the appropriate element."""
         label = getattr(item, "label", DocItemLabel.TEXT)
         
         if LabelMapper.is_image_element(label):
-            return self._create_image_element(item, label, reading_order)
-        return self._create_text_element(item, label, reading_order)
+            return self._create_image_element(item, label, reading_order, element_id, parent_id)
+        return self._create_text_element(item, label, reading_order, element_id, parent_id)
 
-    def _create_image_element(self, item: Any, label: DocItemLabel, reading_order: int) -> ImageElement:
+    def _create_image_element(self, item: Any, label: DocItemLabel, reading_order: int, element_id: str, parent_id: str | None) -> ImageElement:
         """Create an ImageElement from a document item."""
         element_type = LabelMapper.get_element_type(label)
         result = self._image_exporter.export(item, self._doc, element_type)
@@ -85,15 +84,23 @@ class ItemProcessor:
             element_type=element_type,
             filename=result.filename,
             exported=result.success,
+            id=element_id,
+            parent=parent_id,
         )
 
-    def _create_text_element(self, item: Any, label: DocItemLabel, reading_order: int) -> TextElement | None:
+    def _create_text_element(self, item: Any, label: DocItemLabel, reading_order: int, element_id: str, parent_id: str | None) -> TextElement | None:
         """Create a TextElement from a document item."""
         content = self.extract_text_content(item)
         if not content:
             return None
         label_str = label.value if hasattr(label, "value") else str(label)
-        return TextElement(reading_order=reading_order, content=content, label=label_str)
+        return TextElement(
+            reading_order=reading_order,
+            content=content,
+            label=label_str,
+            id=element_id,
+            parent=parent_id,
+        )
 
     @staticmethod
     def extract_text_content(item: Any) -> str:
@@ -113,111 +120,37 @@ class ItemProcessor:
                     return prov.page_no
         return 1
 
-
-class HierarchyBuilder:
-    """Builds a hierarchy tree from document items."""
-    
-    # Hierarchy level constants (lower = higher in hierarchy)
-    LEVEL_SECTION = 0
-    LEVEL_TITLE = 1
-    LEVEL_SUBTITLE = 2
-    LEVEL_CAPTION = 3
-    LEVEL_PAGE_ELEMENT = 4
-    LEVEL_LEAF = 100  # Regular content nodes
-    
-    def __init__(self, image_exporter: ImageExporter, doc: Any):
-        self._image_exporter = image_exporter
-        self._doc = doc
-    
-    def build_hierarchy(self, items_with_order: list[tuple[Any, int]]) -> list[HierarchyNode]:
-        """Build hierarchy tree from document items.
-        
-        Args:
-            items_with_order: List of (item, reading_order) tuples
-            
-        Returns:
-            List of root-level hierarchy nodes
-        """
-        hierarchy: list[HierarchyNode] = []
-        stack: list[tuple[HierarchyNode, int]] = []  # (node, level)
-        
-        for item, reading_order in items_with_order:
-            node = self._create_hierarchy_node(item, reading_order)
-            if node is None:
-                continue
-            
-            label = getattr(item, "label", DocItemLabel.TEXT)
-            label_str = label.value if hasattr(label, "value") else str(label)
-            
-            # Determine hierarchy level
-            level = self._get_hierarchy_level(label_str)
-            
-            # Find the appropriate parent based on level
-            while stack and stack[-1][1] >= level:
-                stack.pop()
-            
-            if stack:
-                # Add as child to the last node with lower level
-                parent_node, _ = stack[-1]
-                parent_node.children.append(node)
-            else:
-                # Add as root-level node
-                hierarchy.append(node)
-            
-            # Push current node to stack if it can have children
-            if level < self.LEVEL_LEAF:  # Non-leaf nodes
-                stack.append((node, level))
-        
-        return hierarchy
-    
-    def _create_hierarchy_node(self, item: Any, reading_order: int) -> HierarchyNode | None:
-        """Create a HierarchyNode from a document item."""
-        label = getattr(item, "label", DocItemLabel.TEXT)
-        label_str = label.value if hasattr(label, "value") else str(label)
-        
-        if LabelMapper.is_image_element(label):
-            # Image element
-            element_type = LabelMapper.get_element_type(label)
-            result = self._image_exporter.export(item, self._doc, element_type)
-            return HierarchyNode(
-                reading_order=reading_order,
-                label=label_str,
-                filename=result.filename,
-                element_type=element_type.value,
-            )
-        else:
-            # Text element
-            content = ItemProcessor.extract_text_content(item)
-            if not content:
-                return None
-            return HierarchyNode(
-                reading_order=reading_order,
-                label=label_str,
-                content=content,
-            )
-    
-    def _get_hierarchy_level(self, label: str) -> int:
+    @staticmethod
+    def get_hierarchy_level(label: str) -> int:
         """Get hierarchy level for a label (lower number = higher in hierarchy)."""
         label_lower = label.lower()
+        
+        # Hierarchy level constants (lower = higher in hierarchy)
+        LEVEL_SECTION = 0
+        LEVEL_TITLE = 1
+        LEVEL_SUBTITLE = 2
+        LEVEL_CAPTION = 3
+        LEVEL_PAGE_ELEMENT = 4
+        LEVEL_LEAF = 100  # Regular content nodes
         
         # Check more specific patterns first to avoid false matches
         # Page elements (must be checked before general "header" check)
         if "page_header" in label_lower or "page_footer" in label_lower:
-            return self.LEVEL_PAGE_ELEMENT
+            return LEVEL_PAGE_ELEMENT
         # Section headers are highest level
         if "section" in label_lower:
-            return self.LEVEL_SECTION
+            return LEVEL_SECTION
         # Title is next
         if label_lower == "title":
-            return self.LEVEL_TITLE
+            return LEVEL_TITLE
         # Subtitle follows
         if "subtitle" in label_lower:
-            return self.LEVEL_SUBTITLE
+            return LEVEL_SUBTITLE
         # Captions and other headers (page headers already handled above)
         if "caption" in label_lower or "header" in label_lower:
-            return self.LEVEL_CAPTION
+            return LEVEL_CAPTION
         # Regular text and other elements are leaf nodes
-        return self.LEVEL_LEAF
+        return LEVEL_LEAF
 
 
 class DoclingProcessor:
@@ -236,23 +169,42 @@ class DoclingProcessor:
         
         image_exporter = ImageExporter(output_dir)
         item_processor = ItemProcessor(image_exporter, doc)
-        hierarchy_builder = HierarchyBuilder(image_exporter, doc)
         
         page_elements: dict[int, list[DocumentElement]] = {}
-        items_with_order: list[tuple[Any, int]] = []
         reading_order = 0
+        
+        # Stack to track parent IDs: [(element_id, hierarchy_level)]
+        parent_stack: list[tuple[str, int]] = []
 
         for item, _ in doc.iterate_items():
+            # Generate unique ID for this element
+            element_id = f"elem_{reading_order}"
+            
+            # Get label for hierarchy determination
+            label = getattr(item, "label", DocItemLabel.TEXT)
+            label_str = label.value if hasattr(label, "value") else str(label)
+            level = ItemProcessor.get_hierarchy_level(label_str)
+            
+            # Determine parent ID based on hierarchy
+            parent_id = None
+            # Pop elements from stack that are at same or lower level
+            while parent_stack and parent_stack[-1][1] >= level:
+                parent_stack.pop()
+            # If stack has elements, the top is our parent
+            if parent_stack:
+                parent_id = parent_stack[-1][0]
+            
             page_num = ItemProcessor.get_page_number(item)
             if page_num not in page_elements:
                 page_elements[page_num] = []
 
-            element = item_processor.process(item, reading_order)
+            element = item_processor.process(item, reading_order, element_id, parent_id)
             if element:
                 page_elements[page_num].append(element)
+                # Add to parent stack if it can have children (level < 100)
+                if level < 100:
+                    parent_stack.append((element_id, level))
             
-            # Store item for hierarchy building
-            items_with_order.append((item, reading_order))
             reading_order += 1
 
         output = DocumentOutput(source_pdf=pdf_path.name)
@@ -260,8 +212,5 @@ class DoclingProcessor:
         # Build pages
         for page_num in sorted(page_elements.keys()):
             output.pages.append(PageData(page_number=page_num, elements=page_elements[page_num]))
-        
-        # Build hierarchy
-        output.hierarchy = hierarchy_builder.build_hierarchy(items_with_order)
         
         return output
