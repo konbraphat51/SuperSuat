@@ -89,14 +89,14 @@ class ItemProcessor:
 
     def _create_text_element(self, item: Any, label: DocItemLabel, reading_order: int) -> TextElement | None:
         """Create a TextElement from a document item."""
-        content = self._extract_text_content(item)
+        content = self.extract_text_content(item)
         if not content:
             return None
         label_str = label.value if hasattr(label, "value") else str(label)
         return TextElement(reading_order=reading_order, content=content, label=label_str)
 
     @staticmethod
-    def _extract_text_content(item: Any) -> str:
+    def extract_text_content(item: Any) -> str:
         """Extract text content from a document item."""
         if hasattr(item, "text") and item.text:
             return item.text
@@ -180,7 +180,7 @@ class HierarchyBuilder:
             )
         else:
             # Text element
-            content = ItemProcessor._extract_text_content(item)
+            content = ItemProcessor.extract_text_content(item)
             if not content:
                 return None
             return HierarchyNode(
@@ -206,8 +206,10 @@ class HierarchyBuilder:
         # Subtitle follows
         if "subtitle" in label_lower:
             return 2
-        # Captions and other headers
-        if "caption" in label_lower or "header" in label_lower:
+        # Captions and other headers (excluding page headers already handled)
+        if "caption" in label_lower:
+            return 3
+        if "header" in label_lower and "page" not in label_lower:
             return 3
         # Regular text and other elements are leaf nodes
         return 100
