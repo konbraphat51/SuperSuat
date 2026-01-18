@@ -6,9 +6,10 @@ A Python module for processing PDF files using [Docling](https://github.com/DS4S
 
 - **OCR Processing**: Extract text from scanned PDFs using Docling's OCR capabilities
 - **Structure Detection**: Identify document structure including headings, paragraphs, lists
+- **Hierarchy Preservation**: Maintain document hierarchy (sections, headings, nested content) as a tree structure
 - **Image Extraction**: Export equations (formulas), figures, charts, and tables as PNG files
 - **Reading Order**: Preserve the logical reading order of all document elements
-- **JSON Output**: Generate structured JSON output with text content, labels, and image references
+- **Dual Output Format**: Generate both flat pages array and hierarchical structure in JSON
 - **GPU Acceleration**: Support for NVIDIA CUDA and Apple Silicon (MPS) for faster processing
 
 ## Requirements
@@ -95,6 +96,10 @@ document/
 
 ## JSON Schema
 
+The output JSON contains two main structures:
+- **pages**: A flat array of elements organized by page number (preserves reading order)
+- **hierarchy**: A tree structure representing the document's logical organization (sections, headings, etc.)
+
 ```json
 {
   "source_pdf": "document.pdf",
@@ -111,17 +116,59 @@ document/
         {
           "type": "figure",
           "filename": "figure_001.png",
-          "reading_order": 1
+          "reading_order": 1,
+          "exported": true
         },
         {
           "type": "equation",
           "filename": "equation_001.png",
-          "reading_order": 2
+          "reading_order": 2,
+          "exported": true
         },
         {
           "type": "table",
           "filename": "table_001.png",
-          "reading_order": 3
+          "reading_order": 3,
+          "exported": true
+        }
+      ]
+    }
+  ],
+  "hierarchy": [
+    {
+      "reading_order": 0,
+      "label": "title",
+      "content": "Document Title",
+      "children": [
+        {
+          "reading_order": 1,
+          "label": "section_header",
+          "content": "Introduction",
+          "children": [
+            {
+              "reading_order": 2,
+              "label": "paragraph",
+              "content": "This is the introduction text..."
+            },
+            {
+              "reading_order": 3,
+              "label": "picture",
+              "type": "figure",
+              "filename": "figure_001.png"
+            }
+          ]
+        },
+        {
+          "reading_order": 4,
+          "label": "section_header",
+          "content": "Methods",
+          "children": [
+            {
+              "reading_order": 5,
+              "label": "paragraph",
+              "content": "The methodology includes..."
+            }
+          ]
         }
       ]
     }
@@ -138,6 +185,33 @@ document/
 | `figure` | Images and charts | `picture`, `chart` |
 | `table` | Data tables | `table` |
 
+## Document Hierarchy
+
+The hierarchy structure preserves the logical organization of the document as detected by Docling:
+
+- **Tree Structure**: Nested nodes representing document organization (sections → headings → paragraphs → etc.)
+- **Label-Based Hierarchy**: Uses Docling labels to determine nesting levels
+  - `section_header`: Highest level sections
+  - `title`: Document or section titles
+  - `subtitle`: Subsections
+  - `caption`, `page_header`, `page_footer`: Supporting elements
+  - `paragraph`, `list_item`, etc.: Content nodes
+- **Preserved Reading Order**: Each node retains its `reading_order` from the flat pages array
+- **Mixed Content**: Text and image elements can appear at any hierarchy level
+
+### Hierarchy Levels
+
+The hierarchy builder organizes elements by their labels:
+
+| Level | Labels | Description |
+|-------|--------|-------------|
+| 0 | `section_header` | Top-level sections |
+| 1 | `title` | Document/section titles |
+| 2 | `subtitle` | Subsection headers |
+| 3 | `caption`, `*_header` | Supporting headers |
+| 4 | `page_header`, `page_footer` | Page-level elements |
+| 100 | All others | Leaf nodes (paragraphs, images, etc.) |
+
 ## Architecture
 
 The module follows SOLID principles with clear separation of concerns across multiple files:
@@ -147,15 +221,16 @@ ocr/
 ├── __init__.py      # Public API and exports
 ├── __main__.py      # CLI entry point
 ├── config.py        # ProcessorConfig, AcceleratorDevice
-├── models.py        # Data models (TextElement, ImageElement, PageData, etc.)
+├── models.py        # Data models (TextElement, ImageElement, HierarchyNode, PageData, etc.)
 ├── exporters.py     # ImageExporter, OutputWriter
-└── processor.py     # DoclingProcessor, ConverterFactory, ItemProcessor
+└── processor.py     # DoclingProcessor, ConverterFactory, ItemProcessor, HierarchyBuilder
 ```
 
 - `ProcessorConfig`: Configuration management with GPU support
 - `LabelMapper`: Maps Docling labels to element types (Open/Closed)
 - `ImageExporter`: Handles image export logic
 - `ItemProcessor`: Processes individual document items
+- `HierarchyBuilder`: Constructs document hierarchy tree from items
 - `ConverterFactory`: Creates configured Docling converters
 - `DoclingProcessor`: Main orchestrator class
 - `OutputWriter`: Handles file output
