@@ -22,14 +22,20 @@ class TextElement:
     reading_order: int
     content: str
     label: str
+    id: str
+    parent: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "type": ElementType.TEXT.value,
             "content": self.content,
             "label": self.label,
             "reading_order": self.reading_order,
+            "id": self.id,
         }
+        if self.parent is not None:
+            result["parent"] = self.parent
+        return result
 
 
 @dataclass
@@ -38,15 +44,21 @@ class ImageElement:
     reading_order: int
     element_type: ElementType
     filename: str
+    id: str
+    parent: str | None = None
     exported: bool = True
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "type": self.element_type.value,
             "filename": self.filename,
             "reading_order": self.reading_order,
             "exported": self.exported,
+            "id": self.id,
         }
+        if self.parent is not None:
+            result["parent"] = self.parent
+        return result
 
 
 # Type alias for document elements
