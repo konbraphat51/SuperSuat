@@ -117,16 +117,6 @@ class ItemProcessor:
 class HierarchyBuilder:
     """Builds a hierarchy tree from document items."""
     
-    # Heading labels in order of hierarchy (highest to lowest)
-    HEADING_LABELS = [
-        "section_header",
-        "title",
-        "subtitle", 
-        "caption",
-        "page_header",
-        "page_footer",
-    ]
-    
     def __init__(self, image_exporter: ImageExporter, doc: Any):
         self._image_exporter = image_exporter
         self._doc = doc
@@ -201,21 +191,24 @@ class HierarchyBuilder:
     
     def _get_hierarchy_level(self, label: str) -> int:
         """Get hierarchy level for a label (lower number = higher in hierarchy)."""
+        label_lower = label.lower()
+        
+        # Check more specific patterns first to avoid false matches
+        # Page elements (must be checked before general "header" check)
+        if "page_header" in label_lower or "page_footer" in label_lower:
+            return 4
         # Section headers are highest level
-        if "section" in label.lower():
+        if "section" in label_lower:
             return 0
         # Title is next
-        if label.lower() == "title":
+        if label_lower == "title":
             return 1
         # Subtitle follows
-        if "subtitle" in label.lower():
+        if "subtitle" in label_lower:
             return 2
-        # Captions and headers
-        if "caption" in label.lower() or "header" in label.lower():
+        # Captions and other headers
+        if "caption" in label_lower or "header" in label_lower:
             return 3
-        # Page elements
-        if "page_header" in label.lower() or "page_footer" in label.lower():
-            return 4
         # Regular text and other elements are leaf nodes
         return 100
 

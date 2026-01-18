@@ -116,20 +116,17 @@ The output JSON contains two main structures:
         {
           "type": "figure",
           "filename": "figure_001.png",
-          "reading_order": 1,
-          "exported": true
+          "reading_order": 1
         },
         {
           "type": "equation",
           "filename": "equation_001.png",
-          "reading_order": 2,
-          "exported": true
+          "reading_order": 2
         },
         {
           "type": "table",
           "filename": "table_001.png",
-          "reading_order": 3,
-          "exported": true
+          "reading_order": 3
         }
       ]
     }
