@@ -117,6 +117,14 @@ class ItemProcessor:
 class HierarchyBuilder:
     """Builds a hierarchy tree from document items."""
     
+    # Hierarchy level constants (lower = higher in hierarchy)
+    LEVEL_SECTION = 0
+    LEVEL_TITLE = 1
+    LEVEL_SUBTITLE = 2
+    LEVEL_CAPTION = 3
+    LEVEL_PAGE_ELEMENT = 4
+    LEVEL_LEAF = 100  # Regular content nodes
+    
     def __init__(self, image_exporter: ImageExporter, doc: Any):
         self._image_exporter = image_exporter
         self._doc = doc
@@ -158,7 +166,7 @@ class HierarchyBuilder:
                 hierarchy.append(node)
             
             # Push current node to stack if it can have children
-            if level < 100:  # Non-leaf nodes
+            if level < self.LEVEL_LEAF:  # Non-leaf nodes
                 stack.append((node, level))
         
         return hierarchy
@@ -180,7 +188,7 @@ class HierarchyBuilder:
             )
         else:
             # Text element
-            content = ItemProcessor.extract_text_content(item)
+            content = self._item_processor.extract_text_content(item)
             if not content:
                 return None
             return HierarchyNode(
@@ -196,23 +204,23 @@ class HierarchyBuilder:
         # Check more specific patterns first to avoid false matches
         # Page elements (must be checked before general "header" check)
         if "page_header" in label_lower or "page_footer" in label_lower:
-            return 4
+            return self.LEVEL_PAGE_ELEMENT
         # Section headers are highest level
         if "section" in label_lower:
-            return 0
+            return self.LEVEL_SECTION
         # Title is next
         if label_lower == "title":
-            return 1
+            return self.LEVEL_TITLE
         # Subtitle follows
         if "subtitle" in label_lower:
-            return 2
+            return self.LEVEL_SUBTITLE
         # Captions and other headers (excluding page headers already handled)
         if "caption" in label_lower:
-            return 3
+            return self.LEVEL_CAPTION
         if "header" in label_lower and "page" not in label_lower:
-            return 3
+            return self.LEVEL_CAPTION
         # Regular text and other elements are leaf nodes
-        return 100
+        return self.LEVEL_LEAF
 
 
 class DoclingProcessor:
