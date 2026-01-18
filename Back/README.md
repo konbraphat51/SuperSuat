@@ -205,7 +205,7 @@ The hierarchy builder organizes elements by their labels:
 | 0 | `section_header` | Top-level sections |
 | 1 | `title` | Document/section titles |
 | 2 | `subtitle` | Subsection headers |
-| 3 | `caption`, `*_header` | Supporting headers |
+| 3 | `caption`, `header` (non-page) | Supporting headers |
 | 4 | `page_header`, `page_footer` | Page-level elements |
 | 100 | All others | Leaf nodes (paragraphs, images, etc.) |
 

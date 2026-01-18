@@ -214,10 +214,8 @@ class HierarchyBuilder:
         # Subtitle follows
         if "subtitle" in label_lower:
             return self.LEVEL_SUBTITLE
-        # Captions and other headers (excluding page headers already handled)
-        if "caption" in label_lower:
-            return self.LEVEL_CAPTION
-        if "header" in label_lower and "page" not in label_lower:
+        # Captions and other headers (page headers already handled above)
+        if "caption" in label_lower or "header" in label_lower:
             return self.LEVEL_CAPTION
         # Regular text and other elements are leaf nodes
         return self.LEVEL_LEAF
