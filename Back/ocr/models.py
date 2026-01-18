@@ -78,7 +78,7 @@ class HierarchyNode:
     content: str | None = None
     filename: str | None = None
     element_type: str | None = None
-    children: list['HierarchyNode'] = field(default_factory=list)
+    children: list[HierarchyNode] = field(default_factory=list)
     
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {

@@ -128,7 +128,6 @@ class HierarchyBuilder:
     def __init__(self, image_exporter: ImageExporter, doc: Any):
         self._image_exporter = image_exporter
         self._doc = doc
-        self._item_processor = ItemProcessor(image_exporter, doc)
     
     def build_hierarchy(self, items_with_order: list[tuple[Any, int]]) -> list[HierarchyNode]:
         """Build hierarchy tree from document items.
@@ -188,7 +187,7 @@ class HierarchyBuilder:
             )
         else:
             # Text element
-            content = self._item_processor.extract_text_content(item)
+            content = ItemProcessor.extract_text_content(item)
             if not content:
                 return None
             return HierarchyNode(
