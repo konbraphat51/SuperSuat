@@ -62,6 +62,7 @@
 
 ### Technologies
 - React + TypeScript
+    - controlled by pnpm
 - Static websie
 - Create SOLID class, component structure.
 - Material UI design
