@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SuperSuat.Application\SuperSuat.Application.csproj" />
+    <ProjectReference Include="..\SuperSuat.Infrastructure\SuperSuat.Infrastructure.csproj" />
+    <ProjectReference Include="..\SuperSuat.Domain\SuperSuat.Domain.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
