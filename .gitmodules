@@ -1,3 +1,0 @@
-[submodule "DataProcessor/layout-analysis"]
-	path = DataProcessor/layout-analysis
-	url = https://github.com/huridocs/pdf-document-layout-analysis
