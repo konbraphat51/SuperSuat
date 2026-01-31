@@ -1,0 +1,1 @@
+export { PaperUpload } from './PaperUpload';

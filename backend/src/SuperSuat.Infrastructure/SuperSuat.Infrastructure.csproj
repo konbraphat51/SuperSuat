@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SuperSuat.Application\SuperSuat.Application.csproj" />
+    <ProjectReference Include="..\SuperSuat.Domain\SuperSuat.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.BedrockRuntime" Version="4.0.15.1" />
+    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="4.0.5.1" />
+    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.12.1" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.18.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
