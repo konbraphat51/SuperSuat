@@ -1,1 +1,0 @@
-export { PaperMetaEdit } from './PaperMetaEdit';
