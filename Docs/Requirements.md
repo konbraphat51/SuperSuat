@@ -61,7 +61,7 @@
     - The PDF is sent to backend server for processing.
 
 ### Technologies
-- Vue + TypeScript
+- React + TypeScript
     - controlled by pnpm
 - Static websie
 - Create SOLID class, component structure.
