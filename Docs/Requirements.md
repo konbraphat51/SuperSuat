@@ -91,11 +91,13 @@
     - stores:
         - paper meta data
         - text data
-        - figures and tables data
-        - equations data
+        - figures (as image data)
+        - tables data (as Markdown data)
+        - equations data (as LaTeX data)
         - translation data
         - summary data
         - highlights data
+        - (the raw PDF data is not stored)
     - provides API to frontend to:
         - fetch each data
         - update meta data
@@ -120,4 +122,7 @@
         - Third party authentication by Google
     - bedrock
         - use Claude Haiku 4.5
+    - S3
+        - store figures data as image files
+        
 - Only for one user lives in Tokyo.
