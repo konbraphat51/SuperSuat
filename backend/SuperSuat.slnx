@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SuperSuat.Api/SuperSuat.Api.csproj" />
+    <Project Path="src/SuperSuat.Application/SuperSuat.Application.csproj" />
+    <Project Path="src/SuperSuat.Domain/SuperSuat.Domain.csproj" />
+    <Project Path="src/SuperSuat.Infrastructure/SuperSuat.Infrastructure.csproj" />
+    <Project Path="src/SuperSuat.LocalApi/SuperSuat.LocalApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SuperSuat.Api.Tests/SuperSuat.Api.Tests.csproj" />
+    <Project Path="tests/SuperSuat.Application.Tests/SuperSuat.Application.Tests.csproj" />
+    <Project Path="tests/SuperSuat.Domain.Tests/SuperSuat.Domain.Tests.csproj" />
+    <Project Path="tests/SuperSuat.Infrastructure.Tests/SuperSuat.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>
