@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "pillow>=11.0.0",
-    "paddlepaddle>=3.0.0",
+    "paddlepaddle-gpu==3.2.2",
     "paddlex[multimodal]>=3.0.0",
     "pymupdf>=1.27.2.3",
     "pypdfium2<5",
@@ -16,3 +16,11 @@ dependencies = [
 override-dependencies = [
     "pypdfium2<5",
 ]
+
+[[tool.uv.index]]
+name = "paddlepaddle"
+url = "https://www.paddlepaddle.org.cn/packages/stable/cu126/"
+explicit = true
+
+[tool.uv.sources]
+paddlepaddle-gpu = { index = "paddlepaddle" }
