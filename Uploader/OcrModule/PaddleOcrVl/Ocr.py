@@ -133,12 +133,18 @@ class PaddleOcrVlOcr(Ocr):
         # "doc_understanding" bundles layout analysis + VLM-based reading
         self._pipeline = create_pipeline(pipeline="doc_understanding")
 
+    _QUERY = (
+        "Recognize all content in the document image and output in markdown format."
+    )
+
     def ocr(self, image_data: list[bytes]) -> OcrResult:
         images = [_pil_from_bytes(d) for d in image_data]
 
         blocks: list[OcrResultBlock] = []
         for image in images:
-            for page_result in self._pipeline.predict(image):
+            for page_result in self._pipeline.predict(
+                {"image": image, "query": self._QUERY}
+            ):
                 for elem in _extract_elements(page_result):
                     block = _parse_element(elem)
                     if block is not None:
