@@ -8,4 +8,5 @@ dependencies = [
     "pillow>=11.0.0",
     "paddlepaddle>=3.0.0",
     "paddlex>=3.0.0",
+    "pymupdf>=1.27.2.3",
 ]
