@@ -11,7 +11,7 @@ from pathlib import Path
 _CACHE_DIR = Path(__file__).parent / "cache"
 _CACHE_DIR.mkdir(exist_ok=True)
 os.environ.setdefault("PADDLE_HOME", str(_CACHE_DIR / "paddle"))
-os.environ.setdefault("PADDLEX_HOME", str(_CACHE_DIR / "paddlex"))
+os.environ.setdefault("PADDLE_PDX_CACHE_HOME", str(_CACHE_DIR / "paddlex"))
 
 from PIL import Image  # noqa: E402
 from paddlex import create_pipeline  # noqa: E402
