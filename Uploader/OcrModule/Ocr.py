@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Literal
+from PIL.Image import Image
 
 @dataclass
 class OcrResultBlock:
@@ -35,6 +36,6 @@ class Ocr(ABC):
     @abstractmethod
     def ocr(
         self,
-        image_data: list[bytes],
+        image_data: list[Image],
     ) -> OcrResult:
         pass
