@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parents[3]))
 from OcrModule.PaddleOcrVl.Ocr import PaddleOcrVlOcr
 
 PDF_PATH = Path(__file__).parent / "Sample" / "shido_math.pdf"
-DPI = 150  # increase for higher accuracy at cost of speed
+DPI = 96
 
 
 def pdf_to_images(path: Path, dpi: int = DPI) -> list[bytes]:
