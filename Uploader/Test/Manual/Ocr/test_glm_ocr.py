@@ -58,10 +58,18 @@ def main() -> None:
     print(f"Pages: {len(images)}")
 
     print("\nInitializing GLM-OCR (model download on first run) ...")
-    ocr = GlmOcrOcr()
+    try:
+        ocr = GlmOcrOcr()
+    except Exception as e:
+        print(f"ERROR during init: {type(e).__name__}: {e}")
+        raise
 
     print("\nRunning OCR ...")
-    result = ocr.ocr(images)
+    try:
+        result = ocr.ocr(images)
+    except Exception as e:
+        print(f"ERROR during OCR: {type(e).__name__}: {e}")
+        raise
 
     print(f"\n{'='*60}")
     print(f"Total blocks: {len(result.blocks)}")

@@ -133,10 +133,11 @@ class GlmOcrOcr(Ocr):
         )
         self._model = AutoModelForImageTextToText.from_pretrained(
             _MODEL_ID,
-            torch_dtype=dtype,
+            dtype=dtype,
             device_map="auto",
             cache_dir=str(_CACHE_DIR),
         )
+        print(f"  model device: {next(self._model.parameters()).device}")
 
     def _generate(self, image: Image.Image, prompt: str) -> str:
         messages = _make_messages(image, prompt)
