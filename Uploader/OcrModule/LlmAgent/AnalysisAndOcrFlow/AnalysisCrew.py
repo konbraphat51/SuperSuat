@@ -19,5 +19,6 @@ class AnalysisCrew:
             ),
             llm = "bedrock/qwen.qwen3-vl-235b-a22b",
             allow_delegation = False,
-            max_iter = 50
+            max_iter = 50,
+            multimodal = True
         )
