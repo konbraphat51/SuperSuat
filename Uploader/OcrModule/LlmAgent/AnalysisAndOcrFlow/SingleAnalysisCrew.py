@@ -1,5 +1,5 @@
-from crewai import Agent, Task
-from crewai.project import CrewBase, agent, task
+from crewai import Agent, Crew, Process, Task
+from crewai.project import CrewBase, agent, task, crew
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from .State import SingleLayoutCheckResult
 
@@ -41,4 +41,13 @@ class SingleAnalysisCrew:
             agent = self.layout_checker(),  # type: ignore[arg-type]
             expected_output="A JSON object with two fields: `has_unknown_layout` and `unknown_layout_description",                
             output_pydantic=SingleLayoutCheckResult
+        )
+
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            name="Single Analysis Crew",
+            agents=self.agents,
+            tasks=self.tasks,
+            process=Process.sequential
         )
