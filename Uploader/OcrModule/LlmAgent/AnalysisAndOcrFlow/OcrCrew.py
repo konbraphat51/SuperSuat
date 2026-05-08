@@ -1,11 +1,41 @@
 from crewai import Agent, Task, agent
-from crewai.project import CrewBase, agent
+from crewai.project import CrewBase, agent, tool
 from crewai.agents.agent_builder.base_agent import BaseAgent
+from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+
+class CheckClipToolInput(BaseModel):
+    bounding_box_left_top_x: float = Field(description="The x coordinate of the left top corner of the bounding box.")
+    bounding_box_left_top_y: float = Field(description="The y coordinate of the left top corner of the bounding box.")
+    bounding_box_right_bottom_x: float = Field(description="The x coordinate of the right bottom corner of the bounding box.")
+    bounding_box_right_bottom_y: float = Field(description="The y coordinate of the right bottom corner of the bounding box.")
+
+class CheckClipTool(BaseTool):
+    name: str = "Check Clip"
+    description: str = (
+        "This tool returns image data clipped by the given bounding box coordinates from the page image"
+        "This tool itself will return the path of the clipped image"
+    )
+    input_schema: type = CheckClipToolInput
+
+    def _run(
+        self,
+        bounding_box_left_top_x: float,
+        bounding_box_left_top_y: float,
+        bounding_box_right_bottom_x: float,
+        bounding_box_right_bottom_y: float,
+    ) -> str:
+        # TODO
+        raise NotImplementedError("The actual clipping logic is not implemented yet. This is a placeholder implementation.")
 
 @CrewBase
 class OcrCrew:
     agents: list[BaseAgent]
     tasks: list[Task]
+
+    @tool
+    def check_clip_tool(self) -> CheckClipTool:
+        return CheckClipTool()
 
     @agent
     def ocr_agent(self) -> Agent:
@@ -43,5 +73,5 @@ class OcrCrew:
             allow_delegation = False,
             max_iter = 10,
             multimodal = True,
-            # tools
+            tools = [self.check_clip_tool()] # type: ignore[list-item]
         )
