@@ -1,5 +1,11 @@
-from crewai import Agent
-from crewai.project import CrewBase, agent
+from pydantic import BaseModel, Field
+from crewai import Agent, Task
+from crewai.project import CrewBase, agent, task
+
+class HeadingMapTaskOutput(BaseModel):
+    heading_style_map: dict[int, str] = Field(
+        description="A map of heading level to style description. For example, {1: 'bold and centered', 2: 'bold and left-aligned', ...}"
+    )
 
 @CrewBase
 class AnalysisCrew:
@@ -21,4 +27,19 @@ class AnalysisCrew:
             allow_delegation = False,
             max_iter = 50,
             multimodal = True
+        )
+
+    @task
+    def heading_map_task(self) -> Task:
+        return Task(
+            name = "Heading Map Task",
+            description = (
+                "Create a map of `heading level` -> `style description`"
+                "Make level 1 heading as the title of the document."
+                "Analyze the heading layouts of levels below 1, and and write a description of the layout style of the heading."
+                "The description should be detailed enough for OCR agent to identify the"
+            ),
+            agent = self.analyst(),  # type: ignore[arg-type]
+            expected_output="A JSON object of the following format: {1: 'style description for level 1 heading', 2: 'style description for level 2 heading', ...}",
+            output_pydantic = HeadingMapTaskOutput,
         )
