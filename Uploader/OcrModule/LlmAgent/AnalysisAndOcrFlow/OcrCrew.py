@@ -26,3 +26,22 @@ class OcrCrew:
             max_iter=30,
             multimodal = True,
         )
+
+    @agent
+    def crop_agent(self) -> Agent:
+        return Agent(
+            role = "Clipping the specified figure from the page",
+            backstory = (
+                "The entire project aims to conduct OCR on the PDF document and convert it into Markdown file."
+                "The main OCR agent will delegate the task of clipping the figure from the page to this agent when it encounters a figure that needs to be clipped."
+            ),
+            goal = (
+                "Return the bounding box of the figure specified by the main OCR agent, and crop the figure from the page and return the image data of the cropped figure."
+                "Use `check_clip` tool to check if you clipped appropriately. If not, adjust the bounding box and clip again until you get it right."
+            ),
+            llm = "bedrock/qwen.qwen3-vl-235b-a22b",
+            allow_delegation = False,
+            max_iter = 10,
+            multimodal = True,
+            # tools
+        )
