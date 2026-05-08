@@ -1,7 +1,7 @@
 from crewai import Agent, Task
-from crewai.project import CrewBase, agent
+from crewai.project import CrewBase, agent, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
-
+from .State import SingleLayoutCheckResult
 
 @CrewBase
 class SingleAnalysisCrew:
@@ -29,3 +29,16 @@ class SingleAnalysisCrew:
             multimodal = True,
         )
     
+    @task
+    def layout_check_task(self) -> Task:
+        return Task(
+            name = "Layout Check Task",
+            description = (
+                "Check if there is a layout style that is not written in the layout analysis document given."
+                "This agent have to answer if there is or not, and if there is, what it is."
+                "Your answer will be sent to layout analysis agent to update the layout analysis document."
+            ),
+            agent = self.layout_checker(),  # type: ignore[arg-type]
+            expected_output="A JSON object with two fields: `has_unknown_layout` and `unknown_layout_description",                
+            output_pydantic=SingleLayoutCheckResult
+        )

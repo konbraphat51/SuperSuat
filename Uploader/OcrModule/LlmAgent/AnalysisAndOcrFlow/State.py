@@ -8,6 +8,15 @@ class DocumentAnalysis(BaseModel):
         description="A map of heading level to style description. For example, {1: 'bold and centered', 2: 'bold and left-aligned', ...}"
     )
 
+class SingleLayoutCheckResult(BaseModel):
+    has_unknown_layout: bool = Field(description="Whether there is an unknown layout style in the page.")
+    unknown_layout_description: str = Field(
+        description=(
+            "A detailed description of the unknown layout style if there is, or an empty string if there is not."
+            "The description should be detailed enough for layout analyst agent to update the layout analysis document."
+        )
+    )
+
 
 class OcrResultBlock(BaseModel):
     block_type: Literal[
