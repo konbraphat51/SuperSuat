@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
-from crewai import Agent, Task
-from crewai.project import CrewBase, agent, task
+from crewai import Agent, Crew, Process, Task
+from crewai.project import CrewBase, agent, crew, task
+from crewai.agents.agent_builder.base_agent import BaseAgent
 
 class HeadingMapTaskOutput(BaseModel):
     heading_style_map: dict[int, str] = Field(
@@ -9,6 +10,9 @@ class HeadingMapTaskOutput(BaseModel):
 
 @CrewBase
 class AnalysisCrew:
+    agents: list[BaseAgent]
+    tasks: list[Task]
+
     @agent
     def analyst(self) -> Agent:
         return Agent(
@@ -42,4 +46,13 @@ class AnalysisCrew:
             agent = self.analyst(),  # type: ignore[arg-type]
             expected_output="A JSON object of the following format: {1: 'style description for level 1 heading', 2: 'style description for level 2 heading', ...}",
             output_pydantic = HeadingMapTaskOutput,
+        )
+    
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            name = "Analysis Crew",
+            agents = self.agents,
+            tasks = self.tasks,
+            process = Process.sequential,
         )
