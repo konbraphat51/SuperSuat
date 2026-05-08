@@ -1,12 +1,12 @@
-from pydantic import BaseModel, Field
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
+from .State import DocumentAnalysis
 
-class HeadingMapTaskOutput(BaseModel):
-    heading_style_map: dict[int, str] = Field(
-        description="A map of heading level to style description. For example, {1: 'bold and centered', 2: 'bold and left-aligned', ...}"
-    )
+# class HeadingMapTaskOutput(BaseModel):
+#     heading_style_map: dict[int, str] = Field(
+#         description="A map of heading level to style description. For example, {1: 'bold and centered', 2: 'bold and left-aligned', ...}"
+#     )
 
 @CrewBase
 class AnalysisCrew:
@@ -45,7 +45,7 @@ class AnalysisCrew:
             ),
             agent = self.analyst(),  # type: ignore[arg-type]
             expected_output="A JSON object of the following format: {1: 'style description for level 1 heading', 2: 'style description for level 2 heading', ...}",
-            output_pydantic = HeadingMapTaskOutput,
+            output_pydantic = DocumentAnalysis #HeadingMapTaskOutput,
         )
     
     @crew
