@@ -3,7 +3,7 @@ from PIL.Image import Image
 
 class AnalysisState(TypedDict):
     # =inputs=
-    images: list[Image]
+    images_num: int
     viewed_pages: list[int] # 1-indexed
 
     # =outputs=
