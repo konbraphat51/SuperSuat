@@ -6,4 +6,10 @@ ANALYST_VLM = ChatBedrockConverse(
     model="anthropic.claude-3-5-sonnet-20241022-v2:0",
     temperature=0,
     client=BEDROCK_CLIENT,
+    additional_model_request_fields={
+        "thinking": {
+            "type": "enabled",
+            "budget_tokens": 2048
+        }
+    }
 )
