@@ -2,11 +2,6 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 
-class DocumentAnalysis(BaseModel):
-    # heading level -> styling name description
-    heading_style_map: dict[int, str] = Field(
-        description="A map of heading level to style description. For example, {1: 'bold and centered', 2: 'bold and left-aligned', ...}"
-    )
 
 class SingleLayoutCheckResult(BaseModel):
     has_unknown_layout: bool = Field(description="Whether there is an unknown layout style in the page.")
