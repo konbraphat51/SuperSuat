@@ -1,8 +1,7 @@
 from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task, tool
 from crewai.agents.agent_builder.base_agent import BaseAgent
-from .Agents import create_analyst, create_crop_agent, create_layout_checker, create_ocr_agent
-from .Tools import CheckClipTool
+from .Agents import CheckClipTool, create_analyst, create_crop_agent, create_layout_checker, create_ocr_agent
 from .Tasks import create_heading_map_task, create_layout_check_task
 
 
