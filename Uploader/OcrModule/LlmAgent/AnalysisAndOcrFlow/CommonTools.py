@@ -16,9 +16,9 @@ def make_fetch_tool(
     @tool("fetch_pages_image", return_direct=False)
     def fetch_pages_image(
         page_nums: list[int],
-        runtime: ToolRuntime[None, Any]  
+        runtime: ToolRuntime[None, Any]
     ) -> Command[Any]:
-        # Add ToolMessage adding image data
+        """Fetch the images of the specified pages (1-indexed)."""
         return Command(
             update={
                 "messages": [
