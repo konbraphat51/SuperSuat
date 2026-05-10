@@ -58,6 +58,6 @@ async def first_analyst_node(
     )
 
     state["messages"] = messages + result["messages"]
-    state["heading_style_map"] = result["structured_output"]["heading_style_map"]
-    state["ocr_rules"] = result["structured_output"]["ocr_rules"]
+    state["heading_style_map"] = result["structured_response"]["heading_style_map"]
+    state["ocr_rules"] = result["structured_response"]["ocr_rules"]
     return state
