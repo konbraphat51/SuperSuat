@@ -15,7 +15,7 @@ def make_fetch_tool(
     # define the tool function
     @tool("fetch_pages_image", return_direct=False)
     def fetch_pages_image(
-        page_nums: list[int],
+        page_num: int,
         runtime: ToolRuntime[None, Any]
     ) -> Command[Any]:
         """Fetch the images of the specified pages (1-indexed)."""
@@ -39,7 +39,7 @@ def make_fetch_tool(
                         ],
                         tool_call_id=runtime.tool_call_id,
                         name="fetch_pages_image"
-                    ) for page_num in page_nums
+                    )
                 ]
             }
         )
