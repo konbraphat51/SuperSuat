@@ -19,6 +19,27 @@ def make_fetch_tool(
         runtime: ToolRuntime[None, Any]
     ) -> Command[Any]:
         """Fetch the images of the specified pages (1-indexed)."""
+
+        # page_num guard
+        if page_num < 1 or page_num > len(page_images):
+            # teach the agent to provide a valid page number
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            content=[
+                                {
+                                    "type": "text",
+                                    "text": f"ERROR: Invalid page number {page_num}. Please provide a page number between 1 and {len(page_images)}."
+                                }
+                            ],
+                            tool_call_id=runtime.tool_call_id,
+                            name="fetch_pages_image"
+                        )
+                    ]
+                }
+            )
+
         return Command(
             update={
                 "messages": [
