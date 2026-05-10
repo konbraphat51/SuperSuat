@@ -1,23 +1,23 @@
 import io
 import base64
-from collections.abc import Callable
+from typing import Any
 from PIL.Image import Image
 from langchain.messages import ToolMessage
 from langgraph.types import Command
-from langchain.tools import ToolRuntime, tool   # type: ignore[import]
+from langchain.tools import BaseTool, ToolRuntime, tool   # type: ignore[import]
 from pymupdf import f  # type: ignore[import]
 
 
-def make_fetch_tool(    # type: ignore[no-untyped-def]
+def make_fetch_tool(
     page_images: list[Image]
-) -> Callable[[list[int], ToolRuntime], Command]:   # type: ignore[no-untyped-def]
+) -> BaseTool:
     
     # define the tool function
     @tool("fetch_pages_image", return_direct=False)
-    def fetch_pages_image(  # type: ignore[no-untyped-def]
+    def fetch_pages_image(
         page_nums: list[int],
-        runtime: ToolRuntime    # type: ignore[no-untyped-def]
-    ) -> Command:   # type: ignore[no-untyped-def]
+        runtime: ToolRuntime[None, Any]  
+    ) -> Command[Any]:
         # Add ToolMessage adding image data
         return Command(
             update={
@@ -41,7 +41,7 @@ def make_fetch_tool(    # type: ignore[no-untyped-def]
             }
         )
     
-    return fetch_pages_image    # type: ignore[no-untyped-return]
+    return fetch_pages_image
     
 # return base64
 def _convert_image_to_base64(image: Image) -> str:
