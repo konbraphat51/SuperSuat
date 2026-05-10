@@ -15,3 +15,11 @@ class AnalysisState(TypedDict):
 
     # =persistence=
     messages: list[BaseMessage]
+
+class PageCheckResult(TypedDict):
+    page_passed: bool
+    "Whether the page layout is covered in the layout document and can pass to OCR transcription."
+
+    unknown_layout_styles: str | None
+    "If there is unknown layout style that may cause inconsistency in inter-page OCR results, "
+    "specify and describe the unknown layout style so that the layout analyst agent can update the layout."
