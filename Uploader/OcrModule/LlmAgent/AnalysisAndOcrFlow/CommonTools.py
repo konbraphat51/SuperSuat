@@ -47,8 +47,11 @@ def make_fetch_tool(
                         content=[
                             {
                                 "type": "image",
-                                "data": _convert_image_to_base64(page_images[page_num - 1]),
-                                "media_type": "image/png"
+                                "source": {
+                                    "type": "base64",
+                                    "data": _convert_image_to_base64(page_images[page_num - 1]),
+                                    "media_type": "image/png"
+                                }
                             },
                             {
                                 "type": "text",
