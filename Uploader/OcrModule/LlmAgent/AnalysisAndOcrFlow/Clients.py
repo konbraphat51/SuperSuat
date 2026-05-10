@@ -3,8 +3,8 @@ from langchain_aws import ChatBedrockConverse
 
 BEDROCK_CLIENT = boto3.client("bedrock-runtime", region_name="ap-northeast-1")   # type: ignore[no-untyped-call]
 ANALYST_VLM = ChatBedrockConverse(
-    model="anthropic.claude-sonnet-4-6",
-    temperature=0,
+    model="jp.anthropic.claude-sonnet-4-6",
+    temperature=1,
     client=BEDROCK_CLIENT,
     additional_model_request_fields={
         "thinking": {
