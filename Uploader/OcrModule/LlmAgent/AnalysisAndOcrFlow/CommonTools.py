@@ -31,12 +31,15 @@ def make_fetch_tool(
                                     "data": _convert_image_to_base64(page_images[page_num - 1]),
                                     "media_type": "image/png"
                                 }
+                            },
+                            {
+                                "type": "text",
+                                "text": f"Page {page_num} image"
                             }
-                            for page_num in page_nums
                         ],
                         tool_call_id=runtime.tool_call_id,
                         name="fetch_pages_image"
-                    )
+                    ) for page_num in page_nums
                 ]
             }
         )
