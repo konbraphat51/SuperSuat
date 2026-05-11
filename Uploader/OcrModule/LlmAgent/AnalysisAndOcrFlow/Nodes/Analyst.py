@@ -1,9 +1,11 @@
+from typing import Any
 from pydantic import BaseModel, Field
 from langchain.agents import create_agent   # type: ignore[import]
 from langchain.agents.structured_output import ToolStrategy
 from langchain.messages import SystemMessage   # type: ignore[import]
+from langchain_core.runnables import RunnableConfig
 from ..CommonTools import make_fetch_tool
-from ..States import AnalysisState
+from ..States import AnalysisState, GraphState
 from ..Clients import ANALYST_VLM
 
 FIRST_SYSTEM_PROMPT = (
@@ -37,8 +39,11 @@ class OutputSchema(BaseModel):
     )
 
 async def first_analyst_node(
-    state: AnalysisState
-) -> AnalysisState:
+    state_graph: GraphState,
+    config: RunnableConfig
+) -> dict[str, Any]:
+    state: AnalysisState = state_graph["analysis"]
+    
     agent = create_agent(   # type: ignore[no-untyped-call]
         ANALYST_VLM,
         tools=[make_fetch_tool(state["images"])],
@@ -57,7 +62,10 @@ async def first_analyst_node(
         } # type: ignore[no-untyped-call]
     )
 
-    state["messages"] = messages + result["messages"]
-    state["heading_style_map"] = result["structured_response"].heading_style_map
-    state["ocr_rules"] = result["structured_response"].ocr_rules
-    return state
+    return {
+        "analysis": {
+            "messages": result["messages"],
+            "heading_style_map": result["structured_response"].heading_style_map,
+            "ocr_rules": result["structured_response"].ocr_rules,
+        }
+    }
