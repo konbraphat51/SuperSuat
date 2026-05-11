@@ -12,6 +12,14 @@ class GraphState(TypedDict):
         operator.add
     ]
 
+class PageState(TypedDict):
+    page_num: int
+    "The page number (1-indexed) of the page being processed."
+
+    analysis: AnalysisState
+
+    page_check_result: PageCheckResult | None
+
 class AnalysisState(TypedDict):
     # =inputs=
     images: list[Image]
