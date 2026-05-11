@@ -1,5 +1,11 @@
+from typing import Any
+from langchain.agents import create_agent   # type: ignore[import]
+from langchain.messages import SystemMessage
 from pydantic import BaseModel, Field
-
+from langchain_core.runnables import RunnableConfig
+from langchain.agents.structured_output import ToolStrategy
+from ..States import PageState
+from ..Clients import PAGE_CHECKER_LLM
 
 SYSTEM_PROMPT = (
     "This entire project is to conduct OCR on scanned PDF documents. "
@@ -26,5 +32,47 @@ class OutputSchema(BaseModel):
         description=(
             "If there is unknown layout style that may cause inconsistency in inter-page OCR results, "
             "specify and describe the unknown layout style so that the layout analyst agent can update the layout."
+            "But if the page layout is covered in the layout document, just let this field be null."
         )
     )
+
+async def page_checker_node(
+    state: PageState,
+    config: RunnableConfig
+) -> dict[str, Any]:
+    agent = create_agent(  # type: ignore[no-untyped-call]
+        PAGE_CHECKER_LLM,
+        response_format=ToolStrategy(OutputSchema)
+    )
+
+    messages = [
+        SystemMessage(
+            content=SYSTEM_PROMPT
+        ),
+        SystemMessage(
+            content=[
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "data": state["analysis"]["images"][state["page_num"] - 1],
+                        "media_type": "image/png"
+                    }
+                }
+            ]
+        )
+    ]
+
+    result = await agent.ainvoke( # type: ignore[no-untyped-call]
+        {
+            "messages": messages
+        } # type: ignore[no-untyped-call]
+    )
+
+    return {
+        "page_check_result": {
+            "page_num": state["page_num"],
+            "page_passed": result["structured_response"].page_passed,
+            "unknown_layout_styles": result["structured_response"].unknown_layout_styles,
+        }
+    }
