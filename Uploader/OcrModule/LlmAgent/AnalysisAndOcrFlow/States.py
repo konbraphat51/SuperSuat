@@ -4,13 +4,12 @@ from typing import TypedDict, Annotated
 from PIL.Image import Image
 from langchain_core.messages import BaseMessage
 
+
 class GraphState(TypedDict):
     analysis: AnalysisState
 
-    page_check_results: Annotated[
-        list[PageCheckResult],
-        operator.add
-    ]
+    page_check_results: Annotated[list[PageCheckResult], operator.add]
+
 
 class PageState(TypedDict):
     page_num: int
@@ -19,6 +18,7 @@ class PageState(TypedDict):
     analysis: AnalysisState
 
     page_check_result: PageCheckResult | None
+
 
 class AnalysisState(TypedDict):
     # =inputs=
@@ -33,6 +33,7 @@ class AnalysisState(TypedDict):
 
     # =persistence=
     messages: list[BaseMessage]
+
 
 class PageCheckResult(TypedDict):
     page_num: int

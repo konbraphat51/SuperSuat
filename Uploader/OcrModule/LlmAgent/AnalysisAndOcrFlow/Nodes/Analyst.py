@@ -1,8 +1,8 @@
 from typing import Any
 from pydantic import BaseModel, Field
-from langchain.agents import create_agent   # type: ignore[import]
+from langchain.agents import create_agent  # type: ignore[import]
 from langchain.agents.structured_output import ToolStrategy
-from langchain.messages import SystemMessage   # type: ignore[import]
+from langchain.messages import SystemMessage  # type: ignore[import]
 from langchain_core.runnables import RunnableConfig
 from ..CommonTools import make_fetch_tool
 from ..States import AnalysisState, GraphState
@@ -24,6 +24,7 @@ FIRST_SYSTEM_PROMPT = (
     "the OCR rule should specify to ignore the text in the header when extracting main text. "
 )
 
+
 class OutputSchema(BaseModel):
     heading_style_map: dict[int, str] = Field(
         description=(
@@ -38,34 +39,30 @@ class OutputSchema(BaseModel):
         )
     )
 
+
 async def first_analyst_node(
-    state_graph: GraphState,
-    config: RunnableConfig
+    state_graph: GraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     state: AnalysisState = state_graph["analysis"]
-    
-    agent = create_agent(   # type: ignore[no-untyped-call]
+
+    agent = create_agent(  # type: ignore[no-untyped-call]
         ANALYST_VLM,
         tools=[make_fetch_tool(state["images"])],
-        response_format=ToolStrategy(OutputSchema)
+        response_format=ToolStrategy(OutputSchema),
     )
-    
-    messages = [
-        SystemMessage(
-            content=FIRST_SYSTEM_PROMPT
-        )
-    ]
 
-    result = await agent.ainvoke( # type: ignore[no-untyped-call]
-        {
-            "messages": messages
-        } # type: ignore[no-untyped-call]
+    messages = [SystemMessage(content=FIRST_SYSTEM_PROMPT)]
+
+    result = await agent.ainvoke(  # type: ignore[no-untyped-call]
+        {"messages": messages}  # type: ignore[no-untyped-call]
     )
 
     return {
         "analysis": {
             "messages": result["messages"],
-            "heading_style_map": result["structured_response"].heading_style_map,
+            "heading_style_map": result[
+                "structured_response"
+            ].heading_style_map,
             "ocr_rules": result["structured_response"].ocr_rules,
         }
     }

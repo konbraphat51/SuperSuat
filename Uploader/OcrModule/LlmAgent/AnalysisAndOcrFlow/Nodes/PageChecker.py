@@ -1,5 +1,5 @@
 from typing import Any
-from langchain.agents import create_agent   # type: ignore[import]
+from langchain.agents import create_agent  # type: ignore[import]
 from langchain.messages import SystemMessage
 from pydantic import BaseModel, Field
 from langchain_core.runnables import RunnableConfig
@@ -21,6 +21,7 @@ SYSTEM_PROMPT = (
     "You do not have to be too strict, but try not to miss any possible OCR inconsistency."
 )
 
+
 class OutputSchema(BaseModel):
     page_passed: bool = Field(
         description=(
@@ -36,43 +37,42 @@ class OutputSchema(BaseModel):
         )
     )
 
+
 async def page_checker_node(
-    state: PageState,
-    config: RunnableConfig
+    state: PageState, config: RunnableConfig
 ) -> dict[str, Any]:
     agent = create_agent(  # type: ignore[no-untyped-call]
-        PAGE_CHECKER_LLM,
-        response_format=ToolStrategy(OutputSchema)
+        PAGE_CHECKER_LLM, response_format=ToolStrategy(OutputSchema)
     )
 
     messages = [
-        SystemMessage(
-            content=SYSTEM_PROMPT
-        ),
+        SystemMessage(content=SYSTEM_PROMPT),
         SystemMessage(
             content=[
                 {
                     "type": "image",
                     "source": {
                         "type": "base64",
-                        "data": state["analysis"]["images"][state["page_num"] - 1],
-                        "media_type": "image/png"
-                    }
+                        "data": state["analysis"]["images"][
+                            state["page_num"] - 1
+                        ],
+                        "media_type": "image/png",
+                    },
                 }
             ]
-        )
+        ),
     ]
 
-    result = await agent.ainvoke( # type: ignore[no-untyped-call]
-        {
-            "messages": messages
-        } # type: ignore[no-untyped-call]
+    result = await agent.ainvoke(  # type: ignore[no-untyped-call]
+        {"messages": messages}  # type: ignore[no-untyped-call]
     )
 
     return {
         "page_check_result": {
             "page_num": state["page_num"],
             "page_passed": result["structured_response"].page_passed,
-            "unknown_layout_styles": result["structured_response"].unknown_layout_styles,
+            "unknown_layout_styles": result[
+                "structured_response"
+            ].unknown_layout_styles,
         }
     }

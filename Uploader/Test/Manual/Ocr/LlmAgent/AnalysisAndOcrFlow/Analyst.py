@@ -19,7 +19,9 @@ if _api_key:
 import fitz  # pymupdf
 from PIL import Image
 
-from OcrModule.LlmAgent.AnalysisAndOcrFlow.Nodes.Analyst import first_analyst_node
+from OcrModule.LlmAgent.AnalysisAndOcrFlow.Nodes.Analyst import (
+    first_analyst_node,
+)
 from OcrModule.LlmAgent.AnalysisAndOcrFlow.States import AnalysisState
 
 PDF_PATH = ROOT / "Test" / "Manual" / "Ocr" / "Sample" / "shido_math.pdf"
