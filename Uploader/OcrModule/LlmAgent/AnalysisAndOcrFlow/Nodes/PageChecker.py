@@ -68,11 +68,13 @@ async def page_checker_node(
     )
 
     return {
-        "page_check_result": {
-            "page_num": state["page_num"],
-            "page_passed": result["structured_response"].page_passed,
-            "unknown_layout_styles": result[
-                "structured_response"
-            ].unknown_layout_styles,
-        }
+        "page_check_results": [
+            {
+                "page_num": state["page_num"],
+                "page_passed": result["structured_response"].page_passed,
+                "unknown_layout_styles": result[
+                    "structured_response"
+                ].unknown_layout_styles,
+            }
+        ]
     }

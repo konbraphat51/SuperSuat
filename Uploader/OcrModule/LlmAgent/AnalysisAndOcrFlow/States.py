@@ -17,9 +17,6 @@ class PageState(TypedDict):
 
     analysis: AnalysisState
 
-    page_check_result: PageCheckResult | None
-
-
 class AnalysisState(TypedDict):
     # =inputs=
     images: list[Image]
