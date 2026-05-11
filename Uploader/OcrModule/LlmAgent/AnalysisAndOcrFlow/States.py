@@ -1,6 +1,16 @@
-from typing import TypedDict
+from __future__ import annotations
+import operator
+from typing import TypedDict, Annotated
 from PIL.Image import Image
 from langchain_core.messages import BaseMessage
+
+class GraphState(TypedDict):
+    analysis: AnalysisState
+
+    page_check_results: Annotated[
+        list[PageCheckResult],
+        operator.add
+    ]
 
 class AnalysisState(TypedDict):
     # =inputs=
@@ -17,6 +27,9 @@ class AnalysisState(TypedDict):
     messages: list[BaseMessage]
 
 class PageCheckResult(TypedDict):
+    page_num: int
+    "The page number (1-indexed) of the page being checked."
+
     page_passed: bool
     "Whether the page layout is covered in the layout document and can pass to OCR transcription."
 
