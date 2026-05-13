@@ -64,5 +64,6 @@ async def first_analyst_node(
                 "structured_response"
             ].heading_style_map,
             "ocr_rules": result["structured_response"].ocr_rules,
+            "version": state.get("version", 0) + 1,
         }
     }

@@ -31,6 +31,8 @@ class AnalysisState(TypedDict):
     # =persistence=
     messages: list[BaseMessage]
 
+    version: int
+
 
 class PageCheckResult(TypedDict):
     page_num: int
