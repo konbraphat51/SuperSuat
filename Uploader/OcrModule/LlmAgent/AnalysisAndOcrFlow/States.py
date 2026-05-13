@@ -28,6 +28,10 @@ class AnalysisState(TypedDict):
     ocr_rules: str
     "A unified OCR rule description"
 
+    heading_style_map_change_history: dict[int, dict[int, int]]
+    """new version
+     -> old heading level -> new heading level"""
+
     # =persistence=
     messages: list[BaseMessage]
 
