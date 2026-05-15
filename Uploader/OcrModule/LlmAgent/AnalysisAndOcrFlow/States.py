@@ -1,6 +1,5 @@
 from __future__ import annotations
-import operator
-from typing import TypedDict, Annotated
+from typing import TypedDict
 from PIL.Image import Image
 from langchain_core.messages import BaseMessage
 
@@ -8,7 +7,7 @@ from langchain_core.messages import BaseMessage
 class GraphState(TypedDict):
     analysis: AnalysisState
 
-    page_check_results: Annotated[list[PageCheckResult], operator.add]
+    page_check_results: list[PageCheckResult]
 
 
 class PageState(TypedDict):
@@ -16,6 +15,8 @@ class PageState(TypedDict):
     "The page number (1-indexed) of the page being processed."
 
     analysis: AnalysisState
+
+    page_check_results: list[PageCheckResult]
 
 class AnalysisState(TypedDict):
     # =inputs=

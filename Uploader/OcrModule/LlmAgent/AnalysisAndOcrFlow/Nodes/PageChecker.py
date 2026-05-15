@@ -68,7 +68,7 @@ async def page_checker_node(
     )
 
     return {
-        "page_check_results": [
+        "page_check_results": state["page_check_results"] + [
             {
                 "page_num": state["page_num"],
                 "page_passed": result["structured_response"].page_passed,
