@@ -5,9 +5,9 @@ from langchain.agents.structured_output import ToolStrategy
 from langchain.messages import SystemMessage  # type: ignore[import]
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import BaseMessage
-from ..CommonTools import make_fetch_tool
-from ..States import AnalysisState, GraphState
-from ..Clients import ANALYST_VLM
+from OcrModule.LlmAgent.AnalysisAndOcrFlow.CommonTools import make_fetch_tool
+from OcrModule.LlmAgent.AnalysisAndOcrFlow.States import AnalysisState, GraphState
+from OcrModule.LlmAgent.AnalysisAndOcrFlow.Clients import ANALYST_VLM
 
 FIRST_SYSTEM_PROMPT = (
     "This entire project is to conduct OCR on scanned PDF documents. "

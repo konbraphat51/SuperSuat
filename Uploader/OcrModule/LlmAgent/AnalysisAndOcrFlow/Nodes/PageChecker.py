@@ -4,8 +4,8 @@ from langchain.messages import SystemMessage
 from pydantic import BaseModel, Field
 from langchain_core.runnables import RunnableConfig
 from langchain.agents.structured_output import ToolStrategy
-from ..States import PageState
-from ..Clients import PAGE_CHECKER_LLM
+from OcrModule.LlmAgent.AnalysisAndOcrFlow.States import PageState
+from OcrModule.LlmAgent.AnalysisAndOcrFlow.Clients import PAGE_CHECKER_LLM
 
 SYSTEM_PROMPT = (
     "This entire project is to conduct OCR on scanned PDF documents. "
