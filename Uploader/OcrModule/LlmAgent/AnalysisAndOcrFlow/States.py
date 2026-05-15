@@ -18,6 +18,7 @@ class PageState(TypedDict):
 
     page_check_results: list[PageCheckResult]
 
+
 class AnalysisState(TypedDict):
     # =inputs=
     images: list[Image]

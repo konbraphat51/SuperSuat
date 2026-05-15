@@ -2,7 +2,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 from langchain.agents import create_agent  # type: ignore[import]
 from langchain.agents.structured_output import ToolStrategy
-from langchain.messages import SystemMessage # type: ignore[import]
+from langchain.messages import SystemMessage  # type: ignore[import]
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import BaseMessage
 from ..CommonTools import make_fetch_tool
@@ -82,9 +82,7 @@ class ReviewOutputSchema(BaseModel):
     heading_style_map: dict[int, str] = Field(
         description="Updated 1-indexed heading level -> style description mapping."
     )
-    ocr_rules: str = Field(
-        description="Updated unified OCR rule description."
-    )
+    ocr_rules: str = Field(description="Updated unified OCR rule description.")
     heading_level_transition: dict[int, int] | None = Field(
         default=None,
         description=(
@@ -103,15 +101,17 @@ async def analyst_review_node(
 
     # sanity check
     if len(page_check_results) == 0:
-        raise ValueError("page_check_results is required in state_graph for analyst_review_node")
-    
+        raise ValueError(
+            "page_check_results is required in state_graph for analyst_review_node"
+        )
+
     # prepare agent
     agent = create_agent(  # type: ignore[no-untyped-call]
         ANALYST_VLM,
         tools=[make_fetch_tool(state["images"])],
         response_format=ToolStrategy(ReviewOutputSchema),
     )
-        
+
     # prepare review message
     failed_pages_text = "\n".join(
         f"- Page {result['page_num']}: {result['unknown_layout_styles']}"
@@ -127,7 +127,7 @@ async def analyst_review_node(
         {"messages": messages}  # type: ignore[no-untyped-call]
     )
     structured: ReviewOutputSchema = result["structured_response"]
-    
+
     # update version
     new_version = state.get("version", 0) + 1
 
