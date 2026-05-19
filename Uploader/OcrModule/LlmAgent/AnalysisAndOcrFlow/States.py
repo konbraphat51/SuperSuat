@@ -1,14 +1,16 @@
 from __future__ import annotations
-from typing import TypedDict
+from typing import Annotated, TypedDict
 from PIL.Image import Image
 from langchain_core.messages import BaseMessage
-
+from OcrModule.OcrSchema import OcrResultBlock
+import operator
 
 class GraphState(TypedDict):
     analysis: AnalysisState
 
     page_check_results: list[PageCheckResult]
 
+    ocr_results: Annotated[list[OcrResultForPage], operator.add]
 
 class PageState(TypedDict):
     page_num: int
@@ -50,3 +52,8 @@ class PageCheckResult(TypedDict):
     unknown_layout_styles: str | None
     "If there is unknown layout style that may cause inconsistency in inter-page OCR results, "
     "specify and describe the unknown layout style so that the layout analyst agent can update the layout."
+
+class OcrResultForPage(TypedDict):
+    page_num: int
+    ocr_result: OcrResultBlock
+    referred_rule_version: int
