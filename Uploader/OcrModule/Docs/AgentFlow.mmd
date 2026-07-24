@@ -1,0 +1,7 @@
+stateDiagram-v2
+    [*] --> AnalystAgent
+    AnalystAgent --> OcrAgent: Give OCR rule
+    OcrAgent --> FigureCaptureAgent: Delegate
+    FigureCaptureAgent --> OcrAgent: Return result
+    OcrAgent --> AnalystAgent: Order re-analyze if needed
+    OcrAgent --> [*]: Return result
