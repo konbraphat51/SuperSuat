@@ -1,7 +1,14 @@
-stateDiagram-v2
-    [*] --> AnalystAgent
-    AnalystAgent --> OcrAgent: Give OCR rule
-    OcrAgent --> FigureCaptureAgent: Delegate
-    FigureCaptureAgent --> OcrAgent: Return result
-    OcrAgent --> AnalystAgent: Order re-analyze if needed
-    OcrAgent --> [*]: Return result
+flowchart TD
+s((Start))
+--> Analyst[Analyst]
+--> dist0[/Page Distribution\]
+-.-> PageChecker@{label: "Page Checker", shape: processes }
+-.-> join0[\Sync for Page Checker/]
+--> if0{have unknown layout?}
+--> |yes| Analyst
+if0--> |no| dist1[/Page Distribution\]
+-.-> OcrAgent@{label: "OCR Agent", shape: processes }
+--> join1[\Sync for OCR Agent/]
+--> if1{all pages processed?}
+--> |no| dist0
+if1--> |yes| e((End))
