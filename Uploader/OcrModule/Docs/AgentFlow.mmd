@@ -1,14 +1,31 @@
 flowchart TD
-s((Start))
---> Analyst[Analyst]
---> dist0[/Page Distribution\]
--.-> PageChecker@{label: "Page Checker", shape: processes }
--.-> join0[\Sync for Page Checker/]
---> if0{have unknown layout?}
---> |yes| Analyst
-if0--> |no| dist1[/Page Distribution\]
--.-> OcrAgent@{label: "OCR Agent", shape: processes }
---> join1[\Sync for OCR Agent/]
---> if1{all pages processed?}
---> |no| dist0
-if1--> |yes| e((End))
+    s((Start))
+    Analyst[Analyst]
+    dist0[/Page Distribution\]
+    PageChecker@{label: "Page Checker", shape: processes}
+    join0[\Sync for Page Checker/]
+    if0{have unknown layout?}
+    dist1[/Page Distribution\]
+    subgraph OCR
+        OcrAgent@{label: "OCR Agent", shape: processes}
+        Cropper[Cropper]
+    end
+    join1[\Sync for OCR Agent/]
+    if1{all pages processed?}
+    e((End))
+
+    s --> Analyst
+    Analyst -->|pass OCR rule| dist0
+    dist0 -.-> PageChecker
+    PageChecker -.-> join0
+    join0 --> if0
+    if0 -->|yes| Analyst
+    if0 -->|no| dist1
+    dist1 -.-> OcrAgent
+    OcrAgent --> join1
+    OcrAgent -->|Order Image Crop| Cropper
+    Cropper -->|Return coordinates| OcrAgent
+    join1 --> if1
+    if1 -->|no| dist0
+    if1 -->|yes| e
+
