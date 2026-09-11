@@ -13,7 +13,7 @@ class OcrResultBlock:
         "section",
     ]
     existing_pages: list[int]   # Pages that this block is present on. 0-indexed
-
+    block_index: int # this is unique within the document
 
 class OcrResultBlockText(OcrResultBlock):
     text: str
