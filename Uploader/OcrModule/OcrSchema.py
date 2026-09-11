@@ -5,7 +5,12 @@ from typing import Literal
 @dataclass
 class OcrResultBlock:
     block_type: Literal[
-        "text", "image", "table", "equation", "footer", "section"
+        "text",
+        "image",
+        "table",
+        "equation",
+        "footer",
+        "section",
     ]
 
 
