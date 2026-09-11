@@ -13,9 +13,8 @@ def pil_to_base64(image: Image) -> str:
 
 @dataclass
 class Message:
-    role: Literal["system", "user", "assistant"]
-    content: str
-
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | Image
 
 class LlmAgent:
     def __init__(
@@ -41,10 +40,23 @@ class LlmAgent:
         self,
         messages: list[Message],
     ) -> list[dict[str, str]]:
-        return [
-            {
+        results = []
+
+        for message in messages:
+            if isinstance(message.content, Image):
+                content = {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{pil_to_base64(message.content)}",
+                        "detail": "auto"
+                    }
+                }
+            else:
+                content = message.content
+
+            results.append({
                 "role": message.role,
-                "content": message.content,
-            }
-            for message in messages
-        ]
+                "content": content
+            })
+
+        return results
