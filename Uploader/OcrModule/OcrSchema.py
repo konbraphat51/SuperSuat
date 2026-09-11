@@ -12,6 +12,7 @@ class OcrResultBlock:
         "footer",
         "section",
     ]
+    existing_pages: list[int]   # Pages that this block is present on. 0-indexed
 
 
 class OcrResultBlockText(OcrResultBlock):
