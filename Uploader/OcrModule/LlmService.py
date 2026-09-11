@@ -1,7 +1,15 @@
+import base64
+import io
 from typing import Literal
 from dataclasses import dataclass
+from PIL.Image import Image
 from langchain_protocol import Literal
 from openai import OpenAI
+
+def pil_to_base64(image: Image) -> str:
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 @dataclass
 class Message:
