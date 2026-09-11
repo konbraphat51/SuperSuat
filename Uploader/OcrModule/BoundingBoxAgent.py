@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from PIL.Image import Image
-from .LlmService import LlmAgent, pil_to_base64
+from .LlmService import LlmAgent, pil_to_base64, Message
 
 class BoundingBox(BaseModel):
     x: int
@@ -15,24 +15,18 @@ class BoundingBoxAgent(LlmAgent):
         order: str
     ) -> BoundingBox:
         messages = [
-            {
-                "role": "system",
-                "content": "You are an AI agent that generates a bounding box for an image ordered"
-            },
-            {
-                "role": "tool",
-                "content": {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/png;base64,{pil_to_base64(image_data)}",
-                        "detail": "auto"
-                    }
-                }
-            },
-            {
-                "role": "user",
-                "content": f"Order: {order}"
-            }
+            Message(
+                role="system",
+                content="You are an AI agent that generates a bounding box for an image ordered. Clip the bounding box for the ordered area and return the coordinates in the format: {x, y, width, height}. The coordinates should be integers. Make sure the bounding box is tight and does not include any extra area but covers all the specified content."
+            ),
+            Message(
+                role="tool",
+                content=image_data
+            ),
+            Message(
+                role="user",
+                content=f"Order: {order}"
+            )
         ]
         response = self.generate_response_in_format[BoundingBox](messages)
         return response
