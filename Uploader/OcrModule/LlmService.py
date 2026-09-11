@@ -16,47 +16,27 @@ class Message:
     role: Literal["system", "user", "assistant", "tool"]
     content: str | Image
 
-class LlmAgent:
-    def __init__(
-        self,
-        client: OpenAI,
-        model: str
-    ) -> None:
-        self.client = client
-        self.model = model
+def convert_messages(
+    self,
+    messages: list[Message],
+) -> list[dict[str, str]]:
+    results = []
 
-    def generate_response_in_format[Format](
-        self,
-        messages: list[Message]
-    ) -> Format:
-        completion = self.client.responses.parse(
-            model=self.model,
-            input=self._convert_messages(messages),
-            response_format=Format
-        )
-        return completion
-
-    def _convert_messages(
-        self,
-        messages: list[Message],
-    ) -> list[dict[str, str]]:
-        results = []
-
-        for message in messages:
-            if isinstance(message.content, Image):
-                content = {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/png;base64,{pil_to_base64(message.content)}",
-                        "detail": "auto"
-                    }
+    for message in messages:
+        if isinstance(message.content, Image):
+            content = {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{pil_to_base64(message.content)}",
+                    "detail": "auto"
                 }
-            else:
-                content = message.content
+            }
+        else:
+            content = message.content
 
-            results.append({
-                "role": message.role,
-                "content": content
-            })
+        results.append({
+            "role": message.role,
+            "content": content
+        })
 
-        return results
+    return results

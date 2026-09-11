@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from PIL.Image import Image
-from .LlmService import LlmAgent, pil_to_base64, Message
+from openai import OpenAI
+from .LlmService import pil_to_base64, Message, convert_messages
 
 class BoundingBox(BaseModel):
     x: int
@@ -8,7 +9,15 @@ class BoundingBox(BaseModel):
     width: int
     height: int
 
-class BoundingBoxAgent(LlmAgent):
+class BoundingBoxAgent:
+    def __init__(
+        self,
+        client: OpenAI,
+        model: str
+    ) -> None:
+        self.client = client
+        self.model = model
+
     def generate_bounding_box(
         self,
         image_data: Image,
@@ -28,5 +37,9 @@ class BoundingBoxAgent(LlmAgent):
                 content=f"Order: {order}"
             )
         ]
-        response = self.generate_response_in_format[BoundingBox](messages)
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=convert_messages(messages),
+            response_format=BoundingBox
+        )
         return response
