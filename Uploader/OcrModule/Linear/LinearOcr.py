@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from PIL.Image import Image
-from .Ocr import Ocr
-from .OcrSchema import OcrResult, OcrResultSection
+from ..Ocr import Ocr
+from ..OcrSchema import OcrResult, OcrResultSection
 
 def call_agent():
     pass
