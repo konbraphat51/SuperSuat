@@ -11,6 +11,15 @@ class OcrResultBlock:
 
 class OcrResultBlockText(OcrResultBlock):
     text: str
+    text_type: Literal[
+        "paragraph",
+        "heading",
+        "list_item",
+        "document_index",
+        "note",
+        "code",
+        "math",
+    ]
 
 
 class OcrResultBlockImage(OcrResultBlock):
@@ -18,23 +27,9 @@ class OcrResultBlockImage(OcrResultBlock):
     caption: str
 
 
-class OcrResultBlockTable(OcrResultBlock):
-    text: str  # in Markdown format
-    caption: str
-
-
-class OcrResultBlockEquation(OcrResultBlock):
-    text: str  # in LaTeX format
-    caption: str
-
-
-class OcrResultBlockFooter(OcrResultBlock):
-    text: str
-
-
-class OcrResultBlockSection(OcrResultBlock):
-    text: str
-    level: int
+class OcrResultSection(OcrResultBlock):
+    section_content: list[OcrResultBlock]
+    child_sections: list["OcrResultSection"]
 
 
 class OcrResult:
