@@ -17,7 +17,6 @@ class Message:
     content: str | Image
 
 def convert_messages(
-    self,
     messages: list[Message],
 ) -> list[dict[str, str]]:
     results = []
