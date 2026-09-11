@@ -17,19 +17,20 @@ class Message:
     content: str | Image
 
 def convert_messages(
+    self,
     messages: list[Message],
 ) -> list[dict[str, str]]:
     results = []
 
     for message in messages:
         if isinstance(message.content, Image):
-            content = [{
+            content = {
                 "type": "image_url",
                 "image_url": {
                     "url": f"data:image/png;base64,{pil_to_base64(message.content)}",
                     "detail": "auto"
                 }
-            }]
+            }
         else:
             content = message.content
 

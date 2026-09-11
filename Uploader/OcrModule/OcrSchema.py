@@ -15,7 +15,6 @@ class OcrResultBlock:
     existing_pages: list[int]   # Pages that this block is present on. 0-indexed
     block_index: int # this is unique within the document
 
-@dataclass
 class OcrResultBlockText(OcrResultBlock):
     text: str
     text_type: Literal[
@@ -29,7 +28,6 @@ class OcrResultBlockText(OcrResultBlock):
     ]
 
 
-@dataclass
 class OcrResultBlockImage(OcrResultBlock):
     image_data: bytes
     caption: str
