@@ -29,7 +29,7 @@ class BoundingBoxAgent:
                 content="You are an AI agent that generates a bounding box for an image ordered. Clip the bounding box for the ordered area and return the coordinates in the format: {x, y, width, height}. The coordinates should be integers. Make sure the bounding box is tight and does not include any extra area but covers all the specified content."
             ),
             Message(
-                role="tool",
+                role="user",
                 content=image_data
             ),
             Message(
@@ -37,9 +37,9 @@ class BoundingBoxAgent:
                 content=f"Order: {order}"
             )
         ]
-        response = self.client.chat.completions.create(
+        response = self.client.chat.completions.parse(
             model=self.model,
             messages=convert_messages(messages),
             response_format=BoundingBox
         )
-        return response
+        return response.choices[0].message.parsed
