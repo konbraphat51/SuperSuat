@@ -32,10 +32,12 @@ class OcrResultBlockImage(OcrResultBlock):
     caption: str
 
 
-class OcrResultSection(OcrResultBlock):
+@dataclass
+class OcrResultSection:
     section_content: list[OcrResultBlock]
     child_sections: list["OcrResultSection"]
 
 
+@dataclass
 class OcrResult:
     blocks: list[OcrResultBlock]
