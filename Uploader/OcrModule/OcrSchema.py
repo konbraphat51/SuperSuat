@@ -43,4 +43,4 @@ class OcrResultSection:
 
 @dataclass
 class OcrResult:
-    blocks: list[OcrResultBlock]
+    root_section: OcrResultSection
