@@ -33,7 +33,6 @@ class OcrAgent:
         )
 
         self.tools = [
-            tool(self.linear_tools.set_current_page),
             tool(self.linear_tools.get_page_image),
             tool(self.linear_tools.edit_block),
             tool(self.linear_tools.add_text_block),
