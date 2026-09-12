@@ -66,6 +66,34 @@ def find_section_by_index(
 
     raise KeyError(f"Section with index {index} not found")
 
+def mark_existing_page(
+    entire_section: OcrResultSection,
+    target_index: int,
+    page_number: int,
+) -> bool:
+    """Adds page_number to existing_pages of the block with target_index and every ancestor section, including `section` itself. Returns whether target_index was found within `section`."""
+    if entire_section.block_index == target_index:
+        if page_number not in entire_section.existing_pages:
+            entire_section.existing_pages.append(page_number)
+        return True
+
+    found = False
+    for block in entire_section.section_content:
+        if block.block_index == target_index:
+            if page_number not in block.existing_pages:
+                block.existing_pages.append(page_number)
+            found = True
+            break
+
+        if isinstance(block, OcrResultSection) and mark_existing_page(block, target_index, page_number):
+            found = True
+            break
+
+    if found and page_number not in entire_section.existing_pages:
+        entire_section.existing_pages.append(page_number)
+
+    return found
+
 def iterate_sections(section: OcrResultSection):
     yield section
 
@@ -128,6 +156,7 @@ class LinearTools:
             return f"ERROR: Block with index {block_index} is not a text block"
 
         block.text = text
+        mark_existing_page(self.ocr_entire_section, block_index, self.current_page_number)
         return f"Block with index {block_index} has been updated successfully. The new text is: \n{text}"
 
     def add_text_block(
@@ -149,6 +178,7 @@ class LinearTools:
             text=text,
         )
         section.section_content.append(new_block)
+        mark_existing_page(self.ocr_entire_section, new_block_index, self.current_page_number)
 
         return f"New text block added to section {section_index} with block index {new_block_index}. The text is: \n{text}"
 
@@ -172,6 +202,7 @@ class LinearTools:
             caption=caption
         )
         section.section_content.append(new_block)
+        mark_existing_page(self.ocr_entire_section, new_block_index, self.current_page_number)
 
         return f"New image block added to section {section_index} with block index {new_block_index}. The caption is: \n{caption}"
 
@@ -191,6 +222,7 @@ class LinearTools:
             section_index=new_section_index
         )
         parent_section.section_content.append(new_section)
+        mark_existing_page(self.ocr_entire_section, new_section_index, self.current_page_number)
 
         return f"New section added to parent section {parent_section_index} with section index {new_section_index}"
 
