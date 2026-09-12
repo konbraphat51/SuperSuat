@@ -1,13 +1,10 @@
 import base64
-import logging
 from io import BytesIO
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResultSection, OcrResult
 from .OcrAgent import OcrAgent
-
-logger = logging.getLogger(__name__)
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
     buffered = BytesIO()
@@ -43,8 +40,7 @@ class LinearOcr(Ocr):
         )
 
         for page_number in range(len(all_page_b64)):
-            if not ocr_agent.read_page(page_number):
-                logger.warning(f"Page {page_number} may be incompletely processed; continuing with remaining pages")
+            ocr_agent.read_page(page_number)
 
         return OcrResult(root_section=self.entire_section)
 
