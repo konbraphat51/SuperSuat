@@ -3,7 +3,7 @@ from dataclasses import asdict
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
-from langchain_core.tools import BaseTool
+from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from .Tools import LinearTools
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
@@ -13,14 +13,35 @@ class OcrAgent:
     def __init__(
         self,
         ocr_model: BaseChatModel,
-        linear_tools: LinearTools,
+        clipper_model: BaseChatModel,
+        all_page_images: list[Image],
         entire_section: OcrResultSection,
-        tools: list[BaseTool],
     ) -> None:
         self.ocr_model = ocr_model
-        self.linear_tools = linear_tools
         self.entire_section = entire_section
-        self.tools = tools
+        self._initialize_tools(all_page_images, clipper_model)
+
+    def _initialize_tools(
+        self,
+        all_page_images: list[Image],
+        clipper_model: BaseChatModel,
+    ) -> None:
+        self.linear_tools = LinearTools(
+            all_page_images=all_page_images,
+            ocr_entire_section=self.entire_section,
+            clipper_model=clipper_model,
+        )
+
+        self.tools = [
+            tool(self.linear_tools.set_current_page),
+            tool(self.linear_tools.get_page_image),
+            tool(self.linear_tools.edit_block),
+            tool(self.linear_tools.add_text_block),
+            tool(self.linear_tools.add_image_block),
+            tool(self.linear_tools.add_section),
+            tool(self.linear_tools.move_block),
+            tool(self.linear_tools.clip_image),
+        ]
 
     def read_page(
         self,

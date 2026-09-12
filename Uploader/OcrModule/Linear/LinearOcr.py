@@ -1,9 +1,7 @@
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResultSection, OcrResult
-from .Tools import LinearTools
 from .OcrAgent import OcrAgent
 
 class LinearOcr(Ocr):
@@ -23,12 +21,11 @@ class LinearOcr(Ocr):
          # Implement the OCR logic here
         self.all_page_images = all_page_images
         self._initialize_entire_section()
-        self._initialize_tools()
         ocr_agent = OcrAgent(
             ocr_model=self.ocr_model,
-            linear_tools=self.linear_tools,
+            clipper_model=self.clipper_model,
+            all_page_images=self.all_page_images,
             entire_section=self.entire_section,
-            tools=self.tools,
         )
 
         for page_number in range(len(all_page_images)):
@@ -43,21 +40,3 @@ class LinearOcr(Ocr):
             section_index=0,
             existing_pages=[],
         )
-
-    def _initialize_tools(self) -> None:
-        self.linear_tools = LinearTools(
-            all_page_images=self.all_page_images,
-            ocr_entire_section=self.entire_section,
-            clipper_model=self.clipper_model,
-        )
-
-        self.tools = [
-            tool(self.linear_tools.set_current_page),
-            tool(self.linear_tools.get_page_image),
-            tool(self.linear_tools.edit_block),
-            tool(self.linear_tools.add_text_block),
-            tool(self.linear_tools.add_image_block),
-            tool(self.linear_tools.add_section),
-            tool(self.linear_tools.move_block),
-            tool(self.linear_tools.clip_image),
-        ]
