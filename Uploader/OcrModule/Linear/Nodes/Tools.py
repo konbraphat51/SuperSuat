@@ -2,16 +2,9 @@ import base64
 from typing import Literal
 from io import BytesIO
 from PIL.Image import Image
-from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage
 from ...OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
-
-
-class BoundingBoxOutput(BaseModel):
-    bounding_box: tuple[int, int, int, int] = Field(
-        description="The bounding box of the clipped region in the image, as (x, y, width, height)."
-    )
+from .Clipper import clip_image_with_agent
 
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
@@ -281,15 +274,6 @@ class LinearTools:
         img = self.all_page_images[self.current_page_number]
         img_b64 = pil_to_base64(img)
 
-        structured_clipper_model = self.clipper_model.with_structured_output(BoundingBoxOutput)
-        result: BoundingBoxOutput = structured_clipper_model.invoke([
-            HumanMessage(content=[
-                {"type": "text", "text": order},
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{img_b64}"},
-                },
-            ])
-        ])
+        result = clip_image_with_agent(self.clipper_model, order, img_b64)
 
         return f"Clipped bounding box: {result.bounding_box}"
