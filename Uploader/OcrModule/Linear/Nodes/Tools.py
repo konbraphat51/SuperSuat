@@ -71,6 +71,17 @@ class LinearTools:
     ) -> None:
         self.all_page_images = all_page_images
         self.ocr_entire_section = ocr_entire_section
+        self.clipper_model = clipper_model
+        self.current_page_number = -1  # 0-indexed
+
+    def set_current_page(
+        self,
+        page_number: int,
+    ) -> None:
+        if page_number < 0 or page_number >= len(self.all_page_images):
+            raise ValueError(f"Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}")
+
+        self.current_page_number = page_number
 
     def get_page_image(self, page_number: int):
         if page_number < 0 or page_number >= len(self.all_page_images):
