@@ -94,35 +94,50 @@ def format_existing_pages(pages: list[int]) -> str:
 
     return ",".join(str(first) if first == last else f"{first}-{last}" for first, last in ranges)
 
-def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> dict:
-    content: list = []
-    omitted_pending = False
-
-    for block in section.section_content:
-        if isinstance(block, OcrResultSection):
-            content.append(_build_context_node(block, keep_indices))
-            continue
-
-        if block.block_index in keep_indices:
-            if omitted_pending:
-                content.append(OMITTED_MARKER)
-                omitted_pending = False
-
-            block_dict = asdict(block)
-            block_dict["existing_pages"] = format_existing_pages(block.existing_pages)
-            content.append(block_dict)
-        else:
-            omitted_pending = True
-
-    if omitted_pending:
-        content.append(OMITTED_MARKER)
-
+def _context_node(section: OcrResultSection, content: list) -> dict:
     return {
         "block_type": section.block_type,
         "existing_pages": format_existing_pages(section.existing_pages),
         "block_index": section.block_index,
         "section_content": content,
     }
+
+def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> dict | None:
+    """The section as it should appear in the context, or None if nothing in it
+    survived, in which case the whole node collapses into the ellipsis of the
+    section holding it. A section with no contents at all is still returned:
+    there is nothing to omit, and it stays addressable for adding blocks to."""
+    content: list = []
+    omitted_pending = False
+    kept_anything = False
+
+    for block in section.section_content:
+        if isinstance(block, OcrResultSection):
+            child_node = _build_context_node(block, keep_indices)
+            if child_node is None:
+                omitted_pending = True
+                continue
+        elif block.block_index in keep_indices:
+            child_node = asdict(block)
+            child_node["existing_pages"] = format_existing_pages(block.existing_pages)
+        else:
+            omitted_pending = True
+            continue
+
+        if omitted_pending:
+            content.append(OMITTED_MARKER)
+            omitted_pending = False
+
+        content.append(child_node)
+        kept_anything = True
+
+    if not kept_anything and section.section_content:
+        return None
+
+    if omitted_pending:
+        content.append(OMITTED_MARKER)
+
+    return _context_node(section, content)
 
 def build_ocr_context_string(
     root_section: OcrResultSection,
@@ -137,9 +152,11 @@ def build_ocr_context_string(
       the page right before the current one, and of all its ancestor
       sections up to the root, so the document structure around what was
       just read stays visible
-    Everything else is replaced with an ellipsis marker."""
+    Everything else is replaced with an ellipsis marker, and a section left
+    with nothing of its own to show collapses into that marker too."""
     keep_indices = _collect_keep_block_indices(root_section, current_page_number, recent_page_count)
-    context_dict = _build_context_node(root_section, keep_indices)
+    # the root never collapses, since it is the document itself
+    context_dict = _build_context_node(root_section, keep_indices) or _context_node(root_section, [OMITTED_MARKER])
     # compact separators rather than indentation: the scaffolding of a document
     # with many sections is resent on every page, and indenting it roughly
     # doubles that cost for no gain to the model reading it
