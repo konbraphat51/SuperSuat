@@ -8,6 +8,6 @@ class Ocr(ABC):
     @abstractmethod
     def ocr(
         self,
-        image_data: list[Image],
+        all_page_images: list[Image],
     ) -> OcrResult:
         pass
