@@ -18,25 +18,25 @@ def find_block_by_index(
         if block.block_index == index:
             return block
 
-    for child_section in section.child_sections:
-        try:
-            return find_block_by_index(index, child_section)
-        except KeyError:
-            continue
+        if isinstance(block, OcrResultSection):
+            try:
+                return find_block_by_index(index, block)
+            except KeyError:
+                continue
 
     raise KeyError(f"Block with index {index} not found")
 
 def get_max_block_index(section: OcrResultSection) -> int:
-    max_index = -1
+    max_index = section.block_index
 
     for block in section.section_content:
         if block.block_index > max_index:
             max_index = block.block_index
 
-    for child_section in section.child_sections:
-        child_max_index = get_max_block_index(child_section)
-        if child_max_index > max_index:
-            max_index = child_max_index
+        if isinstance(block, OcrResultSection):
+            child_max_index = get_max_block_index(block)
+            if child_max_index > max_index:
+                max_index = child_max_index
 
     return max_index
 
@@ -44,26 +44,24 @@ def find_section_by_index(
     index: int,
     section: OcrResultSection,
 ) -> OcrResultSection:
-    if section.section_index == index:
+    if section.block_index == index:
         return section
 
-    for child_section in section.child_sections:
-        try:
-            return find_section_by_index(index, child_section)
-        except KeyError:
-            continue
+    for block in section.section_content:
+        if isinstance(block, OcrResultSection):
+            try:
+                return find_section_by_index(index, block)
+            except KeyError:
+                continue
 
     raise KeyError(f"Section with index {index} not found")
 
-def get_max_section_index(section: OcrResultSection) -> int:
-    max_index = section.section_index
+def iterate_sections(section: OcrResultSection):
+    yield section
 
-    for child_section in section.child_sections:
-        child_max_index = get_max_section_index(child_section)
-        if child_max_index > max_index:
-            max_index = child_max_index
-
-    return max_index
+    for block in section.section_content:
+        if isinstance(block, OcrResultSection):
+            yield from iterate_sections(block)
 
 class LinearTools:
     def __init__(
@@ -127,7 +125,6 @@ class LinearTools:
             existing_pages=[],
             block_index=new_block_index,
             text=text,
-            text_type=block_type
         )
         section.section_content.append(new_block)
 
@@ -173,7 +170,7 @@ class LinearTools:
             return f"ERROR: Section with index {section_index_destination} not found"
 
         # Remove the block from its current section
-        for section in self._iterate_sections(self.ocr_entire_section):
+        for section in iterate_sections(self.ocr_entire_section):
             if block in section.section_content:
                 section.section_content.remove(block)
                 break
