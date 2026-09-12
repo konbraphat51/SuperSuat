@@ -2,8 +2,9 @@ from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import tool
 from ..Ocr import Ocr
-from ..OcrSchema import OcrResultSection
+from ..OcrSchema import OcrResultSection, OcrResult
 from .Tools import LinearTools
+from .OcrAgent import OcrAgent
 
 class LinearOcr(Ocr):
     def __init__(
@@ -23,6 +24,12 @@ class LinearOcr(Ocr):
         self.all_page_images = all_page_images
         self._initialize_entire_section()
         self._initialize_tools()
+        ocr_agent = OcrAgent(self.ocr_model, self.linear_tools)
+
+        for page_number in range(len(all_page_images)):
+            ocr_agent.read_page(page_number)
+
+        return OcrResult(root_section=self.entire_section)
 
 
     def _initialize_entire_section(self) -> None:
