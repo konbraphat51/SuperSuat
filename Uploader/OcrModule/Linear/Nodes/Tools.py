@@ -153,6 +153,25 @@ class LinearTools:
 
         return f"New image block added to section {section_index} with block index {new_block_index}. The caption is: \n{caption}"
 
+    def add_section(
+        self,
+        parent_section_index: int,
+    ) -> str:
+        try:
+            parent_section = find_section_by_index(parent_section_index, self.ocr_entire_section)
+        except KeyError:
+            return f"ERROR: Section with index {parent_section_index} not found"
+
+        new_section_index = get_max_block_index(self.ocr_entire_section) + 1
+        new_section = OcrResultSection(
+            section_content=[],
+            child_sections=[],
+            section_index=new_section_index
+        )
+        parent_section.section_content.append(new_section)
+
+        return f"New section added to parent section {parent_section_index} with section index {new_section_index}"
+
     def move_block(
         self,
         block_index_target: int,
