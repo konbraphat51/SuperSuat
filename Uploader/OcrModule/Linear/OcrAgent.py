@@ -7,6 +7,11 @@ from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
 from ..LlmHelper import ImageBase64, build_ocr_context_string
 
+# LangGraph counts one step per node, so a tool call costs two. This caps a
+# single page at roughly 50 tool calls; without it the default limit of ~10000
+# lets an agent stuck in a loop spend thousands of model calls before failing.
+RECURSION_LIMIT = 100
+
 class OcrAgent:
     def __init__(
         self,
@@ -57,17 +62,20 @@ class OcrAgent:
         ocr_data_json = build_ocr_context_string(self.entire_section, page_number)
         page_image_content = self.linear_tools.get_page_image(page_number)
 
-        result = self.agent.invoke({
-            "messages": [
-                HumanMessage(content=[
-                    {
-                        "type": "text",
-                        "text": f"Here is the OCR data collected so far, as JSON:\n{ocr_data_json}",
-                    },
-                    *page_image_content,
-                ])
-            ]
-        })
+        result = self.agent.invoke(
+            {
+                "messages": [
+                    HumanMessage(content=[
+                        {
+                            "type": "text",
+                            "text": f"Here is the OCR data collected so far, as JSON:\n{ocr_data_json}",
+                        },
+                        *page_image_content,
+                    ])
+                ]
+            },
+            config={"recursion_limit": RECURSION_LIMIT},
+        )
 
         last_message = result["messages"][-1]
         if getattr(last_message, "tool_calls", None):
