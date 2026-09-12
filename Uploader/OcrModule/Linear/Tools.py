@@ -148,7 +148,7 @@ class LinearTools:
         except KeyError:
             return f"ERROR: Block with index {block_index} not found"
 
-        if not isinstance(block, OcrResultBlock):
+        if not isinstance(block, OcrResultBlockText):
             return f"ERROR: Block with index {block_index} is not a text block"
 
         block.text = text
