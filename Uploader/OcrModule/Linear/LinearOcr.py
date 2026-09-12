@@ -1,8 +1,11 @@
+import logging
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResultSection, OcrResult
 from .OcrAgent import OcrAgent
+
+logger = logging.getLogger(__name__)
 
 class LinearOcr(Ocr):
     def __init__(
@@ -29,7 +32,8 @@ class LinearOcr(Ocr):
         )
 
         for page_number in range(len(all_page_images)):
-            ocr_agent.read_page(page_number)
+            if not ocr_agent.read_page(page_number):
+                logger.warning(f"Page {page_number} may be incompletely processed; continuing with remaining pages")
 
         return OcrResult(root_section=self.entire_section)
 
