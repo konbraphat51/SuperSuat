@@ -2,7 +2,7 @@ import base64
 from typing import Literal
 from io import BytesIO
 from PIL.Image import Image
-from ...OcrSchema import OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
+from ...OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
     buffered = BytesIO()
@@ -132,3 +132,26 @@ class LinearTools:
         section.section_content.append(new_block)
 
         return f"New text block added to section {section_index} with block index {new_block_index}. The text is: \n{text}"
+
+    def add_image_block(
+        self,
+        section_index: int,
+        image_data: bytes,
+        caption: str,
+    ) -> str:
+        try:
+            section = find_section_by_index(section_index, self.ocr_entire_section)
+        except KeyError:
+            return f"ERROR: Section with index {section_index} not found"
+
+        new_block_index = get_max_block_index(self.ocr_entire_section) + 1
+        new_block = OcrResultBlockImage(
+            block_type="image",
+            existing_pages=[],
+            block_index=new_block_index,
+            image_data=image_data,
+            caption=caption
+        )
+        section.section_content.append(new_block)
+
+        return f"New image block added to section {section_index} with block index {new_block_index}. The caption is: \n{caption}"
