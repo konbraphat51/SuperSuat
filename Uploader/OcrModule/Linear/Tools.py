@@ -157,15 +157,15 @@ class LinearTools:
 
     def add_text_block(
         self,
-        section_index: int,
+        section_block_index: int,
         block_type: TEXT_BLOCK_TYPES,
         text: str,
     ) -> str:
         """Add a new text block to the specified section."""
         try:
-            section = find_section_by_index(section_index, self.ocr_entire_section)
+            section = find_section_by_index(section_block_index, self.ocr_entire_section)
         except KeyError:
-            return f"ERROR: Section with index {section_index} not found"
+            return f"ERROR: Section with index {section_block_index} not found"
 
         new_block_index = get_max_block_index(self.ocr_entire_section) + 1
         new_block = OcrResultBlockText(
@@ -177,19 +177,19 @@ class LinearTools:
         section.section_content.append(new_block)
         mark_existing_page(self.ocr_entire_section, new_block_index, self.current_page_number)
 
-        return f"New text block added to section {section_index} with block index {new_block_index}. The text is: \n{text}"
+        return f"New text block added to section {section_block_index} with block index {new_block_index}. The text is: \n{text}"
 
     def add_image_block(
         self,
-        section_index: int,
+        section_block_index: int,
         bounding_box: tuple[int, int, int, int],
         caption: str,
     ) -> str:
         """Add a new image block to the specified section."""
         try:
-            section = find_section_by_index(section_index, self.ocr_entire_section)
+            section = find_section_by_index(section_block_index, self.ocr_entire_section)
         except KeyError:
-            return f"ERROR: Section with index {section_index} not found"
+            return f"ERROR: Section with index {section_block_index} not found"
 
         new_block_index = get_max_block_index(self.ocr_entire_section) + 1
         new_block = OcrResultBlockImage(
@@ -202,17 +202,17 @@ class LinearTools:
         section.section_content.append(new_block)
         mark_existing_page(self.ocr_entire_section, new_block_index, self.current_page_number)
 
-        return f"New image block added to section {section_index} with block index {new_block_index}. The caption is: \n{caption}"
+        return f"New image block added to section {section_block_index} with block index {new_block_index}. The caption is: \n{caption}"
 
     def add_section(
         self,
-        parent_section_index: int,
+        parent_section_block_index: int,
     ) -> str:
         """Add a new empty section under the specified parent section."""
         try:
-            parent_section = find_section_by_index(parent_section_index, self.ocr_entire_section)
+            parent_section = find_section_by_index(parent_section_block_index, self.ocr_entire_section)
         except KeyError:
-            return f"ERROR: Section with index {parent_section_index} not found"
+            return f"ERROR: Section with index {parent_section_block_index} not found"
 
         new_section_index = get_max_block_index(self.ocr_entire_section) + 1
         new_section = OcrResultSection(
@@ -224,12 +224,12 @@ class LinearTools:
         parent_section.section_content.append(new_section)
         mark_existing_page(self.ocr_entire_section, new_section_index, self.current_page_number)
 
-        return f"New section added to parent section {parent_section_index} with section index {new_section_index}"
+        return f"New section added to parent section {parent_section_block_index} with section index {new_section_index}"
 
     def move_block(
         self,
         block_index_target: int,
-        section_index_destination: int,
+        destination_section_block_index: int,
         block_number_destination: int | None = None, # if None, append to the end of the section
     ) -> str:
         """Move a block to a different section and position."""
@@ -253,9 +253,9 @@ class LinearTools:
 
         # Find destination section
         try:
-            destination_section = find_section_by_index(section_index_destination, self.ocr_entire_section)
+            destination_section = find_section_by_index(destination_section_block_index, self.ocr_entire_section)
         except KeyError:
-            return f"ERROR: Section with index {section_index_destination} not found"
+            return f"ERROR: Section with index {destination_section_block_index} not found"
 
         # Remove block from parent section
         parent_section.section_content.pop(block_index_in_parent)
@@ -270,7 +270,7 @@ class LinearTools:
             destination_section.section_content.insert(block_number_destination, block_to_move)
             position_str = str(block_number_destination)
 
-        return f"Block with index {block_index_target} has been moved to section {section_index_destination} at position {position_str}"
+        return f"Block with index {block_index_target} has been moved to section {destination_section_block_index} at position {position_str}"
 
     def clip_image(
         self,
