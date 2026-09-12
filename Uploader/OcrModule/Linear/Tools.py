@@ -229,20 +229,20 @@ class LinearTools:
         self,
         block_index_target: int,
         destination_section_block_index: int,
-        block_number_destination: int | None = None, # if None, append to the end of the section
+        before_block_index: int | None = None, # if None, append to the end of the section
     ) -> str:
-        """Move a block to a different section and position. block_number_destination is the index the block should end up at within the destination section's content list."""
+        """Move a block to a different section and position. The block is placed immediately before the block with before_block_index, which must be directly inside the destination section; if before_block_index is None, the block is appended to the end of the destination section."""
         # Find the block and its parent section
         parent_section = None
         block_to_move = None
-        block_index_in_parent = None
+        block_position_in_parent = None
 
         for section in iterate_sections(self.ocr_entire_section):
             for i, block in enumerate(section.section_content):
                 if block.block_index == block_index_target:
                     parent_section = section
                     block_to_move = block
-                    block_index_in_parent = i
+                    block_position_in_parent = i
                     break
             if block_to_move is not None:
                 break
@@ -266,28 +266,30 @@ class LinearTools:
 
         # Validate the destination position before touching the document, so a
         # rejected move doesn't leave the block removed from the tree
-        if block_number_destination is not None:
-            # the block itself is about to leave its parent, so the destination
-            # is one shorter when the move stays inside the same section
-            destination_length = len(destination_section.section_content)
-            if parent_section is destination_section:
-                destination_length -= 1
+        if before_block_index is not None:
+            if before_block_index == block_index_target:
+                return f"ERROR: Cannot move block {block_index_target} before itself"
 
-            if block_number_destination < 0 or block_number_destination > destination_length:
-                return f"ERROR: Invalid block_number_destination {block_number_destination}. Must be between 0 and {destination_length}"
+            if not any(block.block_index == before_block_index for block in destination_section.section_content):
+                return f"ERROR: Block with index {before_block_index} is not directly inside section {destination_section_block_index}"
 
         # Remove block from parent section
-        parent_section.section_content.pop(block_index_in_parent)
+        parent_section.section_content.pop(block_position_in_parent)
 
         # Insert block into destination section
-        if block_number_destination is None:
+        if before_block_index is None:
             destination_section.section_content.append(block_to_move)
-            position_str = "end"
+            position_str = "at the end"
         else:
-            destination_section.section_content.insert(block_number_destination, block_to_move)
-            position_str = str(block_number_destination)
+            # looked up again because the removal above may have shifted it
+            before_block_position = next(
+                i for i, block in enumerate(destination_section.section_content)
+                if block.block_index == before_block_index
+            )
+            destination_section.section_content.insert(before_block_position, block_to_move)
+            position_str = f"before block {before_block_index}"
 
-        return f"Block with index {block_index_target} has been moved to section {destination_section_block_index} at position {position_str}"
+        return f"Block with index {block_index_target} has been moved to section {destination_section_block_index} {position_str}"
 
     def clip_image(
         self,
