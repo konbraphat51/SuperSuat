@@ -24,7 +24,7 @@ class OcrResultBlockText(OcrResultBlock):
 
 @dataclass
 class OcrResultBlockImage(OcrResultBlock):
-    image_data: bytes
+    bounding_box: tuple[int, int, int, int] # (x, y, width, height)
     caption: str
 
 
