@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from typing import Literal
 from langchain_core.language_models import BaseChatModel
 from ..OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
@@ -89,41 +88,6 @@ def iterate_sections(section: OcrResultSection):
     for block in section.section_content:
         if isinstance(block, OcrResultSection):
             yield from iterate_sections(block)
-
-def build_context_dict(
-    section: OcrResultSection,
-    current_page_number: int,
-    recent_page_window: int = 1,
-    truncate_length: int = 200,
-) -> dict:
-    """Serialize the section tree for the agent's prompt, truncating the text of
-    blocks that are not on or near the current page. Without this, the full text
-    of every block ever added is resent on every page, so context size grows
-    without bound over the course of a long document."""
-    content = []
-    for block in section.section_content:
-        if isinstance(block, OcrResultSection):
-            content.append(build_context_dict(block, current_page_number, recent_page_window, truncate_length))
-        elif isinstance(block, OcrResultBlockText):
-            text = block.text
-            is_recent = bool(block.existing_pages) and max(block.existing_pages) >= current_page_number - recent_page_window
-            if not is_recent and len(text) > truncate_length:
-                text = f"{text[:truncate_length]}... [truncated, {len(text)} chars total]"
-            content.append({
-                "block_type": block.block_type,
-                "existing_pages": block.existing_pages,
-                "block_index": block.block_index,
-                "text": text,
-            })
-        else:
-            content.append(asdict(block))
-
-    return {
-        "block_type": section.block_type,
-        "existing_pages": section.existing_pages,
-        "block_index": section.block_index,
-        "section_content": content,
-    }
 
 class LinearTools:
     def __init__(

@@ -1,12 +1,11 @@
-import json
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain.agents import create_agent
-from .Tools import LinearTools, build_context_dict
+from .Tools import LinearTools
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
-from ..LlmHelper import ImageBase64
+from ..LlmHelper import ImageBase64, build_ocr_context_string
 
 class OcrAgent:
     def __init__(
@@ -55,8 +54,7 @@ class OcrAgent:
     ) -> None:
         self.linear_tools.set_current_page(page_number)
 
-        context_dict = build_context_dict(self.entire_section, page_number)
-        ocr_data_json = json.dumps(context_dict, ensure_ascii=False, indent=2)
+        ocr_data_json = build_ocr_context_string(self.entire_section, page_number)
         page_image_content = self.linear_tools.get_page_image(page_number)
 
         result = self.agent.invoke({
