@@ -112,12 +112,13 @@ class LinearTools:
     def set_current_page(
         self,
         page_number: int,
-    ) -> None:
+    ) -> str:
         """Set the page number currently being processed."""
         if page_number < 0 or page_number >= len(self.all_page_images):
-            raise ValueError(f"Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}")
+            return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}"
 
         self.current_page_number = page_number
+        return f"Current page set to {page_number}"
 
     def get_page_image(self, page_number: int):
         """Get the image of the specified page number."""
