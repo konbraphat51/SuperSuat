@@ -1,6 +1,12 @@
+import json
+from dataclasses import asdict
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import BaseTool
+from langgraph.prebuilt import create_react_agent
 from .Tools import LinearTools
+from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
 
 class OcrAgent:
@@ -8,16 +14,37 @@ class OcrAgent:
         self,
         ocr_model: BaseChatModel,
         linear_tools: LinearTools,
-        all_page_images: list[Image],
-        entire_section: OcrResultSection
+        entire_section: OcrResultSection,
+        tools: list[BaseTool],
     ) -> None:
         self.ocr_model = ocr_model
         self.linear_tools = linear_tools
-        self.all_page_images = all_page_images
         self.entire_section = entire_section
+        self.tools = tools
 
     def read_page(
         self,
         page_number: int,
     ) -> None:
-        raise NotImplementedError("The read_page method is not implemented yet. Please implement this method to perform OCR on the specified page number.")
+        self.linear_tools.set_current_page(page_number)
+
+        agent = create_react_agent(
+            self.ocr_model,
+            self.tools,
+            prompt=OCR_AGENT_SYSTEM_PROMPT,
+        )
+
+        ocr_data_json = json.dumps(asdict(self.entire_section), ensure_ascii=False, indent=2)
+        page_image_content = self.linear_tools.get_page_image(page_number)
+
+        agent.invoke({
+            "messages": [
+                HumanMessage(content=[
+                    {
+                        "type": "text",
+                        "text": f"Here is the OCR data collected so far, as JSON:\n{ocr_data_json}",
+                    },
+                    *page_image_content,
+                ])
+            ]
+        })
