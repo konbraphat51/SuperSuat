@@ -39,6 +39,7 @@ class OcrResultBlockImage(OcrResultBlock):
 class OcrResultSection:
     section_content: list[OcrResultBlock]
     child_sections: list["OcrResultSection"]
+    section_index: int # this is unique within the document
 
 
 @dataclass
