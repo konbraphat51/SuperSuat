@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, get_args
 
 TEXT_BLOCK_TYPES = Literal[
     "paragraph",
@@ -22,7 +22,7 @@ class OcrResultBlockText(OcrResultBlock):
     text: str
 
     def __post_init__(self):
-        if self.block_type not in TEXT_BLOCK_TYPES:
+        if self.block_type not in get_args(TEXT_BLOCK_TYPES):
             raise ValueError(f"Invalid block_type for OcrResultBlockText: {self.block_type}")
 
 @dataclass
