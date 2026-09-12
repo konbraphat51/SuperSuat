@@ -89,6 +89,21 @@ def iterate_sections(section: OcrResultSection):
         if isinstance(block, OcrResultSection):
             yield from iterate_sections(block)
 
+def recompute_existing_pages(section: OcrResultSection) -> list[int]:
+    """Recomputes existing_pages of `section` and of every section under it as the union of the pages of its contents, and returns the section's pages. A section with no contents keeps the pages it already has, since it has nothing to derive them from."""
+    pages: set[int] = set()
+
+    for block in section.section_content:
+        if isinstance(block, OcrResultSection):
+            pages.update(recompute_existing_pages(block))
+        else:
+            pages.update(block.existing_pages)
+
+    if section.section_content:
+        section.existing_pages = sorted(pages)
+
+    return section.existing_pages
+
 class LinearTools:
     def __init__(
         self,
@@ -288,6 +303,10 @@ class LinearTools:
             )
             destination_section.section_content.insert(before_block_position, block_to_move)
             position_str = f"before block {before_block_index}"
+
+        # the moved block takes its pages with it, so both the section it left
+        # and the one it joined (and their ancestors) need their pages redone
+        recompute_existing_pages(self.ocr_entire_section)
 
         return f"Block with index {block_index_target} has been moved to section {destination_section_block_index} {position_str}"
 
