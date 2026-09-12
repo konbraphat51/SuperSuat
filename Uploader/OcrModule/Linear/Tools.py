@@ -3,7 +3,7 @@ from typing import Literal
 from io import BytesIO
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
-from ...OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
+from ..OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
 from .Clipper import clip_image_with_agent
 
 
