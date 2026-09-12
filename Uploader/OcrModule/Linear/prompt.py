@@ -6,7 +6,7 @@ You are given:
 - The image of the page you are currently processing.
 
 Each text block has a block_type, one of:
-- paragraph: the main body text of the document.
+- paragraph: the main body text of the document. Write in Markdown format.
 - heading: any heading, including chapter titles, section headings, and the document's own title.
 - document_index: elements that don't directly contribute to the content, such as page numbers or a running book/chapter title printed at the top or bottom of the page.
 - note: a footnote, endnote, sidenote, or similar.
