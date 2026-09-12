@@ -320,6 +320,13 @@ class LinearTools:
 
         current_page = self.all_pages[self.current_page_number]
 
-        result = clip_image_with_agent(self.clipper_model, order, current_page.b64, current_page.size)
+        # the clipper is a separate model call, so it can fail on its own
+        # (rate limit, timeout, malformed structured output). Report that back
+        # to the agent like any other tool error instead of letting it escape
+        # and abort the whole document.
+        try:
+            result = clip_image_with_agent(self.clipper_model, order, current_page.b64, current_page.size)
+        except Exception as error:
+            return f"ERROR: The clipping agent failed: {error}"
 
         return f"Clipped bounding box: {result.bounding_box}"
