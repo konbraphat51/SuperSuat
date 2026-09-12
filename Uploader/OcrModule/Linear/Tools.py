@@ -232,7 +232,7 @@ class LinearTools:
         destination_section_block_index: int,
         block_number_destination: int | None = None, # if None, append to the end of the section
     ) -> str:
-        """Move a block to a different section and position."""
+        """Move a block to a different section and position. block_number_destination is the index the block should end up at within the destination section's content list."""
         # Find the block and its parent section
         parent_section = None
         block_to_move = None
@@ -250,6 +250,14 @@ class LinearTools:
 
         if block_to_move is None:
             return f"ERROR: Block with index {block_index_target} not found"
+
+        # A section can't be moved into itself or one of its own descendants
+        if isinstance(block_to_move, OcrResultSection):
+            if any(
+                sub_section.block_index == destination_section_block_index
+                for sub_section in iterate_sections(block_to_move)
+            ):
+                return f"ERROR: Cannot move section {block_index_target} into itself or one of its own descendant sections"
 
         # Find destination section
         try:
