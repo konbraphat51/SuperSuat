@@ -20,6 +20,7 @@ class OcrAgent:
         self.ocr_model = ocr_model
         self.entire_section = entire_section
         self._initialize_tools(all_page_images, clipper_model)
+        self._initialize_agent()
 
     def _initialize_tools(
         self,
@@ -42,22 +43,23 @@ class OcrAgent:
             tool(self.linear_tools.clip_image),
         ]
 
+    def _initialize_agent(self) -> None:
+        self.agent = create_agent(
+            self.ocr_model,
+            self.tools,
+            system_prompt=OCR_AGENT_SYSTEM_PROMPT,
+        )
+
     def read_page(
         self,
         page_number: int,
     ) -> None:
         self.linear_tools.set_current_page(page_number)
 
-        agent = create_agent(
-            self.ocr_model,
-            self.tools,
-            system_prompt=OCR_AGENT_SYSTEM_PROMPT,
-        )
-
         ocr_data_json = json.dumps(asdict(self.entire_section), ensure_ascii=False, indent=2)
         page_image_content = self.linear_tools.get_page_image(page_number)
 
-        agent.invoke({
+        self.agent.invoke({
             "messages": [
                 HumanMessage(content=[
                     {
