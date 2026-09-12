@@ -194,7 +194,10 @@ class LinearTools:
         bounding_box: tuple[int, int, int, int],
         caption: str,
     ) -> str:
-        """Add a new image block to the specified section."""
+        """Add a new image block to the specified section. bounding_box must be in the pixel coordinates of the current page (as set by set_current_page)."""
+        if self.current_page_number == -1:
+            return "ERROR: Current page is not set. Please set the current page first."
+
         try:
             section = find_section_by_index(section_block_index, self.ocr_entire_section)
         except KeyError:
@@ -205,6 +208,7 @@ class LinearTools:
             block_type="image",
             existing_pages=[],
             block_index=new_block_index,
+            page_number=self.current_page_number,
             bounding_box=bounding_box,
             caption=caption
         )
@@ -298,7 +302,8 @@ class LinearTools:
             return "ERROR: Current page is not set. Please set the current page first."
 
         img_b64 = self._get_page_b64(self.current_page_number)
+        image_size = self.all_page_images[self.current_page_number].size
 
-        result = clip_image_with_agent(self.clipper_model, order, img_b64)
+        result = clip_image_with_agent(self.clipper_model, order, img_b64, image_size)
 
         return f"Clipped bounding box: {result.bounding_box}"

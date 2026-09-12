@@ -27,7 +27,8 @@ class OcrResultBlockText(OcrResultBlock):
 
 @dataclass
 class OcrResultBlockImage(OcrResultBlock):
-    bounding_box: tuple[int, int, int, int] # (x, y, width, height)
+    page_number: int # the page whose pixel coordinates bounding_box is expressed in, 0-indexed
+    bounding_box: tuple[int, int, int, int] # (x, y, width, height), in page_number's pixel space
     caption: str
 
     def __post_init__(self):

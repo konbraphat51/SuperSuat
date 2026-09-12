@@ -13,14 +13,32 @@ def clip_image_with_agent(
     clipper_model: BaseChatModel,
     order: str,
     img_b64: str,
+    image_size: tuple[int, int],
 ) -> BoundingBoxOutput:
+    width, height = image_size
+    instruction = (
+        f"{order}\n\n"
+        f"The image is {width}x{height} pixels. Return the bounding box in pixel "
+        f"coordinates (x, y, width, height) relative to the image's top-left corner, "
+        f"with 0 <= x <= {width} and 0 <= y <= {height}."
+    )
+
     structured_clipper_model = clipper_model.with_structured_output(BoundingBoxOutput)
-    return structured_clipper_model.invoke([
+    result = structured_clipper_model.invoke([
         HumanMessage(content=[
-            {"type": "text", "text": order},
+            {"type": "text", "text": instruction},
             {
                 "type": "image_url",
                 "image_url": {"url": f"data:image/png;base64,{img_b64}"},
             },
         ])
     ])
+
+    x, y, box_width, box_height = result.bounding_box
+    x = min(max(x, 0), width)
+    y = min(max(y, 0), height)
+    box_width = min(max(box_width, 0), width - x)
+    box_height = min(max(box_height, 0), height - y)
+    result.bounding_box = (x, y, box_width, box_height)
+
+    return result
