@@ -4,7 +4,7 @@ from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from .Tools import LinearTools
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
@@ -49,10 +49,10 @@ class OcrAgent:
     ) -> None:
         self.linear_tools.set_current_page(page_number)
 
-        agent = create_react_agent(
+        agent = create_agent(
             self.ocr_model,
             self.tools,
-            prompt=OCR_AGENT_SYSTEM_PROMPT,
+            system_prompt=OCR_AGENT_SYSTEM_PROMPT,
         )
 
         ocr_data_json = json.dumps(asdict(self.entire_section), ensure_ascii=False, indent=2)
