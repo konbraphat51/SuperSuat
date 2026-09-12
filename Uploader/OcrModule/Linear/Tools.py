@@ -264,6 +264,18 @@ class LinearTools:
         except KeyError:
             return f"ERROR: Section with index {destination_section_block_index} not found"
 
+        # Validate the destination position before touching the document, so a
+        # rejected move doesn't leave the block removed from the tree
+        if block_number_destination is not None:
+            # the block itself is about to leave its parent, so the destination
+            # is one shorter when the move stays inside the same section
+            destination_length = len(destination_section.section_content)
+            if parent_section is destination_section:
+                destination_length -= 1
+
+            if block_number_destination < 0 or block_number_destination > destination_length:
+                return f"ERROR: Invalid block_number_destination {block_number_destination}. Must be between 0 and {destination_length}"
+
         # Remove block from parent section
         parent_section.section_content.pop(block_index_in_parent)
 
@@ -272,8 +284,6 @@ class LinearTools:
             destination_section.section_content.append(block_to_move)
             position_str = "end"
         else:
-            if block_number_destination < 0 or block_number_destination > len(destination_section.section_content):
-                return f"ERROR: Invalid block_number_destination {block_number_destination}. Must be between 0 and {len(destination_section.section_content)}"
             destination_section.section_content.insert(block_number_destination, block_to_move)
             position_str = str(block_number_destination)
 
