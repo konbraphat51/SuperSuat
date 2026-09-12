@@ -24,7 +24,12 @@ class LinearOcr(Ocr):
         self.all_page_images = all_page_images
         self._initialize_entire_section()
         self._initialize_tools()
-        ocr_agent = OcrAgent(self.ocr_model, self.linear_tools)
+        ocr_agent = OcrAgent(
+            ocr_model=self.ocr_model,
+            linear_tools=self.linear_tools,
+            all_page_images=self.all_page_images,
+            entire_section=self.entire_section
+        )
 
         for page_number in range(len(all_page_images)):
             ocr_agent.read_page(page_number)
