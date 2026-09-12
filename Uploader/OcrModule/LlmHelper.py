@@ -71,6 +71,29 @@ def _collect_keep_block_indices(
     visit(root_section)
     return keep_indices
 
+def format_existing_pages(pages: list[int]) -> str:
+    """Collapses a page list into range notation ("0-3,7"). A section near the
+    end of a long document is present on every page seen so far, which costs
+    one entry per page if written out as a list."""
+    if not pages:
+        return ""
+
+    ordered = sorted(set(pages))
+    ranges: list[tuple[int, int]] = []
+    start = previous = ordered[0]
+
+    for page in ordered[1:]:
+        if page == previous + 1:
+            previous = page
+            continue
+
+        ranges.append((start, previous))
+        start = previous = page
+
+    ranges.append((start, previous))
+
+    return ",".join(str(first) if first == last else f"{first}-{last}" for first, last in ranges)
+
 def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> dict:
     content: list = []
     omitted_pending = False
@@ -84,7 +107,10 @@ def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> di
             if omitted_pending:
                 content.append(OMITTED_MARKER)
                 omitted_pending = False
-            content.append(asdict(block))
+
+            block_dict = asdict(block)
+            block_dict["existing_pages"] = format_existing_pages(block.existing_pages)
+            content.append(block_dict)
         else:
             omitted_pending = True
 
@@ -93,7 +119,7 @@ def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> di
 
     return {
         "block_type": section.block_type,
-        "existing_pages": section.existing_pages,
+        "existing_pages": format_existing_pages(section.existing_pages),
         "block_index": section.block_index,
         "section_content": content,
     }
@@ -114,4 +140,7 @@ def build_ocr_context_string(
     Everything else is replaced with an ellipsis marker."""
     keep_indices = _collect_keep_block_indices(root_section, current_page_number, recent_page_count)
     context_dict = _build_context_node(root_section, keep_indices)
-    return json.dumps(context_dict, ensure_ascii=False, indent=2)
+    # compact separators rather than indentation: the scaffolding of a document
+    # with many sections is resent on every page, and indenting it roughly
+    # doubles that cost for no gain to the model reading it
+    return json.dumps(context_dict, ensure_ascii=False, separators=(",", ":"))
