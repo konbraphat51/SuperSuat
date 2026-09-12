@@ -108,6 +108,12 @@ class LinearTools:
         self.ocr_entire_section = ocr_entire_section
         self.clipper_model = clipper_model
         self.current_page_number = -1  # 0-indexed
+        self._page_b64_cache: dict[int, str] = {}
+
+    def _get_page_b64(self, page_number: int) -> str:
+        if page_number not in self._page_b64_cache:
+            self._page_b64_cache[page_number] = pil_to_base64(self.all_page_images[page_number])
+        return self._page_b64_cache[page_number]
 
     def set_current_page(
         self,
@@ -125,8 +131,7 @@ class LinearTools:
         if page_number < 0 or page_number >= len(self.all_page_images):
             return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}"
 
-        img = self.all_page_images[page_number]
-        img_b64 = pil_to_base64(img)
+        img_b64 = self._get_page_b64(page_number)
 
         return [
             {
@@ -292,8 +297,7 @@ class LinearTools:
         if self.current_page_number == -1:
             return "ERROR: Current page is not set. Please set the current page first."
 
-        img = self.all_page_images[self.current_page_number]
-        img_b64 = pil_to_base64(img)
+        img_b64 = self._get_page_b64(self.current_page_number)
 
         result = clip_image_with_agent(self.clipper_model, order, img_b64)
 
