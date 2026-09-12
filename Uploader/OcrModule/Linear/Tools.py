@@ -1,18 +1,9 @@
-import base64
 from dataclasses import asdict
 from typing import Literal
-from io import BytesIO
-from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from ..OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
 from .Clipper import clip_image_with_agent
 
-
-def pil_to_base64(img: Image, format: str = "PNG") -> str:
-    buffered = BytesIO()
-    img.save(buffered, format=format)
-    img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    return img_b64
 
 def find_block_by_index(
     index: int,
@@ -136,38 +127,34 @@ def build_context_dict(
 class LinearTools:
     def __init__(
         self,
-        all_page_images: list[Image],
+        all_page_b64: list[str],
+        all_page_sizes: list[tuple[int, int]],
         ocr_entire_section: OcrResultSection,
         clipper_model: BaseChatModel,
     ) -> None:
-        self.all_page_images = all_page_images
+        self.all_page_b64 = all_page_b64
+        self.all_page_sizes = all_page_sizes
         self.ocr_entire_section = ocr_entire_section
         self.clipper_model = clipper_model
         self.current_page_number = -1  # 0-indexed
-        self._page_b64_cache: dict[int, str] = {}
-
-    def _get_page_b64(self, page_number: int) -> str:
-        if page_number not in self._page_b64_cache:
-            self._page_b64_cache[page_number] = pil_to_base64(self.all_page_images[page_number])
-        return self._page_b64_cache[page_number]
 
     def set_current_page(
         self,
         page_number: int,
     ) -> str:
         """Set the page number currently being processed."""
-        if page_number < 0 or page_number >= len(self.all_page_images):
-            return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}"
+        if page_number < 0 or page_number >= len(self.all_page_b64):
+            return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_page_b64) - 1}"
 
         self.current_page_number = page_number
         return f"Current page set to {page_number}"
 
     def get_page_image(self, page_number: int):
         """Get the image of the specified page number."""
-        if page_number < 0 or page_number >= len(self.all_page_images):
-            return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}"
+        if page_number < 0 or page_number >= len(self.all_page_b64):
+            return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_page_b64) - 1}"
 
-        img_b64 = self._get_page_b64(page_number)
+        img_b64 = self.all_page_b64[page_number]
 
         return [
             {
@@ -337,8 +324,8 @@ class LinearTools:
         if self.current_page_number == -1:
             return "ERROR: Current page is not set. Please set the current page first."
 
-        img_b64 = self._get_page_b64(self.current_page_number)
-        image_size = self.all_page_images[self.current_page_number].size
+        img_b64 = self.all_page_b64[self.current_page_number]
+        image_size = self.all_page_sizes[self.current_page_number]
 
         result = clip_image_with_agent(self.clipper_model, order, img_b64, image_size)
 

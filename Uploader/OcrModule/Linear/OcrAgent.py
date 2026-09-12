@@ -1,6 +1,5 @@
 import json
 import logging
-from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
@@ -17,21 +16,24 @@ class OcrAgent:
         self,
         ocr_model: BaseChatModel,
         clipper_model: BaseChatModel,
-        all_page_images: list[Image],
+        all_page_b64: list[str],
+        all_page_sizes: list[tuple[int, int]],
         entire_section: OcrResultSection,
     ) -> None:
         self.ocr_model = ocr_model
         self.entire_section = entire_section
-        self._initialize_tools(all_page_images, clipper_model)
+        self._initialize_tools(all_page_b64, all_page_sizes, clipper_model)
         self._initialize_agent()
 
     def _initialize_tools(
         self,
-        all_page_images: list[Image],
+        all_page_b64: list[str],
+        all_page_sizes: list[tuple[int, int]],
         clipper_model: BaseChatModel,
     ) -> None:
         self.linear_tools = LinearTools(
-            all_page_images=all_page_images,
+            all_page_b64=all_page_b64,
+            all_page_sizes=all_page_sizes,
             ocr_entire_section=self.entire_section,
             clipper_model=clipper_model,
         )
