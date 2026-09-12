@@ -1,6 +1,6 @@
 from typing import Literal
 from langchain_core.language_models import BaseChatModel
-from ..OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
+from ..OcrSchema import OcrResultBlockFigure, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
 from ..LlmHelper import ImageBase64
 from .Clipper import clip_image_with_agent
 
@@ -195,7 +195,7 @@ class LinearTools:
         bounding_box: tuple[int, int, int, int],
         caption: str,
     ) -> str:
-        """Add a new image block to the specified section. bounding_box must be in the pixel coordinates of the current page (as set by set_current_page)."""
+        """Add a new figure block to the specified section. bounding_box must be in the pixel coordinates of the current page (as set by set_current_page)."""
         if self.current_page_number == -1:
             return "ERROR: Current page is not set. Please set the current page first."
 
@@ -205,8 +205,8 @@ class LinearTools:
             return f"ERROR: Section with index {section_block_index} not found"
 
         new_block_index = get_max_block_index(self.ocr_entire_section) + 1
-        new_block = OcrResultBlockImage(
-            block_type="image",
+        new_block = OcrResultBlockFigure(
+            block_type="figure",
             existing_pages=[],
             block_index=new_block_index,
             page_number=self.current_page_number,
@@ -216,7 +216,7 @@ class LinearTools:
         section.section_content.append(new_block)
         mark_existing_page(self.ocr_entire_section, new_block_index, self.current_page_number)
 
-        return f"New image block added to section {section_block_index} with block index {new_block_index}. The caption is: \n{caption}"
+        return f"New figure block added to section {section_block_index} with block index {new_block_index}. The caption is: \n{caption}"
 
     def add_section(
         self,

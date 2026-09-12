@@ -12,7 +12,7 @@ TEXT_BLOCK_TYPES = Literal[
 
 @dataclass
 class OcrResultBlock:
-    block_type: TEXT_BLOCK_TYPES | Literal["image", "section"]
+    block_type: TEXT_BLOCK_TYPES | Literal["figure", "section"]
     existing_pages: list[int]   # Pages that this block is present on. 0-indexed
     block_index: int # this is unique within the document
 
@@ -25,13 +25,13 @@ class OcrResultBlockText(OcrResultBlock):
             raise ValueError(f"Invalid block_type for OcrResultBlockText: {self.block_type}")
 
 @dataclass
-class OcrResultBlockImage(OcrResultBlock):
+class OcrResultBlockFigure(OcrResultBlock):
     page_number: int # the page whose pixel coordinates bounding_box is expressed in, 0-indexed
     bounding_box: tuple[int, int, int, int] # (x, y, width, height), in page_number's pixel space
     caption: str
 
     def __post_init__(self):
-        self.block_type = "image"
+        self.block_type = "figure"
 
 
 @dataclass
