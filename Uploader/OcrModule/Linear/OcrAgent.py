@@ -1,13 +1,12 @@
 import json
 import logging
-from dataclasses import asdict
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 from langgraph.errors import GraphRecursionError
-from .Tools import LinearTools
+from .Tools import LinearTools, build_context_dict
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
 
@@ -61,7 +60,8 @@ class OcrAgent:
         """Process the given page. Returns whether the page was fully processed."""
         self.linear_tools.set_current_page(page_number)
 
-        ocr_data_json = json.dumps(asdict(self.entire_section), ensure_ascii=False, indent=2)
+        context_dict = build_context_dict(self.entire_section, page_number)
+        ocr_data_json = json.dumps(context_dict, ensure_ascii=False, indent=2)
         page_image_content = self.linear_tools.get_page_image(page_number)
 
         try:
