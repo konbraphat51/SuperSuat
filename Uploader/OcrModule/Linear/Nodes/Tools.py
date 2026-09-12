@@ -1,13 +1,29 @@
 import base64
 from io import BytesIO
 from PIL.Image import Image
-from ...OcrSchema import OcrResultSection
+from ...OcrSchema import OcrResultSection, OcrResultBlock
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
     buffered = BytesIO()
     img.save(buffered, format=format)
     img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return img_b64
+
+def find_block_by_index(
+    index: int,
+    section: OcrResultSection,
+) -> OcrResultBlock:
+    for block in section.section_content:
+        if block.block_index == index:
+            return block
+
+    for child_section in section.child_sections:
+        try:
+            return find_block_by_index(index, child_section)
+        except KeyError:
+            continue
+
+    raise KeyError(f"Block with index {index} not found")
 
 class LinearTools:
     def __init__(
@@ -37,3 +53,19 @@ class LinearTools:
                 }
             }
         ]
+
+    def edit_block(
+        self,
+        block_index: int,
+        text: str,
+    ) -> str:
+        try:
+            block = find_block_by_index(block_index, self.ocr_entire_section)
+        except KeyError:
+            return f"ERROR: Block with index {block_index} not found"
+
+        if not isinstance(block, OcrResultBlock):
+            return f"ERROR: Block with index {block_index} is not a text block"
+
+        block.text = text
+        return f"Block with index {block_index} has been updated successfully. The new text is: \n{text}"
