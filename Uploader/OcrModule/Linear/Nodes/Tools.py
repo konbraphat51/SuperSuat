@@ -156,3 +156,37 @@ class LinearTools:
 
         return f"New image block added to section {section_index} with block index {new_block_index}. The caption is: \n{caption}"
 
+    def move_block(
+        self,
+        block_index_target: int,
+        section_index_destination: int,
+        block_index_destination: int | None = None, # if None, append to the end of the section
+    ) -> str:
+        try:
+            block = find_block_by_index(block_index_target, self.ocr_entire_section)
+        except KeyError:
+            return f"ERROR: Block with index {block_index_target} not found"
+
+        try:
+            destination_section = find_section_by_index(section_index_destination, self.ocr_entire_section)
+        except KeyError:
+            return f"ERROR: Section with index {section_index_destination} not found"
+
+        # Remove the block from its current section
+        for section in self._iterate_sections(self.ocr_entire_section):
+            if block in section.section_content:
+                section.section_content.remove(block)
+                break
+
+        # Insert the block into the destination section
+        if block_index_destination is None:
+            destination_section.section_content.append(block)
+        else:
+            for i, b in enumerate(destination_section.section_content):
+                if b.block_index == block_index_destination:
+                    destination_section.section_content.insert(i, block)
+                    break
+            else:
+                return f"ERROR: Block with index {block_index_destination} not found in section {section_index_destination}"
+
+        return f"Block with index {block_index_target} has been moved to section {section_index_destination}."
