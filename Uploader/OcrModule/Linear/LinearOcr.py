@@ -36,7 +36,8 @@ class LinearOcr(Ocr):
 
     def _initialize_entire_section(self) -> None:
         self.entire_section = OcrResultSection(
-            section_content=[],
-            section_index=0,
+            block_type="section",
             existing_pages=[],
+            block_index=0,
+            section_content=[],
         )

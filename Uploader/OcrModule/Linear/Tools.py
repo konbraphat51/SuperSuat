@@ -216,9 +216,10 @@ class LinearTools:
 
         new_section_index = get_max_block_index(self.ocr_entire_section) + 1
         new_section = OcrResultSection(
+            block_type="section",
+            existing_pages=[],
+            block_index=new_section_index,
             section_content=[],
-            child_sections=[],
-            section_index=new_section_index
         )
         parent_section.section_content.append(new_section)
         mark_existing_page(self.ocr_entire_section, new_section_index, self.current_page_number)
