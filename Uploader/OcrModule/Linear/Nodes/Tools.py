@@ -136,7 +136,7 @@ class LinearTools:
     def add_image_block(
         self,
         section_index: int,
-        image_data: bytes,
+        bounding_box: tuple[int, int, int, int],
         caption: str,
     ) -> str:
         try:
@@ -149,9 +149,10 @@ class LinearTools:
             block_type="image",
             existing_pages=[],
             block_index=new_block_index,
-            image_data=image_data,
+            bounding_box=bounding_box,
             caption=caption
         )
         section.section_content.append(new_block)
 
         return f"New image block added to section {section_index} with block index {new_block_index}. The caption is: \n{caption}"
+
