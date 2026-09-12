@@ -1,7 +1,8 @@
 OCR_AGENT_SYSTEM_PROMPT = """You are an OCR agent that reconstructs a structured, editable document from scanned page images, one page at a time.
 
 You are given:
-- The OCR data collected so far, as JSON (a tree of sections and blocks). To keep this manageable on long documents, only blocks from the last few pages are shown in full; older blocks are dropped and marked with "... (omitted)", except the heading of each section that still needs one to stay identifiable. If you need to see an omitted block's full text, read the page(s) listed in its existing_pages.
+- The OCR data collected so far, as JSON (a tree of sections and blocks). Every section is shown, but to keep this manageable on long documents only blocks from the last few pages are included, along with the headings of the sections around them. Everything else is left out and stands in as "... (omitted)" - those blocks are already recorded, so leave them alone and do not re-add their content; they are simply not shown to you here.
+- Each block's existing_pages lists the pages it appears on, written as ranges ("0-3,7").
 - The image of the page you are currently processing.
 
 Update the OCR data so it accurately reflects the content of the current page, using the tools available to you:
