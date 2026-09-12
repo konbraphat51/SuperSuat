@@ -21,16 +21,25 @@ class OcrResultBlock:
 class OcrResultBlockText(OcrResultBlock):
     text: str
 
+    def __post_init__(self):
+        if self.block_type not in TEXT_BLOCK_TYPES:
+            raise ValueError(f"Invalid block_type for OcrResultBlockText: {self.block_type}")
+
 @dataclass
 class OcrResultBlockImage(OcrResultBlock):
     bounding_box: tuple[int, int, int, int] # (x, y, width, height)
     caption: str
+
+    def __post_init__(self):
+        self.block_type = "image"
 
 
 @dataclass
 class OcrResultSection(OcrResultBlock):
     section_content: list[OcrResultBlock] # can contain nested OcrResultSection instances
 
+    def __post_init__(self):
+        self.block_type = "section"
 
 @dataclass
 class OcrResult:
