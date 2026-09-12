@@ -2,7 +2,17 @@ import base64
 from typing import Literal
 from io import BytesIO
 from PIL.Image import Image
+from pydantic import BaseModel, Field
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage
 from ...OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
+
+
+class BoundingBoxOutput(BaseModel):
+    bounding_box: tuple[int, int, int, int] = Field(
+        description="The bounding box of the clipped region in the image, as (x, y, width, height)."
+    )
+
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
     buffered = BytesIO()
@@ -67,7 +77,8 @@ class LinearTools:
     def __init__(
         self,
         all_page_images: list[Image],
-        ocr_entire_section: OcrResultSection
+        ocr_entire_section: OcrResultSection,
+        clipper_model: BaseChatModel,
     ) -> None:
         self.all_page_images = all_page_images
         self.ocr_entire_section = ocr_entire_section
@@ -228,3 +239,25 @@ class LinearTools:
 
         return f"Block with index {block_index_target} has been moved to section {section_index_destination} at position {position_str}"
 
+    def clip_image(
+        self,
+        order: str,
+    ) -> str:
+        if self.current_page_number == -1:
+            return "ERROR: Current page is not set. Please set the current page first."
+
+        img = self.all_page_images[self.current_page_number]
+        img_b64 = pil_to_base64(img)
+
+        structured_clipper_model = self.clipper_model.with_structured_output(BoundingBoxOutput)
+        result: BoundingBoxOutput = structured_clipper_model.invoke([
+            HumanMessage(content=[
+                {"type": "text", "text": order},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{img_b64}"},
+                },
+            ])
+        ])
+
+        return f"Clipped bounding box: {result.bounding_box}"
