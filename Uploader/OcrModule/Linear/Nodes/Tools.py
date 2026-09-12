@@ -157,33 +157,44 @@ class LinearTools:
         self,
         block_index_target: int,
         section_index_destination: int,
-        block_index_destination: int | None = None, # if None, append to the end of the section
+        block_number_destination: int | None = None, # if None, append to the end of the section
     ) -> str:
-        try:
-            block = find_block_by_index(block_index_target, self.ocr_entire_section)
-        except KeyError:
+        # Find the block and its parent section
+        parent_section = None
+        block_to_move = None
+        block_index_in_parent = None
+
+        for section in iterate_sections(self.ocr_entire_section):
+            for i, block in enumerate(section.section_content):
+                if block.block_index == block_index_target:
+                    parent_section = section
+                    block_to_move = block
+                    block_index_in_parent = i
+                    break
+            if block_to_move is not None:
+                break
+
+        if block_to_move is None:
             return f"ERROR: Block with index {block_index_target} not found"
 
+        # Find destination section
         try:
             destination_section = find_section_by_index(section_index_destination, self.ocr_entire_section)
         except KeyError:
             return f"ERROR: Section with index {section_index_destination} not found"
 
-        # Remove the block from its current section
-        for section in iterate_sections(self.ocr_entire_section):
-            if block in section.section_content:
-                section.section_content.remove(block)
-                break
+        # Remove block from parent section
+        parent_section.section_content.pop(block_index_in_parent)
 
-        # Insert the block into the destination section
-        if block_index_destination is None:
-            destination_section.section_content.append(block)
+        # Insert block into destination section
+        if block_number_destination is None:
+            destination_section.section_content.append(block_to_move)
+            position_str = "end"
         else:
-            for i, b in enumerate(destination_section.section_content):
-                if b.block_index == block_index_destination:
-                    destination_section.section_content.insert(i, block)
-                    break
-            else:
-                return f"ERROR: Block with index {block_index_destination} not found in section {section_index_destination}"
+            if block_number_destination < 0 or block_number_destination > len(destination_section.section_content):
+                return f"ERROR: Invalid block_number_destination {block_number_destination}. Must be between 0 and {len(destination_section.section_content)}"
+            destination_section.section_content.insert(block_number_destination, block_to_move)
+            position_str = str(block_number_destination)
 
-        return f"Block with index {block_index_target} has been moved to section {section_index_destination}."
+        return f"Block with index {block_index_target} has been moved to section {section_index_destination} at position {position_str}"
+
