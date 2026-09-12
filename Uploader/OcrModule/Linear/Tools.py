@@ -110,12 +110,14 @@ class LinearTools:
         self,
         page_number: int,
     ) -> None:
+        """Set the page number currently being processed."""
         if page_number < 0 or page_number >= len(self.all_page_images):
             raise ValueError(f"Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}")
 
         self.current_page_number = page_number
 
     def get_page_image(self, page_number: int):
+        """Get the image of the specified page number."""
         if page_number < 0 or page_number >= len(self.all_page_images):
             return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_page_images) - 1}"
 
@@ -140,6 +142,7 @@ class LinearTools:
         block_index: int,
         text: str,
     ) -> str:
+        """Edit the text of an existing block by its index."""
         try:
             block = find_block_by_index(block_index, self.ocr_entire_section)
         except KeyError:
@@ -158,6 +161,7 @@ class LinearTools:
         block_type: TEXT_BLOCK_TYPES,
         text: str,
     ) -> str:
+        """Add a new text block to the specified section."""
         try:
             section = find_section_by_index(section_index, self.ocr_entire_section)
         except KeyError:
@@ -181,6 +185,7 @@ class LinearTools:
         bounding_box: tuple[int, int, int, int],
         caption: str,
     ) -> str:
+        """Add a new image block to the specified section."""
         try:
             section = find_section_by_index(section_index, self.ocr_entire_section)
         except KeyError:
@@ -203,6 +208,7 @@ class LinearTools:
         self,
         parent_section_index: int,
     ) -> str:
+        """Add a new empty section under the specified parent section."""
         try:
             parent_section = find_section_by_index(parent_section_index, self.ocr_entire_section)
         except KeyError:
@@ -225,6 +231,7 @@ class LinearTools:
         section_index_destination: int,
         block_number_destination: int | None = None, # if None, append to the end of the section
     ) -> str:
+        """Move a block to a different section and position."""
         # Find the block and its parent section
         parent_section = None
         block_to_move = None
@@ -268,6 +275,7 @@ class LinearTools:
         self,
         order: str,
     ) -> str:
+        """Clip a region of the current page's image according to `order`, and return its bounding box."""
         if self.current_page_number == -1:
             return "ERROR: Current page is not set. Please set the current page first."
 
