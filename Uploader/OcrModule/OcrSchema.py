@@ -2,13 +2,12 @@ from dataclasses import dataclass
 from typing import Literal, get_args
 
 TEXT_BLOCK_TYPES = Literal[
-    "paragraph",
-    "heading",
-    "list_item",
-    "document_index",
-    "note",
-    "code",
-    "math",
+    "paragraph", # Main text block in the document
+    "heading", # every heading in the document, including chapter titles, section headings, etc. including the title of the document itself
+    "document_index",   # every elements that does not directly contribute to the content. Such as page number, book/chapter title written top/bottom of the page, etc.
+    "note", # any kind of note, such as footnote, endnote, sidenote, etc.
+    "code", # any kind of code block, such as source code, pseudocode, etc.
+    "math", # any kind of math block, such as formula, equation, etc. Write in KaTeX format
 ]
 
 @dataclass
