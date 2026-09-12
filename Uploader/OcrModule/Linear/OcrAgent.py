@@ -1,6 +1,4 @@
-from __future__ import annotations
 import json
-from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
@@ -8,9 +6,7 @@ from langchain.agents import create_agent
 from .Tools import LinearTools, build_context_dict
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
-
-if TYPE_CHECKING:
-    from .LinearOcr import ImageBase64
+from ..LlmHelper import ImageBase64
 
 class OcrAgent:
     def __init__(

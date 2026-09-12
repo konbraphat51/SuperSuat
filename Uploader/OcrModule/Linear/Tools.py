@@ -1,12 +1,9 @@
-from __future__ import annotations
 from dataclasses import asdict
-from typing import Literal, TYPE_CHECKING
+from typing import Literal
 from langchain_core.language_models import BaseChatModel
 from ..OcrSchema import OcrResultBlockImage, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
+from ..LlmHelper import ImageBase64
 from .Clipper import clip_image_with_agent
-
-if TYPE_CHECKING:
-    from .LinearOcr import ImageBase64
 
 
 def find_block_by_index(
