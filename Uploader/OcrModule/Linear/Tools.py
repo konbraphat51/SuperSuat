@@ -17,6 +17,9 @@ def find_block_by_index(
     index: int,
     section: OcrResultSection,
 ) -> OcrResultBlock:
+    if section.block_index == index:
+        return section
+
     for block in section.section_content:
         if block.block_index == index:
             return block
