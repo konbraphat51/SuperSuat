@@ -1,4 +1,6 @@
+from __future__ import annotations
 import json
+from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
@@ -7,29 +9,29 @@ from .Tools import LinearTools, build_context_dict
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
 
+if TYPE_CHECKING:
+    from .LinearOcr import ImageBase64
+
 class OcrAgent:
     def __init__(
         self,
         ocr_model: BaseChatModel,
         clipper_model: BaseChatModel,
-        all_page_b64: list[str],
-        all_page_sizes: list[tuple[int, int]],
+        all_pages: list[ImageBase64],
         entire_section: OcrResultSection,
     ) -> None:
         self.ocr_model = ocr_model
         self.entire_section = entire_section
-        self._initialize_tools(all_page_b64, all_page_sizes, clipper_model)
+        self._initialize_tools(all_pages, clipper_model)
         self._initialize_agent()
 
     def _initialize_tools(
         self,
-        all_page_b64: list[str],
-        all_page_sizes: list[tuple[int, int]],
+        all_pages: list[ImageBase64],
         clipper_model: BaseChatModel,
     ) -> None:
         self.linear_tools = LinearTools(
-            all_page_b64=all_page_b64,
-            all_page_sizes=all_page_sizes,
+            all_pages=all_pages,
             ocr_entire_section=self.entire_section,
             clipper_model=clipper_model,
         )

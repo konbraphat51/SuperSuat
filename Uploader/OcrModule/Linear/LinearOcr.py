@@ -1,10 +1,16 @@
 import base64
+from dataclasses import dataclass
 from io import BytesIO
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResultSection, OcrResult
 from .OcrAgent import OcrAgent
+
+@dataclass
+class ImageBase64:
+    b64: str
+    size: tuple[int, int] # (width, height)
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
     buffered = BytesIO()
@@ -27,19 +33,17 @@ class LinearOcr(Ocr):
      ) -> OcrResult:
         # Convert every page to base64 up front so no PIL.Image.Image is held
         # onto beyond this point.
-        all_page_b64 = [pil_to_base64(img) for img in all_page_images]
-        all_page_sizes = [img.size for img in all_page_images]
+        all_pages = [ImageBase64(b64=pil_to_base64(img), size=img.size) for img in all_page_images]
 
         self._initialize_entire_section()
         ocr_agent = OcrAgent(
             ocr_model=self.ocr_model,
             clipper_model=self.clipper_model,
-            all_page_b64=all_page_b64,
-            all_page_sizes=all_page_sizes,
+            all_pages=all_pages,
             entire_section=self.entire_section,
         )
 
-        for page_number in range(len(all_page_b64)):
+        for page_number in range(len(all_pages)):
             ocr_agent.read_page(page_number)
 
         return OcrResult(root_section=self.entire_section)
