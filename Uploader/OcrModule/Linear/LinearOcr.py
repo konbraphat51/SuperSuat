@@ -2,7 +2,12 @@ from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResultSection, OcrResult
-from ..LlmHelper import ImageBase64, pil_to_base64
+from ..LlmHelper import (
+    ImageBase64,
+    ImageMessageBuilder,
+    build_image_message_openai,
+    pil_to_base64,
+)
 from .OcrAgent import OcrAgent
 
 class LinearOcr(Ocr):
@@ -10,9 +15,13 @@ class LinearOcr(Ocr):
         self,
         ocr_model: BaseChatModel,
         clipper_model: BaseChatModel,
+        image_message_builder: ImageMessageBuilder = build_image_message_openai,
     ) -> None:
         self.ocr_model = ocr_model
         self.clipper_model = clipper_model
+        # how an image is spelled inside message content depends on the
+        # provider behind the models above (see LlmHelper)
+        self.image_message_builder = image_message_builder
         self.entire_section: OcrResultSection
 
     def ocr(
@@ -29,6 +38,7 @@ class LinearOcr(Ocr):
             clipper_model=self.clipper_model,
             all_pages=all_pages,
             entire_section=self.entire_section,
+            image_message_builder=self.image_message_builder,
         )
 
         for page_number in range(len(all_pages)):

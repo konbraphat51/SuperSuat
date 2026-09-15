@@ -1,7 +1,7 @@
 from typing import Literal
 from langchain_core.language_models import BaseChatModel
 from ..OcrSchema import OcrResultBlockFigure, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
-from ..LlmHelper import ImageBase64
+from ..LlmHelper import ImageBase64, ImageMessageBuilder
 from .Clipper import clip_image_with_agent
 
 
@@ -110,10 +110,12 @@ class LinearTools:
         all_pages: list[ImageBase64],
         ocr_entire_section: OcrResultSection,
         clipper_model: BaseChatModel,
+        image_message_builder: ImageMessageBuilder,
     ) -> None:
         self.all_pages = all_pages
         self.ocr_entire_section = ocr_entire_section
         self.clipper_model = clipper_model
+        self.image_message_builder = image_message_builder
         self.current_page_number = -1  # 0-indexed
 
     def set_current_page(
@@ -132,20 +134,10 @@ class LinearTools:
         if page_number < 0 or page_number >= len(self.all_pages):
             return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_pages) - 1}"
 
-        img_b64 = self.all_pages[page_number].b64
-
-        return [
-            {
-                "type": "text",
-                "text": f"this is the image of page {page_number}"
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/png;base64,{img_b64}",
-                }
-            }
-        ]
+        return self.image_message_builder(
+            f"this is the image of page {page_number}",
+            self.all_pages[page_number].b64,
+        )
 
     def edit_block(
         self,
@@ -325,7 +317,13 @@ class LinearTools:
         # to the agent like any other tool error instead of letting it escape
         # and abort the whole document.
         try:
-            result = clip_image_with_agent(self.clipper_model, order, current_page.b64, current_page.size)
+            result = clip_image_with_agent(
+                self.clipper_model,
+                order,
+                current_page.b64,
+                current_page.size,
+                self.image_message_builder,
+            )
         except Exception as error:
             return f"ERROR: The clipping agent failed: {error}"
 

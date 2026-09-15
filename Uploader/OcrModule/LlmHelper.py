@@ -1,5 +1,6 @@
 import base64
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from io import BytesIO
 from PIL.Image import Image
@@ -16,6 +17,46 @@ def pil_to_base64(img: Image, format: str = "PNG") -> str:
     buffered = BytesIO()
     img.save(buffered, format=format)
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+# Builds the message content for a PNG image plus an accompanying text message.
+# Providers disagree on how an image is spelled inside message content, so the
+# concrete builder is injected rather than hardcoded.
+ImageMessageBuilder = Callable[[str | None, str], list[dict]]
+
+def _text_content(text: str | None) -> list[dict]:
+    """The leading text block, or nothing at all when there is no message to
+    accompany the image."""
+    if text is None:
+        return []
+
+    return [{"type": "text", "text": text}]
+
+def build_image_message_openai(text: str | None, img_b64: str) -> list[dict]:
+    """Text + PNG image content in the OpenAI chat completions format."""
+    return [
+        *_text_content(text),
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{img_b64}",
+            },
+        },
+    ]
+
+def build_image_message_bedrock(text: str | None, img_b64: str) -> list[dict]:
+    """Text + PNG image content in the Bedrock (Converse) format, which takes
+    the raw base64 payload and its media type rather than a data URL."""
+    return [
+        *_text_content(text),
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": img_b64,
+            },
+        },
+    ]
 
 OMITTED_MARKER = "... (omitted)"
 

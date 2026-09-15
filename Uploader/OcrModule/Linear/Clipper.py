@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
+from ..LlmHelper import ImageMessageBuilder
+
 
 class BoundingBoxOutput(BaseModel):
     bounding_box: tuple[int, int, int, int] = Field(
@@ -14,6 +16,7 @@ def clip_image_with_agent(
     order: str,
     img_b64: str,
     image_size: tuple[int, int],
+    image_message_builder: ImageMessageBuilder,
 ) -> BoundingBoxOutput:
     width, height = image_size
     instruction = (
@@ -25,13 +28,7 @@ def clip_image_with_agent(
 
     structured_clipper_model = clipper_model.with_structured_output(BoundingBoxOutput)
     result = structured_clipper_model.invoke([
-        HumanMessage(content=[
-            {"type": "text", "text": instruction},
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{img_b64}"},
-            },
-        ])
+        HumanMessage(content=image_message_builder(instruction, img_b64))
     ])
 
     x, y, box_width, box_height = result.bounding_box
