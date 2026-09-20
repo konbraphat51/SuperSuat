@@ -7,12 +7,19 @@ Usage (from the `Uploader` directory):
 
     uv run python Test/Manual/Ocr/TestLinear.py
     uv run python Test/Manual/Ocr/TestLinear.py --pdf tate.pdf --max-pages 2
+    uv run python Test/Manual/Ocr/TestLinear.py --log-level DEBUG
 
-See TestLinear-test.md for the AWS setup this needs.
+A tqdm progress bar on stdout shows which page is being processed. Everything
+else (every model message, tool call/result, and clipper invocation, at
+--log-level INFO or above) is written to the log file instead (see
+--log-file), to help diagnose where a slow run is spending its time.
+
+See TestLinear_setup.md for the AWS setup this needs.
 """
 
 import argparse
 import json
+import logging
 import os
 import sys
 import time
@@ -122,7 +129,40 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ocr-model", default=os.getenv("OCR_MODEL_ID", DEFAULT_MODEL_ID))
     parser.add_argument("--clipper-model", default=os.getenv("CLIPPER_MODEL_ID", DEFAULT_MODEL_ID))
     parser.add_argument("--region", default=os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or DEFAULT_REGION)
+    parser.add_argument(
+        "--log-level",
+        default=os.getenv("LOG_LEVEL", "INFO"),
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Verbosity of OcrModule.Linear's logging (model output, tool calls/results). Default: INFO.",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=str(OUTPUT_DIR / "TestLinear.log"),
+        help="Where to write the log described above. Default: Output/TestLinear.log (overwritten every run).",
+    )
     return parser.parse_args()
+
+
+def configure_logging(log_level: str, log_file: Path) -> None:
+    """Writes OcrModule.Linear's logging (the model's reasoning, every tool
+    call/result, and the clipper's output) to `log_file`, keeping stdout free
+    for the tqdm progress bar."""
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+        filename=log_file,
+        filemode="w",
+        encoding="utf-8",
+    )
+    # boto3/botocore log every HTTP request at INFO/DEBUG, which would drown
+    # out the OCR-specific logging above; keep them quiet regardless of
+    # --log-level.
+    logging.getLogger("boto3").setLevel(logging.WARNING)
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 def resolve_pdfs(selected: list[str] | None) -> list[Path]:
@@ -147,6 +187,8 @@ def main() -> int:
     # loaded first or those defaults silently fall back to the hardcoded ones.
     load_dotenv(UPLOADER_ROOT / ".env")
     args = parse_args()
+    log_file = Path(args.log_file)
+    configure_logging(args.log_level, log_file)
 
     # The .env of this project stores the Bedrock short-term API key under its
     # own name; langchain-aws reads AWS_BEARER_TOKEN_BEDROCK. Passing it
@@ -170,6 +212,7 @@ def main() -> int:
 
     print(f"model: {args.ocr_model} (clipper: {args.clipper_model}) @ {args.region}")
     print(f"targets: {', '.join(p.name for p in pdfs)}")
+    print(f"log: {log_file}")
 
     failures: list[str] = []
     for pdf_path in pdfs:

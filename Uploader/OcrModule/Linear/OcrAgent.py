@@ -1,3 +1,4 @@
+import logging
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
@@ -5,7 +6,9 @@ from langchain.agents import create_agent
 from .Tools import LinearTools
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
-from ..LlmHelper import ImageBase64, ImageMessageBuilder, build_ocr_context_string
+from ..LlmHelper import ImageBase64, ImageMessageBuilder, build_ocr_context_string, log_agent_message
+
+logger = logging.getLogger(__name__)
 
 # LangGraph counts one step per node, so a tool call costs two. This caps a
 # single page at roughly 50 tool calls; without it the default limit of ~10000
@@ -65,6 +68,8 @@ class OcrAgent:
         ocr_data_json = build_ocr_context_string(self.entire_section, page_number)
         page_image_content = self.linear_tools.get_page_image(page_number)
 
+        logger.info("page %d | starting", page_number)
+
         result = self.agent.invoke(
             {
                 "messages": [
@@ -80,6 +85,14 @@ class OcrAgent:
             config={"recursion_limit": RECURSION_LIMIT},
         )
 
+        # Logged only once the page is fully done: log_agent_message is a
+        # no-op for the HumanMessage this call started from, so this reports
+        # every model message and tool call/result from the page in order.
+        for message in result["messages"]:
+            log_agent_message(f"page {page_number}", message)
+
         last_message = result["messages"][-1]
         if getattr(last_message, "tool_calls", None):
             raise RuntimeError(f"Page {page_number}: agent stopped with pending tool calls")
+
+        logger.info("page %d | done", page_number)

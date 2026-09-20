@@ -1,8 +1,11 @@
+import logging
 from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
 from ..LlmHelper import ImageMessageBuilder
+
+logger = logging.getLogger(__name__)
 
 
 class BoundingBoxOutput(BaseModel):
@@ -31,11 +34,19 @@ def clip_image_with_agent(
         HumanMessage(content=image_message_builder(instruction, img_b64))
     ])
 
-    x, y, box_width, box_height = result.bounding_box
+    raw_bounding_box = result.bounding_box
+    x, y, box_width, box_height = raw_bounding_box
     x = min(max(x, 0), width)
     y = min(max(y, 0), height)
     box_width = min(max(box_width, 0), width - x)
     box_height = min(max(box_height, 0), height - y)
     result.bounding_box = (x, y, box_width, box_height)
+
+    logger.info(
+        "clip order=%r raw_bounding_box=%s clamped_bounding_box=%s",
+        order,
+        raw_bounding_box,
+        result.bounding_box,
+    )
 
     return result

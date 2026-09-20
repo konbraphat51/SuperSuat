@@ -1,11 +1,15 @@
 import base64
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from io import BytesIO
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from PIL.Image import Image
 
 from .OcrSchema import OcrResultBlockText, OcrResultSection
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -202,3 +206,70 @@ def build_ocr_context_string(
     # with many sections is resent on every page, and indenting it roughly
     # doubles that cost for no gain to the model reading it
     return json.dumps(context_dict, ensure_ascii=False, separators=(",", ":"))
+
+def stringify_message_content(content) -> str:
+    """Flattens a message's `content` (a plain string, or the list-of-blocks
+    form used for multimodal messages) into a single log-friendly string:
+    - a text block's text is kept as-is
+    - a reasoning_content block (Bedrock's extended-thinking output, e.g. for
+      Claude 3.7+/Nova) is kept too, wrapped in <thinking> tags so it reads
+      as the model's chain of thought rather than its final answer
+    - an image block becomes a placeholder, so a page image never gets
+      dumped into the log as a giant base64 blob
+    - a tool_use block is dropped: the tool call it represents is already
+      logged separately (via AIMessage.tool_calls), so keeping it here would
+      just repeat the same call as a raw, harder-to-read dict
+    Note this only covers the model actually reporting its reasoning in one
+    of these forms. Some models (e.g. Qwen) write their reasoning directly
+    into the answer as plain text instead of a separate block, in which case
+    it is already captured by the `text` case above with nothing extra
+    needed here."""
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if not isinstance(block, dict):
+                parts.append(str(block))
+                continue
+
+            block_type = block.get("type")
+            if block_type == "text":
+                parts.append(block.get("text", ""))
+            elif block_type == "reasoning_content":
+                reasoning = block.get("reasoning_content") or block.get("reasoningContent") or {}
+                reasoning_text = reasoning.get("text", "")
+                if reasoning_text:
+                    parts.append(f"<thinking>{reasoning_text}</thinking>")
+            elif block_type in ("image", "image_url"):
+                parts.append("<image>")
+            elif block_type == "tool_use":
+                continue
+            else:
+                parts.append(str(block))
+
+        return " ".join(part for part in parts if part)
+
+    return str(content)
+
+def log_agent_message(label: str, message: BaseMessage) -> None:
+    """Logs one message produced while streaming an agent's run: the model's
+    reasoning/output text, and every tool call and its result, each prefixed
+    with `label` (e.g. "page 3") so the log can be tied to what produced it.
+    Meant to be called for each new message as an agent graph is streamed, so
+    what the agent is doing (and where it is spending time) can be inspected
+    as it happens rather than only after the whole run has finished."""
+    if isinstance(message, AIMessage):
+        text = stringify_message_content(message.content)
+        if text:
+            logger.info("%s | model: %s", label, text)
+        for tool_call in message.tool_calls or []:
+            logger.info("%s | tool call: %s(%s)", label, tool_call["name"], tool_call["args"])
+    elif isinstance(message, ToolMessage):
+        logger.info(
+            "%s | tool result (%s): %s",
+            label,
+            message.name,
+            stringify_message_content(message.content),
+        )

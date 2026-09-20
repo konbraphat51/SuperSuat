@@ -1,5 +1,6 @@
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
+from tqdm import tqdm
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResultSection, OcrResult
 from ..LlmHelper import (
@@ -41,7 +42,12 @@ class LinearOcr(Ocr):
             image_message_builder=self.image_message_builder,
         )
 
-        for page_number in range(len(all_pages)):
+        # Pages can each take a while (multiple LLM/tool round-trips), so a
+        # progress bar showing which page is in flight makes it obvious the
+        # process is alive and roughly how far through the document it is.
+        page_progress = tqdm(range(len(all_pages)), desc="OCR", unit="page")
+        for page_number in page_progress:
+            page_progress.set_description(f"OCR (page {page_number + 1}/{len(all_pages)})")
             ocr_agent.read_page(page_number)
 
         return OcrResult(root_section=self.entire_section)
