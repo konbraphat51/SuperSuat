@@ -142,8 +142,11 @@ def resolve_pdfs(selected: list[str] | None) -> list[Path]:
 
 
 def main() -> int:
-    args = parse_args()
+    # Must run before parse_args(): its --region/--ocr-model/--clipper-model
+    # defaults read os.environ at argument-definition time, so .env has to be
+    # loaded first or those defaults silently fall back to the hardcoded ones.
     load_dotenv(UPLOADER_ROOT / ".env")
+    args = parse_args()
 
     # The .env of this project stores the Bedrock short-term API key under its
     # own name; langchain-aws reads AWS_BEARER_TOKEN_BEDROCK. Passing it
