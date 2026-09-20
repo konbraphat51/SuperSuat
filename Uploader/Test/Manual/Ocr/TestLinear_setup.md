@@ -36,12 +36,7 @@ aws bedrock list-foundation-models --region us-west-2 --query "modelSummaries[?c
 > 東京リージョン（`ap-northeast-1`）ではQwenが提供されていないことがあります。
 > ローカルの `~/.aws/config` のリージョン設定に関わらず、このスクリプトは既定で `us-west-2` を使います。
 
-### 2-2. モデルアクセスを有効化する
-
-Bedrockコンソール → 対象リージョン → **Model access** で Qwen のモデルを有効化します。
-有効化していないと `AccessDeniedException`（"You don't have access to the model"）になります。
-
-### 2-3. Bedrock APIキー（短期）を発行する
+### 2-2. Bedrock APIキー（短期）を発行する
 
 Bedrockコンソール → **API keys** → *Generate short-term API key* でキーを発行します。
 短期キーは**最長12時間**で失効します。失効すると次のエラーになります。
@@ -139,7 +134,7 @@ Test/Manual/Ocr/Output/
 | 症状 | 原因と対処 |
 | --- | --- |
 | `AccessDeniedException: Bearer Token has expired` | 短期APIキーの失効。再発行して `.env` を更新する |
-| `AccessDeniedException: You don't have access to the model` | 2-2のモデルアクセスが未有効、またはリージョン違い |
+| `AccessDeniedException: You don't have access to the model` | リージョン違い、またはIAMポリシー/SCPでモデル利用が制限されている（Model accessページは廃止済みのため事前の手動有効化は不要） |
 | `ValidationException: ... model identifier is invalid` | そのリージョンでのモデルIDが違う。`aws bedrock list-foundation-models` で正しいIDを確認し、`--ocr-model` / `--clipper-model`（または `.env` の `OCR_MODEL_ID` / `CLIPPER_MODEL_ID`）に指定する。クロスリージョン推論プロファイル（`us.qwen....`）が必要な場合もある |
 | `Missing Dependency: Using the login credential provider requires ... botocore[crt]` | ローカルの `~/.aws/config` が `login_session` プロファイルを使っている場合に出る。APIキー利用時はプロファイルを参照する必要がないので、スクリプト側で `AWS_CONFIG_FILE` を無効化して回避済み。IAMクレデンシャルで動かしたい場合は `uv pip install "botocore[crt]"` を実行する |
 | `ThrottlingException` | Bedrock側のレート制限。時間を置くか `--max-pages` でページ数を絞る |
