@@ -6,7 +6,12 @@ from langchain.agents import create_agent
 from .Tools import LinearTools
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
-from ..LlmHelper import ImageBase64, ImageMessageBuilder, build_ocr_context_string, log_agent_message
+from ..LlmHelper import (
+    ImageBase64,
+    ImageMessageBuilder,
+    build_ocr_context_string,
+    log_agent_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +19,7 @@ logger = logging.getLogger(__name__)
 # single page at roughly 50 tool calls; without it the default limit of ~10000
 # lets an agent stuck in a loop spend thousands of model calls before failing.
 RECURSION_LIMIT = 100
+
 
 class OcrAgent:
     def __init__(
@@ -65,7 +71,9 @@ class OcrAgent:
     ) -> None:
         self.linear_tools.set_current_page(page_number)
 
-        ocr_data_json = build_ocr_context_string(self.entire_section, page_number)
+        ocr_data_json = build_ocr_context_string(
+            self.entire_section, page_number
+        )
         page_image_content = self.linear_tools.get_page_image(page_number)
 
         logger.info("page %d | starting", page_number)
@@ -73,13 +81,15 @@ class OcrAgent:
         result = self.agent.invoke(
             {
                 "messages": [
-                    HumanMessage(content=[
-                        {
-                            "type": "text",
-                            "text": f"Here is the OCR data collected so far, as JSON:\n{ocr_data_json}",
-                        },
-                        *page_image_content,
-                    ])
+                    HumanMessage(
+                        content=[
+                            {
+                                "type": "text",
+                                "text": f"Here is the OCR data collected so far, as JSON:\n{ocr_data_json}",
+                            },
+                            *page_image_content,
+                        ]
+                    )
                 ]
             },
             config={"recursion_limit": RECURSION_LIMIT},
@@ -93,6 +103,8 @@ class OcrAgent:
 
         last_message = result["messages"][-1]
         if getattr(last_message, "tool_calls", None):
-            raise RuntimeError(f"Page {page_number}: agent stopped with pending tool calls")
+            raise RuntimeError(
+                f"Page {page_number}: agent stopped with pending tool calls"
+            )
 
         logger.info("page %d | done", page_number)

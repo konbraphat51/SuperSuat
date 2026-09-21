@@ -1,6 +1,12 @@
 from typing import Literal
 from langchain_core.language_models import BaseChatModel
-from ..OcrSchema import OcrResultBlockFigure, OcrResultBlockText, OcrResultSection, OcrResultBlock, TEXT_BLOCK_TYPES
+from ..OcrSchema import (
+    OcrResultBlockFigure,
+    OcrResultBlockText,
+    OcrResultSection,
+    OcrResultBlock,
+    TEXT_BLOCK_TYPES,
+)
 from ..LlmHelper import ImageBase64, ImageMessageBuilder
 from .Clipper import clip_image_with_agent
 
@@ -24,6 +30,7 @@ def find_block_by_index(
 
     raise KeyError(f"Block with index {index} not found")
 
+
 def get_max_block_index(section: OcrResultSection) -> int:
     max_index = section.block_index
 
@@ -37,6 +44,7 @@ def get_max_block_index(section: OcrResultSection) -> int:
                 max_index = child_max_index
 
     return max_index
+
 
 def find_section_by_index(
     index: int,
@@ -53,6 +61,7 @@ def find_section_by_index(
                 continue
 
     raise KeyError(f"Section with index {index} not found")
+
 
 def mark_existing_page(
     entire_section: OcrResultSection,
@@ -73,7 +82,9 @@ def mark_existing_page(
             found = True
             break
 
-        if isinstance(block, OcrResultSection) and mark_existing_page(block, target_index, page_number):
+        if isinstance(block, OcrResultSection) and mark_existing_page(
+            block, target_index, page_number
+        ):
             found = True
             break
 
@@ -82,12 +93,14 @@ def mark_existing_page(
 
     return found
 
+
 def iterate_sections(section: OcrResultSection):
     yield section
 
     for block in section.section_content:
         if isinstance(block, OcrResultSection):
             yield from iterate_sections(block)
+
 
 def recompute_existing_pages(section: OcrResultSection) -> list[int]:
     """Recomputes existing_pages of `section` and of every section under it as the union of the pages of its contents, and returns the section's pages. A section with no contents keeps the pages it already has, since it has nothing to derive them from."""
@@ -103,6 +116,7 @@ def recompute_existing_pages(section: OcrResultSection) -> list[int]:
         section.existing_pages = sorted(pages)
 
     return section.existing_pages
+
 
 class LinearTools:
     def __init__(
@@ -154,7 +168,9 @@ class LinearTools:
             return f"ERROR: Block with index {block_index} is not a text block"
 
         block.text = text
-        mark_existing_page(self.ocr_entire_section, block_index, self.current_page_number)
+        mark_existing_page(
+            self.ocr_entire_section, block_index, self.current_page_number
+        )
         return f"Block with index {block_index} has been updated successfully. The new text is: \n{text}"
 
     def add_text_block(
@@ -165,7 +181,9 @@ class LinearTools:
     ) -> str:
         """Add a new text block to the specified section."""
         try:
-            section = find_section_by_index(section_block_index, self.ocr_entire_section)
+            section = find_section_by_index(
+                section_block_index, self.ocr_entire_section
+            )
         except KeyError:
             return f"ERROR: Section with index {section_block_index} not found"
 
@@ -177,7 +195,9 @@ class LinearTools:
             text=text,
         )
         section.section_content.append(new_block)
-        mark_existing_page(self.ocr_entire_section, new_block_index, self.current_page_number)
+        mark_existing_page(
+            self.ocr_entire_section, new_block_index, self.current_page_number
+        )
 
         return f"New text block added to section {section_block_index} with block index {new_block_index}. The text is: \n{text}"
 
@@ -192,7 +212,9 @@ class LinearTools:
             return "ERROR: Current page is not set. Please set the current page first."
 
         try:
-            section = find_section_by_index(section_block_index, self.ocr_entire_section)
+            section = find_section_by_index(
+                section_block_index, self.ocr_entire_section
+            )
         except KeyError:
             return f"ERROR: Section with index {section_block_index} not found"
 
@@ -203,10 +225,12 @@ class LinearTools:
             block_index=new_block_index,
             page_number=self.current_page_number,
             bounding_box=bounding_box,
-            caption=caption
+            caption=caption,
         )
         section.section_content.append(new_block)
-        mark_existing_page(self.ocr_entire_section, new_block_index, self.current_page_number)
+        mark_existing_page(
+            self.ocr_entire_section, new_block_index, self.current_page_number
+        )
 
         return f"New figure block added to section {section_block_index} with block index {new_block_index}. The caption is: \n{caption}"
 
@@ -216,7 +240,9 @@ class LinearTools:
     ) -> str:
         """Add a new empty section under the specified parent section."""
         try:
-            parent_section = find_section_by_index(parent_section_block_index, self.ocr_entire_section)
+            parent_section = find_section_by_index(
+                parent_section_block_index, self.ocr_entire_section
+            )
         except KeyError:
             return f"ERROR: Section with index {parent_section_block_index} not found"
 
@@ -228,7 +254,11 @@ class LinearTools:
             section_content=[],
         )
         parent_section.section_content.append(new_section)
-        mark_existing_page(self.ocr_entire_section, new_section_index, self.current_page_number)
+        mark_existing_page(
+            self.ocr_entire_section,
+            new_section_index,
+            self.current_page_number,
+        )
 
         return f"New section added to parent section {parent_section_block_index} with section index {new_section_index}"
 
@@ -236,7 +266,9 @@ class LinearTools:
         self,
         block_index_target: int,
         destination_section_block_index: int,
-        before_block_index: int | None = None, # if None, append to the end of the section
+        before_block_index: (
+            int | None
+        ) = None,  # if None, append to the end of the section
     ) -> str:
         """Move a block to a different section and position. The block is placed immediately before the block with before_block_index, which must be directly inside the destination section; if before_block_index is None, the block is appended to the end of the destination section."""
         # Find the block and its parent section
@@ -267,7 +299,9 @@ class LinearTools:
 
         # Find destination section
         try:
-            destination_section = find_section_by_index(destination_section_block_index, self.ocr_entire_section)
+            destination_section = find_section_by_index(
+                destination_section_block_index, self.ocr_entire_section
+            )
         except KeyError:
             return f"ERROR: Section with index {destination_section_block_index} not found"
 
@@ -277,7 +311,10 @@ class LinearTools:
             if before_block_index == block_index_target:
                 return f"ERROR: Cannot move block {block_index_target} before itself"
 
-            if not any(block.block_index == before_block_index for block in destination_section.section_content):
+            if not any(
+                block.block_index == before_block_index
+                for block in destination_section.section_content
+            ):
                 return f"ERROR: Block with index {before_block_index} is not directly inside section {destination_section_block_index}"
 
         # Remove block from parent section
@@ -290,10 +327,13 @@ class LinearTools:
         else:
             # looked up again because the removal above may have shifted it
             before_block_position = next(
-                i for i, block in enumerate(destination_section.section_content)
+                i
+                for i, block in enumerate(destination_section.section_content)
                 if block.block_index == before_block_index
             )
-            destination_section.section_content.insert(before_block_position, block_to_move)
+            destination_section.section_content.insert(
+                before_block_position, block_to_move
+            )
             position_str = f"before block {before_block_index}"
 
         # the moved block takes its pages with it, so both the section it left

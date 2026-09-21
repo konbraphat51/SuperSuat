@@ -29,10 +29,12 @@ def clip_image_with_agent(
         f"with 0 <= x <= {width} and 0 <= y <= {height}."
     )
 
-    structured_clipper_model = clipper_model.with_structured_output(BoundingBoxOutput)
-    result = structured_clipper_model.invoke([
-        HumanMessage(content=image_message_builder(instruction, img_b64))
-    ])
+    structured_clipper_model = clipper_model.with_structured_output(
+        BoundingBoxOutput
+    )
+    result = structured_clipper_model.invoke(
+        [HumanMessage(content=image_message_builder(instruction, img_b64))]
+    )
 
     raw_bounding_box = result.bounding_box
     x, y, box_width, box_height = raw_bounding_box

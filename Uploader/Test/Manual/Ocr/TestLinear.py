@@ -69,17 +69,25 @@ def build_model(model_id: str, region: str, api_key: str | None):
     )
 
 
-def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Image.Image]:
+def pdf_to_images(
+    pdf_path: Path, dpi: int, max_pages: int | None
+) -> list[Image.Image]:
     """Every page of the PDF rendered to an RGB PIL image."""
     images: list[Image.Image] = []
 
     with fitz.open(pdf_path) as document:
-        page_count = len(document) if max_pages is None else min(len(document), max_pages)
+        page_count = (
+            len(document)
+            if max_pages is None
+            else min(len(document), max_pages)
+        )
 
         for page_number in range(page_count):
             pixmap = document[page_number].get_pixmap(dpi=dpi)
             images.append(
-                Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+                Image.frombytes(
+                    "RGB", (pixmap.width, pixmap.height), pixmap.samples
+                )
             )
 
     return images
@@ -119,16 +127,31 @@ def parse_args() -> argparse.Namespace:
         action="append",
         help="File name (or path) of a PDF to run. Repeatable. Defaults to every PDF in Sample/.",
     )
-    parser.add_argument("--dpi", type=int, default=DEFAULT_DPI, help=f"Page render DPI (default: {DEFAULT_DPI})")
+    parser.add_argument(
+        "--dpi",
+        type=int,
+        default=DEFAULT_DPI,
+        help=f"Page render DPI (default: {DEFAULT_DPI})",
+    )
     parser.add_argument(
         "--max-pages",
         type=int,
         default=None,
         help="Only read the first N pages of each PDF. Useful for a cheap smoke run.",
     )
-    parser.add_argument("--ocr-model", default=os.getenv("OCR_MODEL_ID", DEFAULT_MODEL_ID))
-    parser.add_argument("--clipper-model", default=os.getenv("CLIPPER_MODEL_ID", DEFAULT_MODEL_ID))
-    parser.add_argument("--region", default=os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or DEFAULT_REGION)
+    parser.add_argument(
+        "--ocr-model", default=os.getenv("OCR_MODEL_ID", DEFAULT_MODEL_ID)
+    )
+    parser.add_argument(
+        "--clipper-model",
+        default=os.getenv("CLIPPER_MODEL_ID", DEFAULT_MODEL_ID),
+    )
+    parser.add_argument(
+        "--region",
+        default=os.getenv("AWS_REGION")
+        or os.getenv("AWS_DEFAULT_REGION")
+        or DEFAULT_REGION,
+    )
     parser.add_argument(
         "--log-level",
         default=os.getenv("LOG_LEVEL", "INFO"),
@@ -194,7 +217,9 @@ def main() -> int:
     # own name; langchain-aws reads AWS_BEARER_TOKEN_BEDROCK. Passing it
     # explicitly also leaves the door open for plain IAM credentials, in which
     # case there is no key here and boto3's own resolution takes over.
-    api_key = os.getenv("AWS_BEDROCK_SHORT_API_KEY") or os.getenv("AWS_BEARER_TOKEN_BEDROCK")
+    api_key = os.getenv("AWS_BEDROCK_SHORT_API_KEY") or os.getenv(
+        "AWS_BEARER_TOKEN_BEDROCK"
+    )
 
     if api_key:
         # Bearer-token auth never consults the AWS profile, but botocore still
@@ -210,7 +235,9 @@ def main() -> int:
         print(f"No PDFs found in {SAMPLE_DIR}", file=sys.stderr)
         return 1
 
-    print(f"model: {args.ocr_model} (clipper: {args.clipper_model}) @ {args.region}")
+    print(
+        f"model: {args.ocr_model} (clipper: {args.clipper_model}) @ {args.region}"
+    )
     print(f"targets: {', '.join(p.name for p in pdfs)}")
     print(f"log: {log_file}")
 

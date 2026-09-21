@@ -15,17 +15,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ImageBase64:
     b64: str
-    size: tuple[int, int] # (width, height)
+    size: tuple[int, int]  # (width, height)
+
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
     buffered = BytesIO()
     img.save(buffered, format=format)
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
+
 # Builds the message content for a PNG image plus an accompanying text message.
 # Providers disagree on how an image is spelled inside message content, so the
 # concrete builder is injected rather than hardcoded.
 ImageMessageBuilder = Callable[[str | None, str], list[dict]]
+
 
 def _text_content(text: str | None) -> list[dict]:
     """The leading text block, or nothing at all when there is no message to
@@ -34,6 +37,7 @@ def _text_content(text: str | None) -> list[dict]:
         return []
 
     return [{"type": "text", "text": text}]
+
 
 def build_image_message_openai(text: str | None, img_b64: str) -> list[dict]:
     """Text + PNG image content in the OpenAI chat completions format."""
@@ -46,6 +50,7 @@ def build_image_message_openai(text: str | None, img_b64: str) -> list[dict]:
             },
         },
     ]
+
 
 def build_image_message_bedrock(text: str | None, img_b64: str) -> list[dict]:
     """Text + PNG image content in the Bedrock (Converse) format, which takes
@@ -62,9 +67,13 @@ def build_image_message_bedrock(text: str | None, img_b64: str) -> list[dict]:
         },
     ]
 
+
 OMITTED_MARKER = "... (omitted)"
 
-def _find_section_path(section: OcrResultSection, target_section_index: int) -> list[OcrResultSection] | None:
+
+def _find_section_path(
+    section: OcrResultSection, target_section_index: int
+) -> list[OcrResultSection] | None:
     """The chain of sections from `section` down to the section with
     `target_section_index`, inclusive of both ends, or None if not found."""
     if section.block_index == target_section_index:
@@ -78,6 +87,7 @@ def _find_section_path(section: OcrResultSection, target_section_index: int) -> 
 
     return None
 
+
 def _collect_keep_block_indices(
     root_section: OcrResultSection,
     current_page_number: int,
@@ -87,7 +97,12 @@ def _collect_keep_block_indices(
     `recent_page_count` pages, plus the heading blocks of every section that
     directly holds a block from the page right before the current one, and of
     all that section's ancestors up to the root."""
-    recent_pages = set(range(max(0, current_page_number - recent_page_count + 1), current_page_number + 1))
+    recent_pages = set(
+        range(
+            max(0, current_page_number - recent_page_count + 1),
+            current_page_number + 1,
+        )
+    )
     previous_page = current_page_number - 1
 
     keep_indices: set[int] = set()
@@ -107,14 +122,20 @@ def _collect_keep_block_indices(
                 has_previous_page_block = True
 
         if has_previous_page_block:
-            path = _find_section_path(root_section, section.block_index) or [section]
+            path = _find_section_path(root_section, section.block_index) or [
+                section
+            ]
             for ancestor in path:
                 for block in ancestor.section_content:
-                    if isinstance(block, OcrResultBlockText) and block.block_type == "heading":
+                    if (
+                        isinstance(block, OcrResultBlockText)
+                        and block.block_type == "heading"
+                    ):
                         keep_indices.add(block.block_index)
 
     visit(root_section)
     return keep_indices
+
 
 def format_existing_pages(pages: list[int]) -> str:
     """Collapses a page list into range notation ("0-3,7"). A section near the
@@ -137,7 +158,11 @@ def format_existing_pages(pages: list[int]) -> str:
 
     ranges.append((start, previous))
 
-    return ",".join(str(first) if first == last else f"{first}-{last}" for first, last in ranges)
+    return ",".join(
+        str(first) if first == last else f"{first}-{last}"
+        for first, last in ranges
+    )
+
 
 def _context_node(section: OcrResultSection, content: list) -> dict:
     return {
@@ -147,7 +172,10 @@ def _context_node(section: OcrResultSection, content: list) -> dict:
         "section_content": content,
     }
 
-def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> dict | None:
+
+def _build_context_node(
+    section: OcrResultSection, keep_indices: set[int]
+) -> dict | None:
     """The section as it should appear in the context, or None if nothing in it
     survived, in which case the whole node collapses into the ellipsis of the
     section holding it. A section with no contents at all is still returned:
@@ -164,7 +192,9 @@ def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> di
                 continue
         elif block.block_index in keep_indices:
             child_node = asdict(block)
-            child_node["existing_pages"] = format_existing_pages(block.existing_pages)
+            child_node["existing_pages"] = format_existing_pages(
+                block.existing_pages
+            )
         else:
             omitted_pending = True
             continue
@@ -184,6 +214,7 @@ def _build_context_node(section: OcrResultSection, keep_indices: set[int]) -> di
 
     return _context_node(section, content)
 
+
 def build_ocr_context_string(
     root_section: OcrResultSection,
     current_page_number: int,
@@ -199,13 +230,18 @@ def build_ocr_context_string(
       just read stays visible
     Everything else is replaced with an ellipsis marker, and a section left
     with nothing of its own to show collapses into that marker too."""
-    keep_indices = _collect_keep_block_indices(root_section, current_page_number, recent_page_count)
+    keep_indices = _collect_keep_block_indices(
+        root_section, current_page_number, recent_page_count
+    )
     # the root never collapses, since it is the document itself
-    context_dict = _build_context_node(root_section, keep_indices) or _context_node(root_section, [OMITTED_MARKER])
+    context_dict = _build_context_node(
+        root_section, keep_indices
+    ) or _context_node(root_section, [OMITTED_MARKER])
     # compact separators rather than indentation: the scaffolding of a document
     # with many sections is resent on every page, and indenting it roughly
     # doubles that cost for no gain to the model reading it
     return json.dumps(context_dict, ensure_ascii=False, separators=(",", ":"))
+
 
 def stringify_message_content(content) -> str:
     """Flattens a message's `content` (a plain string, or the list-of-blocks
@@ -238,7 +274,11 @@ def stringify_message_content(content) -> str:
             if block_type == "text":
                 parts.append(block.get("text", ""))
             elif block_type == "reasoning_content":
-                reasoning = block.get("reasoning_content") or block.get("reasoningContent") or {}
+                reasoning = (
+                    block.get("reasoning_content")
+                    or block.get("reasoningContent")
+                    or {}
+                )
                 reasoning_text = reasoning.get("text", "")
                 if reasoning_text:
                     parts.append(f"<thinking>{reasoning_text}</thinking>")
@@ -252,6 +292,7 @@ def stringify_message_content(content) -> str:
         return " ".join(part for part in parts if part)
 
     return str(content)
+
 
 def log_agent_message(label: str, message: BaseMessage) -> None:
     """Logs one message produced while streaming an agent's run: the model's
@@ -277,7 +318,12 @@ def log_agent_message(label: str, message: BaseMessage) -> None:
         if text:
             logger.info("%s | model: %s", label, text)
         for tool_call in message.tool_calls or []:
-            logger.info("%s | tool call: %s(%s)", label, tool_call["name"], tool_call["args"])
+            logger.info(
+                "%s | tool call: %s(%s)",
+                label,
+                tool_call["name"],
+                tool_call["args"],
+            )
     elif isinstance(message, ToolMessage):
         logger.info(
             "%s | tool result (%s): %s",

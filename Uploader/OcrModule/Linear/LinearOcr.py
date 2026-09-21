@@ -11,6 +11,7 @@ from ..LlmHelper import (
 )
 from .OcrAgent import OcrAgent
 
+
 class LinearOcr(Ocr):
     def __init__(
         self,
@@ -26,12 +27,15 @@ class LinearOcr(Ocr):
         self.entire_section: OcrResultSection
 
     def ocr(
-         self,
-         all_page_images: list[Image],
-     ) -> OcrResult:
+        self,
+        all_page_images: list[Image],
+    ) -> OcrResult:
         # Convert every page to base64 up front so no PIL.Image.Image is held
         # onto beyond this point.
-        all_pages = [ImageBase64(b64=pil_to_base64(img), size=img.size) for img in all_page_images]
+        all_pages = [
+            ImageBase64(b64=pil_to_base64(img), size=img.size)
+            for img in all_page_images
+        ]
 
         self._initialize_entire_section()
         ocr_agent = OcrAgent(
@@ -47,11 +51,12 @@ class LinearOcr(Ocr):
         # process is alive and roughly how far through the document it is.
         page_progress = tqdm(range(len(all_pages)), desc="OCR", unit="page")
         for page_number in page_progress:
-            page_progress.set_description(f"OCR (page {page_number + 1}/{len(all_pages)})")
+            page_progress.set_description(
+                f"OCR (page {page_number + 1}/{len(all_pages)})"
+            )
             ocr_agent.read_page(page_number)
 
         return OcrResult(root_section=self.entire_section)
-
 
     def _initialize_entire_section(self) -> None:
         self.entire_section = OcrResultSection(
