@@ -1,25 +1,31 @@
+"""The document tree an OCR run produces."""
+
 from dataclasses import dataclass
 from typing import Literal, get_args
 
 TEXT_BLOCK_TYPES = Literal[
-    "paragraph",  # Main text block in the document
-    "heading",  # every heading in the document, including chapter titles, section headings, etc. including the title of the document itself
-    "document_index",  # every elements that does not directly contribute to the content. Such as page number, book/chapter title written top/bottom of the page, etc.
-    "note",  # any kind of note, such as footnote, endnote, sidenote, etc.
-    "code",  # any kind of code block, such as source code, pseudocode, etc.
-    "math",  # any kind of math block, such as formula, equation, etc. Write in KaTeX format
+    "paragraph",  # main body text
+    "heading",  # any heading, including chapter titles and the document's own title
+    "document_index",  # page numbers, running heads - anything not part of the content
+    "note",  # footnote, endnote, sidenote
+    "code",  # source code or pseudocode
+    "math",  # formula or equation, in KaTeX format
 ]
 
 
 @dataclass
 class OcrResultBlock:
+    """One piece of the document, of whatever kind."""
+
     block_type: TEXT_BLOCK_TYPES | Literal["figure", "section"]
-    existing_pages: list[int]  # Pages that this block is present on. 0-indexed
-    block_index: int  # this is unique within the document
+    existing_pages: list[int]  # pages this block appears on, 0-indexed
+    block_index: int  # unique within the document
 
 
 @dataclass
 class OcrResultBlockText(OcrResultBlock):
+    """A block of text, of one of the TEXT_BLOCK_TYPES."""
+
     text: str
 
     def __post_init__(self):
@@ -31,10 +37,10 @@ class OcrResultBlockText(OcrResultBlock):
 
 @dataclass
 class OcrResultBlockFigure(OcrResultBlock):
-    page_number: int  # the page whose pixel coordinates bounding_box is expressed in, 0-indexed
-    bounding_box: tuple[
-        int, int, int, int
-    ]  # (x, y, width, height), in page_number's pixel space
+    """A photo, diagram, or illustration, as a region of one page image."""
+
+    page_number: int  # the page bounding_box is in the pixel space of
+    bounding_box: tuple[int, int, int, int]  # (x, y, width, height)
     caption: str
 
     def __post_init__(self):
@@ -43,9 +49,9 @@ class OcrResultBlockFigure(OcrResultBlock):
 
 @dataclass
 class OcrResultSection(OcrResultBlock):
-    section_content: list[
-        OcrResultBlock
-    ]  # can contain nested OcrResultSection instances
+    """A run of blocks belonging together, nestable to mirror the document."""
+
+    section_content: list[OcrResultBlock]
 
     def __post_init__(self):
         self.block_type = "section"
@@ -53,4 +59,6 @@ class OcrResultSection(OcrResultBlock):
 
 @dataclass
 class OcrResult:
+    """A whole document, as one tree."""
+
     root_section: OcrResultSection

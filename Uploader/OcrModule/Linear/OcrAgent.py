@@ -1,3 +1,5 @@
+"""Reading one page: the agent run that reports what the page needs."""
+
 import logging
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
@@ -17,8 +19,12 @@ from ..LlmHelper import (
 
 logger = logging.getLogger(__name__)
 
+# LangGraph counts one step per node, so a tool call costs two. Only
+# get_page_image and clip_image are tool calls now, so this is a guard
+# against a loop rather than a budget for a normal page.
 RECURSION_LIMIT = 20
 
+# how many times a rejected response may be handed back to the model to fix
 MAX_OUTPUT_ATTEMPTS = 3
 
 
@@ -33,6 +39,13 @@ def _rejection_message(errors: list[str]) -> str:
 
 
 class OcrAgent:
+    """Runs one page through the OCR model and returns the operations it
+    reports, checked against the document tree.
+
+    The model gets two tools - looking at a page image, and locating a figure
+    - and reports every edit the page needs in one structured final response,
+    rather than one tool call per edit."""
+
     def __init__(
         self,
         ocr_model: BaseChatModel,

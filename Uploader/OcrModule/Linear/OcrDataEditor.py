@@ -1,3 +1,5 @@
+"""Checking a page's reported operations, and carrying them out."""
+
 import logging
 
 from ..OcrSchema import (
@@ -21,6 +23,7 @@ def find_block_by_index(
     index: int,
     section: OcrResultSection,
 ) -> OcrResultBlock:
+    """The block with `index`, searching `section` and everything under it."""
     if section.block_index == index:
         return section
 
@@ -41,6 +44,7 @@ def find_section_by_index(
     index: int,
     section: OcrResultSection,
 ) -> OcrResultSection:
+    """The section with `index`, searching `section` and everything under it."""
     if section.block_index == index:
         return section
 
@@ -55,6 +59,7 @@ def find_section_by_index(
 
 
 def get_max_block_index(section: OcrResultSection) -> int:
+    """The highest block_index in the tree, so the next one can follow it."""
     max_index = section.block_index
 
     for block in section.section_content:
@@ -74,7 +79,7 @@ def mark_existing_page(
     target_index: int,
     page_number: int,
 ) -> bool:
-    """Adds page_number to existing_pages of the block with target_index and every ancestor section, including `section` itself. Returns whether target_index was found within `section`."""
+    """Records `page_number` on the block with `target_index` and every section above it, returning whether it was found."""
     if entire_section.block_index == target_index:
         if page_number not in entire_section.existing_pages:
             entire_section.existing_pages.append(page_number)
@@ -114,16 +119,13 @@ def validate_output(
     output: OutputSchema, entire_section: OcrResultSection
 ) -> list[str]:
     """Every problem that would stop `output` from being applied, phrased for
-    the model that produced it - an empty list means it can be applied as is.
+    the model that produced it - empty means it can be applied as is.
 
-    Checked before anything is written, so a response with a bad reference in
-    it can be handed back to the model whole, rather than half-applied and
-    then rejected.
-
-    The operations are checked in order, the same way they are applied: a
-    temporary_id only counts as known once the add_section that declares it
-    has been passed, which is what makes a forward reference (and so a cycle)
-    impossible to express."""
+    Run before anything is written, so a response with a bad reference is
+    handed back whole rather than half-applied. Operations are checked in the
+    order they will be applied, so a temporary_id only counts as known once
+    its add_section has been passed - which makes a forward reference, and so
+    a cycle, impossible to express."""
     errors: list[str] = []
     known_ids: set[str] = set()
 
@@ -192,19 +194,10 @@ def validate_output(
 
 
 class OcrDataEditor:
-    """Applies one page's batched OutputSchema to the document tree.
+    """Applies one page's reported operations to the document tree.
 
-    This is what replaced the sequential tool-calling loop: instead of one
-    model round-trip per edit (each resending the whole conversation, page
-    image included), the model reports every edit the page needs in a single
-    OutputSchema, and this class performs them all at once - the same
-    operations Tools.py's LinearTools used to perform one tool call at a
-    time, minus the per-call "ERROR: ..." string replies, since there is no
-    further model turn left in this page to read them.
-
-    Expects `output` to have passed validate_output already - the caller
-    hands a response back to the model rather than applying a broken one.
-    The skip-and-warn paths below are only a backstop for that."""
+    Expects `output` to have passed validate_output already; the skip-and-warn
+    paths below are only a backstop for that."""
 
     def __init__(self, entire_section: OcrResultSection) -> None:
         self.entire_section = entire_section
@@ -212,13 +205,9 @@ class OcrDataEditor:
     def apply(self, output: OutputSchema, page_number: int) -> None:
         """Carries out `output.operations` in the order given.
 
-        Order is the point: a block is appended to its section as its
-        operation is reached, so the order the model reports them in is the
-        order they end up in the document. Splitting them by kind first would
-        put every figure after every paragraph, and every subsection before
-        the heading that introduces it."""
-        # temporary_id -> the block_index it actually got, so a later
-        # operation can resolve a section that did not exist when it was named
+        Order is the point: a block is appended as its operation is reached,
+        so the order reported is the order it ends up in the document."""
+        # temporary_id -> the block_index it actually got
         temporary_ids: dict[str, int] = {}
 
         for operation in output.operations:
@@ -240,8 +229,7 @@ class OcrDataEditor:
     def _resolve_section(
         self, reference: str, temporary_ids: dict[str, int]
     ) -> OcrResultSection | None:
-        """The section a placement names, whether by the temporary_id of one
-        added in this same response or by an existing block_index."""
+        """The section a reference names, by temporary_id or block_index."""
         block_index = temporary_ids.get(reference.strip())
 
         if block_index is None:
@@ -286,7 +274,9 @@ class OcrDataEditor:
         self, operation: EditBlockOperation, page_number: int
     ) -> None:
         try:
-            block = find_block_by_index(operation.block_index, self.entire_section)
+            block = find_block_by_index(
+                operation.block_index, self.entire_section
+            )
         except KeyError:
             logger.warning(
                 "page %d | edit_block: block %d not found, skipping",
@@ -304,7 +294,9 @@ class OcrDataEditor:
             return
 
         block.text = operation.text
-        mark_existing_page(self.entire_section, operation.block_index, page_number)
+        mark_existing_page(
+            self.entire_section, operation.block_index, page_number
+        )
 
     def _add_text_block(
         self,

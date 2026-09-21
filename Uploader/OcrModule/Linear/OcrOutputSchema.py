@@ -1,3 +1,5 @@
+"""What the OCR agent reports for one page, as a list of operations."""
+
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -51,9 +53,8 @@ class AddImageBlockOperation(BaseModel):
 
     operation: Literal["add_image_block"]
     section: str = Field(description=SECTION_REFERENCE_DESCRIPTION)
-    # Four separate fields rather than one (x, y, width, height) tuple:
-    # a fixed-length tuple becomes a prefixItems array in the JSON schema,
-    # which structured output rejects ("array schema missing items").
+    # four fields rather than a tuple: a tuple becomes a prefixItems array,
+    # which structured output rejects ("array schema missing items")
     x: int = Field(
         description="Left edge of the figure, in the current page's pixel coordinates."
     )
@@ -66,6 +67,7 @@ class AddImageBlockOperation(BaseModel):
 
     @property
     def bounding_box(self) -> tuple[int, int, int, int]:
+        """The four fields as the (x, y, width, height) the tree stores."""
         return (self.x, self.y, self.width, self.height)
 
 
@@ -88,12 +90,10 @@ Operation = (
 
 
 class OutputSchema(BaseModel):
-    """Everything to do to the document for the current page, as one list in
-    the order it should be carried out.
+    """Everything to do to the document for the current page, in order.
 
-    A single ordered list rather than one list per kind of operation: blocks
-    are appended to their section as they are applied, so the order here is
-    the order they end up in the document. Report them in the order they read
-    on the page."""
+    One ordered list rather than one per kind of operation: blocks are
+    appended as they are applied, so this order is the order they end up in
+    the document."""
 
     operations: list[Operation] = []

@@ -1,3 +1,5 @@
+"""The OCR agent's system prompt."""
+
 OCR_AGENT_SYSTEM_PROMPT = """You are an OCR agent that reconstructs a structured, editable document from scanned page images, one page at a time.
 
 You are given:

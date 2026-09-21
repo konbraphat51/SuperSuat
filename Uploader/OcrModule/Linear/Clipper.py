@@ -1,3 +1,5 @@
+"""Locating a figure on a page image, as a dedicated model call."""
+
 import logging
 from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
@@ -9,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class BoundingBoxOutput(BaseModel):
+    """The region of a page image a clip request resolved to."""
+
     bounding_box: tuple[int, int, int, int] = Field(
         description="The bounding box of the clipped region in the image, as (x, y, width, height)."
     )
@@ -21,6 +25,11 @@ def clip_image_with_agent(
     image_size: tuple[int, int],
     image_message_builder: ImageMessageBuilder,
 ) -> BoundingBoxOutput:
+    """The bounding box of whatever `order` describes, clamped to the image.
+
+    Its own model call rather than part of the OCR agent's response: a model
+    reading a whole page at once places boxes far less accurately than one
+    looking for a single figure."""
     width, height = image_size
     instruction = (
         f"{order}\n\n"

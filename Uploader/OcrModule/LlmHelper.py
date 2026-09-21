@@ -1,3 +1,5 @@
+"""Shared plumbing for talking to a model: images, context, and logging."""
+
 import base64
 import json
 import logging
@@ -14,19 +16,20 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ImageBase64:
+    """One page image, ready to put into a message."""
+
     b64: str
     size: tuple[int, int]  # (width, height)
 
 
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
+    """The image as a base64 string, as message content carries it."""
     buffered = BytesIO()
     img.save(buffered, format=format)
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
-# Builds the message content for a PNG image plus an accompanying text message.
-# Providers disagree on how an image is spelled inside message content, so the
-# concrete builder is injected rather than hardcoded.
+# Providers spell an image differently in message content, so the builder is injected.
 ImageMessageBuilder = Callable[[str | None, str], list[dict]]
 
 
@@ -220,16 +223,12 @@ def build_ocr_context_string(
     current_page_number: int,
     recent_page_count: int = 5,
 ) -> str:
-    """Serialize the OCR result tree to a JSON string for the agent's prompt,
-    bounding context growth on long documents by keeping only:
-    - blocks on one of the most recent `recent_page_count` pages (including
-      the current one)
-    - the heading block of every section that directly holds a block from
-      the page right before the current one, and of all its ancestor
-      sections up to the root, so the document structure around what was
-      just read stays visible
-    Everything else is replaced with an ellipsis marker, and a section left
-    with nothing of its own to show collapses into that marker too."""
+    """The document tree as JSON for the agent's prompt, kept small enough to
+    resend with every page.
+
+    Keeps blocks from the last `recent_page_count` pages, plus the headings of
+    the sections around what was just read so the structure stays visible.
+    Everything else collapses into an ellipsis marker."""
     keep_indices = _collect_keep_block_indices(
         root_section, current_page_number, recent_page_count
     )
@@ -237,29 +236,16 @@ def build_ocr_context_string(
     context_dict = _build_context_node(
         root_section, keep_indices
     ) or _context_node(root_section, [OMITTED_MARKER])
-    # compact separators rather than indentation: the scaffolding of a document
-    # with many sections is resent on every page, and indenting it roughly
-    # doubles that cost for no gain to the model reading it
+    # compact separators: this is resent on every page, and indenting it roughly doubles the cost
     return json.dumps(context_dict, ensure_ascii=False, separators=(",", ":"))
 
 
 def stringify_message_content(content) -> str:
-    """Flattens a message's `content` (a plain string, or the list-of-blocks
-    form used for multimodal messages) into a single log-friendly string:
-    - a text block's text is kept as-is
-    - a reasoning_content block (Bedrock's extended-thinking output, e.g. for
-      Claude 3.7+/Nova) is kept too, wrapped in <thinking> tags so it reads
-      as the model's chain of thought rather than its final answer
-    - an image block becomes a placeholder, so a page image never gets
-      dumped into the log as a giant base64 blob
-    - a tool_use block is dropped: the tool call it represents is already
-      logged separately (via AIMessage.tool_calls), so keeping it here would
-      just repeat the same call as a raw, harder-to-read dict
-    Note this only covers the model actually reporting its reasoning in one
-    of these forms. Some models (e.g. Qwen) write their reasoning directly
-    into the answer as plain text instead of a separate block, in which case
-    it is already captured by the `text` case above with nothing extra
-    needed here."""
+    """A message's content as one log-friendly string.
+
+    Text is kept as-is and reasoning is kept in <thinking> tags; an image
+    becomes a placeholder so a page never lands in the log as base64, and a
+    tool_use block is dropped since AIMessage.tool_calls already logs it."""
     if isinstance(content, str):
         return content
 
@@ -295,18 +281,12 @@ def stringify_message_content(content) -> str:
 
 
 def log_agent_message(label: str, message: BaseMessage) -> None:
-    """Logs one message produced while streaming an agent's run: the model's
-    reasoning/output text, and every tool call and its result, each prefixed
-    with `label` (e.g. "page 3") so the log can be tied to what produced it.
-    Meant to be called for each new message as an agent graph is streamed, so
-    what the agent is doing (and where it is spending time) can be inspected
-    as it happens rather than only after the whole run has finished."""
+    """Logs one message from an agent run - token usage, the model's text, and
+    every tool call and result - prefixed with `label` (e.g. "page 3")."""
     if isinstance(message, AIMessage):
         usage = message.usage_metadata
         if usage:
-            # Every turn resends the whole conversation, page image included,
-            # so input tokens grow with each round-trip. Logging them per turn
-            # is what makes that cost visible when a page runs slow.
+            # every turn resends the whole conversation, so input tokens grow per round-trip
             logger.info(
                 "%s | usage: input=%s output=%s total=%s",
                 label,

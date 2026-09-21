@@ -1,3 +1,5 @@
+"""Reading a document one page at a time, front to back."""
+
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from tqdm import tqdm
@@ -14,6 +16,12 @@ from .OcrDataEditor import OcrDataEditor
 
 
 class LinearOcr(Ocr):
+    """Reads each page in turn, growing one document tree as it goes.
+
+    Every page is one OcrAgent run, whose reported operations OcrDataEditor
+    applies before the next page is read - so each page is written against
+    the structure the pages before it produced."""
+
     def __init__(
         self,
         ocr_model: BaseChatModel,
@@ -21,6 +29,8 @@ class LinearOcr(Ocr):
         image_message_builder: ImageMessageBuilder = build_image_message_openai,
         clipper_image_message_builder: ImageMessageBuilder | None = None,
     ) -> None:
+        """clipper_model may be on a different provider than ocr_model, in
+        which case it needs its own image message builder."""
         self.ocr_model = ocr_model
         self.clipper_model = clipper_model
         self.image_message_builder = image_message_builder
@@ -31,8 +41,8 @@ class LinearOcr(Ocr):
         self,
         all_page_images: list[Image],
     ) -> OcrResult:
-        # Convert every page to base64 up front so no PIL.Image.Image is held
-        # onto beyond this point.
+        """Reads every page, in order, into a single document tree."""
+        # converted up front so no PIL.Image.Image is held onto beyond here
         all_pages = [
             ImageBase64(b64=pil_to_base64(img), size=img.size)
             for img in all_page_images
@@ -49,9 +59,8 @@ class LinearOcr(Ocr):
         )
         editor = OcrDataEditor(self.entire_section)
 
-        # Pages can each take a while (multiple LLM/tool round-trips), so a
-        # progress bar showing which page is in flight makes it obvious the
-        # process is alive and roughly how far through the document it is.
+        # a page is slow enough (several model calls) that showing which one
+        # is in flight is what makes it obvious the process is alive
         page_progress = tqdm(range(len(all_pages)), desc="OCR", unit="page")
         for page_number in page_progress:
             page_progress.set_description(

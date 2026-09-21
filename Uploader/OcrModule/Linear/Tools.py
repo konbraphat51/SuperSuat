@@ -1,3 +1,5 @@
+"""The tools the OCR agent can call while reading a page."""
+
 from langchain_core.language_models import BaseChatModel
 from ..OcrSchema import OcrResultSection
 from ..LlmHelper import ImageBase64, ImageMessageBuilder
@@ -8,6 +10,7 @@ def find_section_by_index(
     index: int,
     section: OcrResultSection,
 ) -> OcrResultSection:
+    """The section with `index`, searching `section` and everything under it."""
     if section.block_index == index:
         return section
 
@@ -22,6 +25,7 @@ def find_section_by_index(
 
 
 def iterate_sections(section: OcrResultSection):
+    """Every section in the tree, `section` itself first."""
     yield section
 
     for block in section.section_content:
@@ -46,6 +50,8 @@ def recompute_existing_pages(section: OcrResultSection) -> list[int]:
 
 
 class LinearTools:
+    """The tools bound to the OCR agent, over one document's page images."""
+
     def __init__(
         self,
         all_pages: list[ImageBase64],
@@ -94,6 +100,8 @@ class LinearTools:
 
         current_page = self.all_pages[self.current_page_number]
 
+        # a clipper failure is reported to the agent like any other tool
+        # error, rather than escaping and aborting the whole document
         try:
             result = clip_image_with_agent(
                 self.clipper_model,
