@@ -13,30 +13,33 @@ classDiagram
     class Blocker {
         <<abstract>>
         +block(pages: list[Image]) BlockerResult
+        #_block_page(page: Image, page_number: int) list[Block]
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]*
     }
     class YomitokuBlocker {
         -_device: str
         -_analyzer: LayoutAnalyzer
         +default_device() str
-        +block(pages: list[Image]) BlockerResult
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
     }
     class DocLayoutYoloBlocker {
         -_device: str
         -_model: YOLOv10
         +default_device() str
         +default_weight_path() str
-        +block(pages: list[Image]) BlockerResult
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
     }
     class PpStructureBlocker {
         -_device: str
         -_detector: LayoutDetection
         +default_device() str
-        +block(pages: list[Image]) BlockerResult
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
     }
     class BlockerResult {
         +blocks: list[Block]
     }
     class Block {
+        +block_id: int
         +block_type: BlockType
         +page_number: int
         +bounding_box: tuple[int, int, int, int]
@@ -51,32 +54,42 @@ classDiagram
 `Blocker` is the only thing the pipeline depends on, so the implementations are
 interchangeable: swapping one for another never touches the later steps.
 
-Every implementation follows the same shape.
+`Blocker` itself implements `block()` as a template method: a subclass only detects
+the regions of a single page — `_detect_page()` returns `(BlockType, bounding_box)`
+pairs, in any order. The base class turns those into `Block`s, sorts each page
+top-to-bottom, and assigns every block in the document a unique, sequential
+`block_id`, so none of that has to be repeated per implementation.
 
 ```mermaid
 sequenceDiagram
     participant Caller
     participant Blocker
+    participant Subclass
     participant LayoutModel
     Caller->>Blocker: block(pages)
     loop each page
-        Blocker->>Blocker: convert the PIL image to what the model wants
-        Blocker->>LayoutModel: detect regions
-        LayoutModel-->>Blocker: boxes with their classes
+        Blocker->>Subclass: _detect_page(page)
+        Subclass->>Subclass: convert the PIL image to what the model wants
+        Subclass->>LayoutModel: detect regions
+        LayoutModel-->>Subclass: boxes with their classes
+        Subclass-->>Blocker: (BlockType, bounding_box) pairs
         Blocker->>Blocker: map to Block, sort top-to-bottom
     end
+    Blocker->>Blocker: assign a unique block_id to every block
     Blocker-->>Caller: BlockerResult
 ```
 
 ## Conventions
 
-Shared by every implementation:
+Shared by every implementation, and enforced by the base class:
 
 - `page_number` is 0-indexed, as everywhere else in the OCR module.
 - The models report boxes as `[x1, y1, x2, y2]`; `Block.bounding_box` is
   `(x, y, width, height)`.
 - Blocks of one page are sorted top-to-bottom, then left-to-right. This is a stable
   order, not a reading order — reading order is step 3's job.
+- `block_id` is unique across the whole document (0-indexed, in the sorted order
+  above), not just within a page.
 - Captions, running heads, footers, and page numbers are prose, so they come out as
   `TEXT`; step 3 decides what to do with them.
 - Model weights are downloaded on first use and cached, so the first run of each

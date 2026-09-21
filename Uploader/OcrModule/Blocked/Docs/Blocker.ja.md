@@ -13,30 +13,33 @@ classDiagram
     class Blocker {
         <<abstract>>
         +block(pages: list[Image]) BlockerResult
+        #_block_page(page: Image, page_number: int) list[Block]
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]*
     }
     class YomitokuBlocker {
         -_device: str
         -_analyzer: LayoutAnalyzer
         +default_device() str
-        +block(pages: list[Image]) BlockerResult
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
     }
     class DocLayoutYoloBlocker {
         -_device: str
         -_model: YOLOv10
         +default_device() str
         +default_weight_path() str
-        +block(pages: list[Image]) BlockerResult
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
     }
     class PpStructureBlocker {
         -_device: str
         -_detector: LayoutDetection
         +default_device() str
-        +block(pages: list[Image]) BlockerResult
+        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
     }
     class BlockerResult {
         +blocks: list[Block]
     }
     class Block {
+        +block_id: int
         +block_type: BlockType
         +page_number: int
         +bounding_box: tuple[int, int, int, int]
@@ -51,31 +54,40 @@ classDiagram
 パイプラインが依存するのは `Blocker` のみ。実装同士は差し替え可能で、どれに変えても
 後続の段階には影響しない。
 
-いずれの実装も同じ流れをとる。
+`Blocker` 自体がテンプレートメソッドとして `block()` を実装している。各実装が行うのは
+1ページ分の領域検出だけで、`_detect_page()` が `(BlockType, bounding_box)` の組を
+順不同で返せばよい。それを `Block` に変換し、ページごとに上から下へ並べ替え、文書
+全体で一意な連番の `block_id` を振るのは基底クラスの役割であり、実装ごとに繰り返す
+必要はない。
 
 ```mermaid
 sequenceDiagram
     participant Caller
     participant Blocker
+    participant 実装クラス
     participant LayoutModel
     Caller->>Blocker: block(pages)
     loop 各ページ
-        Blocker->>Blocker: PIL画像をモデルが要求する形式へ変換
-        Blocker->>LayoutModel: 領域を検出
-        LayoutModel-->>Blocker: クラス付きの矩形
+        Blocker->>実装クラス: _detect_page(page)
+        実装クラス->>実装クラス: PIL画像をモデルが要求する形式へ変換
+        実装クラス->>LayoutModel: 領域を検出
+        LayoutModel-->>実装クラス: クラス付きの矩形
+        実装クラス-->>Blocker: (BlockType, bounding_box) の組
         Blocker->>Blocker: Blockへ変換し上から下へ並べ替え
     end
+    Blocker->>Blocker: 全ブロックに一意なblock_idを振る
     Blocker-->>Caller: BlockerResult
 ```
 
 ## 規約
 
-全実装に共通する取り決め。
+全実装に共通し、基底クラスが強制する取り決め。
 
 - `page_number` はOCRモジュール全体と同様に0始まり。
 - モデルの出力は `[x1, y1, x2, y2]`、`Block.bounding_box` は `(x, y, width, height)`。
 - 同一ページのブロックは上から下、次に左から右へ並べる。これは安定した順序であり、
   読み順ではない。読み順の推定は第3段階の役割。
+- `block_id` はページ内ではなく文書全体で一意（上記の並び順で0始まりの連番）。
 - キャプション・柱・フッター・ノンブルは本文と同じ文字列なので `TEXT` として返す。
   扱いは第3段階が決める。
 - モデルの重みは初回実行時にダウンロードされキャッシュされるため、各実装の初回実行には
