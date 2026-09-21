@@ -19,12 +19,12 @@ class LinearOcr(Ocr):
         ocr_model: BaseChatModel,
         clipper_model: BaseChatModel,
         image_message_builder: ImageMessageBuilder = build_image_message_openai,
+        clipper_image_message_builder: ImageMessageBuilder | None = None,
     ) -> None:
         self.ocr_model = ocr_model
         self.clipper_model = clipper_model
-        # how an image is spelled inside message content depends on the
-        # provider behind the models above (see LlmHelper)
         self.image_message_builder = image_message_builder
+        self.clipper_image_message_builder = clipper_image_message_builder
         self.entire_section: OcrResultSection
 
     def ocr(
@@ -45,6 +45,7 @@ class LinearOcr(Ocr):
             all_pages=all_pages,
             entire_section=self.entire_section,
             image_message_builder=self.image_message_builder,
+            clipper_image_message_builder=self.clipper_image_message_builder,
         )
         editor = OcrDataEditor(self.entire_section)
 

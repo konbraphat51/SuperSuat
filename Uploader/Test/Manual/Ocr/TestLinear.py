@@ -1,7 +1,9 @@
 """Manual test for LinearOcr against the sample PDFs.
 
-Runs the Linear OCR pipeline over every PDF in `Sample/` using Amazon Bedrock
-as the provider, and writes one JSON file per PDF into `Output/`.
+Runs the Linear OCR pipeline over every PDF in `Sample/` and writes one JSON
+file per PDF into `Output/`. The OCR agent runs on the OpenAI API (needs
+tool_choice enforcement, which Bedrock's Qwen models don't support - see
+TestLinear_setup.md); the clipper stays on Amazon Bedrock.
 
 Usage (from the `Uploader` directory):
 
@@ -38,16 +40,23 @@ sys.path.insert(0, str(UPLOADER_ROOT))
 from dotenv import load_dotenv  # noqa: E402
 
 from OcrModule.Linear.LinearOcr import LinearOcr  # noqa: E402
-from OcrModule.LlmHelper import build_image_message_bedrock  # noqa: E402
+from OcrModule.LlmHelper import (  # noqa: E402
+    build_image_message_bedrock,
+    build_image_message_openai,
+)
 
 SAMPLE_DIR = Path(__file__).resolve().parent / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
 
-# Both the OCR agent and the clipper run on the same Bedrock model. Override
-# with OCR_MODEL_ID / CLIPPER_MODEL_ID if the account needs a fully qualified
-# model id (e.g. an inference profile prefixed with the region).
-DEFAULT_MODEL_ID = "qwen.qwen3-vl-235b-a22b"
+# The clipper runs on Bedrock. Override with CLIPPER_MODEL_ID if the account
+# needs a fully qualified model id (e.g. an inference profile prefixed with
+# the region).
+DEFAULT_CLIPPER_MODEL_ID = "qwen.qwen3-vl-235b-a22b"
 DEFAULT_REGION = "us-west-2"
+
+# The OCR agent runs on the OpenAI API. Confirm this is the exact model id
+# the account should call - override with OPENAI_OCR_MODEL_ID if not.
+DEFAULT_OPENAI_OCR_MODEL_ID = "gpt-5.6-luna"
 
 # 200 DPI keeps small kana and subscripts legible without blowing up the
 # base64 payload that every page image is sent as.
@@ -55,7 +64,7 @@ DEFAULT_DPI = 200
 DEFAULT_MAX_TOKENS = 8192
 
 
-def build_model(model_id: str, region: str, api_key: str | None):
+def build_bedrock_model(model_id: str, region: str, api_key: str | None):
     """A Bedrock chat model. Imported lazily so that `--help` works without
     langchain-aws installed."""
     from langchain_aws import ChatBedrockConverse
@@ -66,6 +75,21 @@ def build_model(model_id: str, region: str, api_key: str | None):
         max_tokens=DEFAULT_MAX_TOKENS,
         temperature=0,
         **({"bedrock_api_key": api_key} if api_key else {}),
+    )
+
+
+def build_openai_model(model_id: str, api_key: str | None):
+    """An OpenAI chat model, used for the OCR agent: unlike Bedrock's Qwen
+    models, it supports forced tool_choice, which the OcrAgent's structured
+    final response (see OcrOutputSchema) depends on. Imported lazily so that
+    `--help` works without langchain-openai installed."""
+    from langchain_openai import ChatOpenAI
+
+    return ChatOpenAI(
+        model=model_id,
+        max_tokens=DEFAULT_MAX_TOKENS,
+        temperature=0,
+        **({"api_key": api_key} if api_key else {}),
     )
 
 
@@ -93,16 +117,24 @@ def pdf_to_images(
     return images
 
 
-def run_one_pdf(pdf_path: Path, args, api_key: str | None) -> Path:
+def run_one_pdf(
+    pdf_path: Path,
+    args,
+    aws_api_key: str | None,
+    openai_api_key: str | None,
+) -> Path:
     print(f"\n=== {pdf_path.name} ===", flush=True)
 
     images = pdf_to_images(pdf_path, args.dpi, args.max_pages)
     print(f"rendered {len(images)} page(s) at {args.dpi} DPI", flush=True)
 
     ocr = LinearOcr(
-        ocr_model=build_model(args.ocr_model, args.region, api_key),
-        clipper_model=build_model(args.clipper_model, args.region, api_key),
-        image_message_builder=build_image_message_bedrock,
+        ocr_model=build_openai_model(args.ocr_model, openai_api_key),
+        clipper_model=build_bedrock_model(
+            args.clipper_model, args.region, aws_api_key
+        ),
+        image_message_builder=build_image_message_openai,
+        clipper_image_message_builder=build_image_message_bedrock,
     )
 
     started_at = time.monotonic()
@@ -140,11 +172,14 @@ def parse_args() -> argparse.Namespace:
         help="Only read the first N pages of each PDF. Useful for a cheap smoke run.",
     )
     parser.add_argument(
-        "--ocr-model", default=os.getenv("OCR_MODEL_ID", DEFAULT_MODEL_ID)
+        "--ocr-model",
+        default=os.getenv("OPENAI_OCR_MODEL_ID", DEFAULT_OPENAI_OCR_MODEL_ID),
+        help="OpenAI model id for the OCR agent.",
     )
     parser.add_argument(
         "--clipper-model",
-        default=os.getenv("CLIPPER_MODEL_ID", DEFAULT_MODEL_ID),
+        default=os.getenv("CLIPPER_MODEL_ID", DEFAULT_CLIPPER_MODEL_ID),
+        help="Bedrock model id for the clipper.",
     )
     parser.add_argument(
         "--region",
@@ -217,11 +252,11 @@ def main() -> int:
     # own name; langchain-aws reads AWS_BEARER_TOKEN_BEDROCK. Passing it
     # explicitly also leaves the door open for plain IAM credentials, in which
     # case there is no key here and boto3's own resolution takes over.
-    api_key = os.getenv("AWS_BEDROCK_SHORT_API_KEY") or os.getenv(
+    aws_api_key = os.getenv("AWS_BEDROCK_SHORT_API_KEY") or os.getenv(
         "AWS_BEARER_TOKEN_BEDROCK"
     )
 
-    if api_key:
+    if aws_api_key:
         # Bearer-token auth never consults the AWS profile, but botocore still
         # resolves the default profile while building the client and fails hard
         # on providers it lacks the extras for (`login_session` needs
@@ -230,21 +265,30 @@ def main() -> int:
         os.environ["AWS_CONFIG_FILE"] = os.devnull
         os.environ.pop("AWS_PROFILE", None)
 
+    # ChatOpenAI would otherwise fail deep inside the OCR agent's first call;
+    # failing here instead makes a missing key obvious immediately.
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        print(
+            "ERROR: OPENAI_API_KEY is not set (see TestLinear_setup.md).",
+            file=sys.stderr,
+        )
+        return 1
+
     pdfs = resolve_pdfs(args.pdf)
     if not pdfs:
         print(f"No PDFs found in {SAMPLE_DIR}", file=sys.stderr)
         return 1
 
-    print(
-        f"model: {args.ocr_model} (clipper: {args.clipper_model}) @ {args.region}"
-    )
+    print(f"OCR model (OpenAI): {args.ocr_model}")
+    print(f"clipper model (Bedrock): {args.clipper_model} @ {args.region}")
     print(f"targets: {', '.join(p.name for p in pdfs)}")
     print(f"log: {log_file}")
 
     failures: list[str] = []
     for pdf_path in pdfs:
         try:
-            run_one_pdf(pdf_path, args, api_key)
+            run_one_pdf(pdf_path, args, aws_api_key, openai_api_key)
         except Exception:
             # One bad PDF should not cost the results of the others.
             traceback.print_exc()

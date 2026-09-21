@@ -52,11 +52,15 @@ class LinearTools:
         ocr_entire_section: OcrResultSection,
         clipper_model: BaseChatModel,
         image_message_builder: ImageMessageBuilder,
+        clipper_image_message_builder: ImageMessageBuilder | None = None,
     ) -> None:
         self.all_pages = all_pages
         self.ocr_entire_section = ocr_entire_section
         self.clipper_model = clipper_model
         self.image_message_builder = image_message_builder
+        self.clipper_image_message_builder = (
+            clipper_image_message_builder or image_message_builder
+        )
         self.current_page_number = -1  # 0-indexed
 
     def set_current_page(
@@ -96,7 +100,7 @@ class LinearTools:
                 order,
                 current_page.b64,
                 current_page.size,
-                self.image_message_builder,
+                self.clipper_image_message_builder,
             )
         except Exception as error:
             return f"ERROR: The clipping agent failed: {error}"
