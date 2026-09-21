@@ -13,6 +13,11 @@ dependencies = [
     "langgraph>=1.1.10",
     "langgraph-checkpoint>=4.2.0",
     "numpy>=2.0.0",
+    "paddleocr>=3.7.0",
+    # Paddle's CUDA wheels pin CUDA 12 on Linux, which torch's CUDA 13 build
+    # rules out; only this machine's platform gets the GPU build.
+    "paddlepaddle-gpu>=3.4.0; sys_platform == 'win32'",
+    "paddlepaddle>=3.3.1; sys_platform != 'win32'",
     "pillow>=11.0.0",
     "pydantic>=2.12.5",
     "pymupdf>=1.27.2.3",
@@ -31,6 +36,13 @@ name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
+# Paddle ships its CUDA builds from its own index only; PyPI carries CPU wheels alone.
+[[tool.uv.index]]
+name = "paddle-cu129"
+url = "https://www.paddlepaddle.org.cn/packages/stable/cu129/"
+explicit = true
+
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
+paddlepaddle-gpu = { index = "paddle-cu129" }
