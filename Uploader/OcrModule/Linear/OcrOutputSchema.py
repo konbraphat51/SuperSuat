@@ -40,7 +40,9 @@ class AddSectionInputSchema(BaseModel):
 class EditBlockInputSchema(BaseModel):
     """Edit the text of an existing block by its index."""
 
-    block_index: int = Field(description="The block_index of the block to edit.")
+    block_index: int = Field(
+        description="The block_index of the block to edit."
+    )
     text: str = Field(description="The block's new text.")
 
 
