@@ -10,7 +10,7 @@ from huggingface_hub import hf_hub_download
 from PIL.Image import Image
 
 from .Blocker import Blocker
-from ..Schema import Block, BlockerResult, BlockType
+from ..Schema import BlockType
 
 logger = logging.getLogger(__name__)
 
@@ -86,22 +86,10 @@ class DocLayoutYoloBlocker(Blocker):
         """The released DocStructBench checkpoint, downloaded once and cached."""
         return hf_hub_download(DEFAULT_REPOSITORY, DEFAULT_WEIGHT_FILE)
 
-    def block(
-        self,
-        pages: list[Image],
-    ) -> BlockerResult:
-        """Detects blocks of text, math, images, and tables in the page images."""
-        blocks: list[Block] = []
-        for page_number, page in enumerate(pages):
-            blocks.extend(self._block_page(page, page_number))
-
-        logger.info("blocked %d pages into %d blocks", len(pages), len(blocks))
-        return BlockerResult(blocks=blocks)
-
-    def _block_page(self, page: Image, page_number: int) -> list[Block]:
-        """Every block of one page, ordered top-to-bottom then left-to-right.
-
-        The page number is 0-indexed, as elsewhere in the OCR module."""
+    def _detect_page(
+        self, page: Image
+    ) -> list[tuple[BlockType, tuple[int, int, int, int]]]:
+        """The (block type, bounding box) pairs DocLayout-YOLO detects in the page."""
         prediction = self._model.predict(
             page.convert("RGB"),
             imgsz=self._image_size,
@@ -115,16 +103,10 @@ class DocLayoutYoloBlocker(Blocker):
         boxes = prediction.boxes.xyxy.cpu().numpy()
         classes = prediction.boxes.cls.cpu().numpy().astype(int)
 
-        blocks = [
-            Block(
-                block_type=self._class_block_type(names[class_id]),
-                page_number=page_number,
-                bounding_box=self._to_bounding_box(box),
-            )
+        return [
+            (self._class_block_type(names[class_id]), self._to_bounding_box(box))
             for box, class_id in zip(boxes, classes)
         ]
-        blocks.sort(key=lambda block: (block.bounding_box[1], block.bounding_box[0]))
-        return blocks
 
     @staticmethod
     def _class_block_type(class_name: str) -> BlockType:

@@ -9,7 +9,7 @@ from PIL.Image import Image
 from yomitoku import LayoutAnalyzer
 
 from .Blocker import Blocker
-from ..Schema import Block, BlockerResult, BlockType
+from ..Schema import BlockType
 
 logger = logging.getLogger(__name__)
 
@@ -54,22 +54,10 @@ class YomitokuBlocker(Blocker):
         """ "cuda" whenever this machine can run the models on the GPU."""
         return "cuda" if torch.cuda.is_available() else "cpu"
 
-    def block(
-        self,
-        pages: list[Image],
-    ) -> BlockerResult:
-        """Detects blocks of text, math, images, and tables in the page images."""
-        blocks: list[Block] = []
-        for page_number, page in enumerate(pages):
-            blocks.extend(self._block_page(page, page_number))
-
-        logger.info("blocked %d pages into %d blocks", len(pages), len(blocks))
-        return BlockerResult(blocks=blocks)
-
-    def _block_page(self, page: Image, page_number: int) -> list[Block]:
-        """Every block of one page, ordered top-to-bottom then left-to-right.
-
-        The page number is 0-indexed, as elsewhere in the OCR module."""
+    def _detect_page(
+        self, page: Image
+    ) -> list[tuple[BlockType, tuple[int, int, int, int]]]:
+        """The (block type, bounding box) pairs yomitoku detects in the page."""
         layout, _ = self._analyzer(self._to_bgr_array(page))
 
         elements: list[tuple[Sequence[int], BlockType]] = [
@@ -81,16 +69,9 @@ class YomitokuBlocker(Blocker):
             *((table.box, BlockType.TABLE) for table in layout.tables),
         ]
 
-        blocks = [
-            Block(
-                block_type=block_type,
-                page_number=page_number,
-                bounding_box=self._to_bounding_box(box),
-            )
-            for box, block_type in elements
+        return [
+            (block_type, self._to_bounding_box(box)) for box, block_type in elements
         ]
-        blocks.sort(key=lambda block: (block.bounding_box[1], block.bounding_box[0]))
-        return blocks
 
     @staticmethod
     def _paragraph_block_type(role: str | None) -> BlockType:

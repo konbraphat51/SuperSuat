@@ -13,7 +13,7 @@ from paddleocr import LayoutDetection
 from PIL.Image import Image
 
 from .Blocker import Blocker
-from ..Schema import Block, BlockerResult, BlockType
+from ..Schema import BlockType
 
 logger = logging.getLogger(__name__)
 
@@ -87,34 +87,19 @@ class PpStructureBlocker(Blocker):
         """ "gpu" whenever this machine can run the model on the GPU."""
         return "gpu" if paddle.device.cuda.device_count() > 0 else "cpu"
 
-    def block(
-        self,
-        pages: list[Image],
-    ) -> BlockerResult:
-        """Detects blocks of text, math, images, and tables in the page images."""
-        blocks: list[Block] = []
-        for page_number, page in enumerate(pages):
-            blocks.extend(self._block_page(page, page_number))
-
-        logger.info("blocked %d pages into %d blocks", len(pages), len(blocks))
-        return BlockerResult(blocks=blocks)
-
-    def _block_page(self, page: Image, page_number: int) -> list[Block]:
-        """Every block of one page, ordered top-to-bottom then left-to-right.
-
-        The page number is 0-indexed, as elsewhere in the OCR module."""
+    def _detect_page(
+        self, page: Image
+    ) -> list[tuple[BlockType, tuple[int, int, int, int]]]:
+        """The (block type, bounding box) pairs PP-DocLayout detects in the page."""
         detection = self._detector.predict(self._to_bgr_array(page))[0]
 
-        blocks = [
-            Block(
-                block_type=self._label_block_type(box["label"]),
-                page_number=page_number,
-                bounding_box=self._to_bounding_box(box["coordinate"]),
+        return [
+            (
+                self._label_block_type(box["label"]),
+                self._to_bounding_box(box["coordinate"]),
             )
             for box in detection["boxes"]
         ]
-        blocks.sort(key=lambda block: (block.bounding_box[1], block.bounding_box[0]))
-        return blocks
 
     @staticmethod
     def _label_block_type(label: str) -> BlockType:
