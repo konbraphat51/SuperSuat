@@ -1,9 +1,10 @@
 - Write SOLID, readable, and maintainable code
 - Write comments in English
-  - Comments should be concise, be concise.
+  - Comments should be concise. Should be only single line per topic.
     - There is NO need to leave comments for each code update.
       - ex: "This code is left because of..."
       - ex: "This code is deleted because of..."
+    - Be aware if the code readers would prefer to read your comments, or it is just noise for them.
   - Write comments for the responsibility of the file itself at the top
   - Write comments for each public class/method/variable
     - If Python, write in docstring format
