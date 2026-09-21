@@ -13,6 +13,13 @@ from ..Schema import Block, BlockerResult, BlockType
 
 logger = logging.getLogger(__name__)
 
+# Paragraph roles that mean the block is a formula rather than prose. Only the
+# layout models trained with a formula category emit these.
+FORMULA_ROLES = {
+    "inline_formula": BlockType.MATH,
+    "display_formula": BlockType.MATH,
+}
+
 
 class YomitokuBlocker(Blocker):
     """Splits page images into blocks with yomitoku's layout analyzer.
@@ -65,10 +72,11 @@ class YomitokuBlocker(Blocker):
         The page number is 0-indexed, as elsewhere in the OCR module."""
         layout, _ = self._analyzer(self._to_bgr_array(page))
 
-        # yomitoku's layout model knows nothing of formulas: a block holding one
-        # is reported as text here, and the LLM step tells the two apart.
         elements: list[tuple[Sequence[int], BlockType]] = [
-            *((paragraph.box, BlockType.TEXT) for paragraph in layout.paragraphs),
+            *(
+                (paragraph.box, self._paragraph_block_type(paragraph.role))
+                for paragraph in layout.paragraphs
+            ),
             *((figure.box, BlockType.IMAGE) for figure in layout.figures),
             *((table.box, BlockType.TABLE) for table in layout.tables),
         ]
@@ -83,6 +91,11 @@ class YomitokuBlocker(Blocker):
         ]
         blocks.sort(key=lambda block: (block.bounding_box[1], block.bounding_box[0]))
         return blocks
+
+    @staticmethod
+    def _paragraph_block_type(role: str | None) -> BlockType:
+        """MATH for a paragraph the layout model marked as a formula, else TEXT."""
+        return FORMULA_ROLES.get(role, BlockType.TEXT)
 
     @staticmethod
     def _to_bgr_array(page: Image) -> np.ndarray:

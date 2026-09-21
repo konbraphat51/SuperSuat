@@ -81,7 +81,7 @@ JSONは `BlockerResult` で、`bounding_box` は `(x, y, width, height)`、`page
 PNGではブロック種別ごとに枠の色が変わります（text=青 / math=赤 / image=緑 / table=橙）。
 枠に振られた番号は、同一ページ内での並び順（上から下、次に左から右）です。
 
-> `block_type` に `math` は現れません。レイアウトモデルに数式カテゴリが無いためです。
+> 既定のレイアウトモデルには数式カテゴリが無いため、`block_type` に `math` は通常現れません。
 > 詳細は [Blocker.md](../../../OcrModule/Blocked/Docs/Blocker.md) を参照してください。
 
 ## トラブルシューティング

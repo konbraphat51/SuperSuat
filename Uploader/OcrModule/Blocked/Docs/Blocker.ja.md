@@ -60,12 +60,14 @@ sequenceDiagram
 
 | yomitokuの要素 | `BlockType` |
 | --- | --- |
-| `paragraphs`（`section_headings`・`page_header`・`page_footer` ロールを含む） | `TEXT` |
+| `inline_formula`・`display_formula` ロールの `paragraphs` | `MATH` |
+| その他の `paragraphs`（`section_headings`・`page_header`・`page_footer` ロールを含む） | `TEXT` |
 | `figures` | `IMAGE` |
 | `tables` | `TABLE` |
 
-`BlockType.MATH` は出力されない。レイアウトモデルに数式カテゴリが無いため、数式を含む
-ブロックは `TEXT` として返り、第3段階のLLMが判別する。
+既定のレイアウトモデル（`rtdetrv2v2`）には数式カテゴリが無いため、実際には数式も `TEXT` と
+して返り、第3段階のLLMが判別する。`MATH` が出るのは、数式ロールを出力するモデルを
+`configs=` で指定した場合のみ。
 
 ### 規約
 

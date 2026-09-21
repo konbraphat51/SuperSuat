@@ -60,12 +60,14 @@ sequenceDiagram
 
 | yomitoku element | `BlockType` |
 | --- | --- |
-| `paragraphs` (including the `section_headings`, `page_header`, `page_footer` roles) | `TEXT` |
+| `paragraphs` with the `inline_formula` or `display_formula` role | `MATH` |
+| any other `paragraphs` (including the `section_headings`, `page_header`, `page_footer` roles) | `TEXT` |
 | `figures` | `IMAGE` |
 | `tables` | `TABLE` |
 
-`BlockType.MATH` is never produced: the layout model has no formula category, so a
-block holding a formula comes out as `TEXT` and step 3's LLM tells the two apart.
+The default layout model (`rtdetrv2v2`) has no formula category, so in practice every
+formula comes out as `TEXT` and step 3's LLM tells the two apart. `MATH` appears only
+with a model that emits the formula roles, configured through `configs=`.
 
 ### Conventions
 

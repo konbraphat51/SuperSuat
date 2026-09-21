@@ -85,7 +85,7 @@ In the PNGs each block type has its own outline color (text=blue, math=red,
 image=green, table=orange). The number on a box is its position within the page
 (top-to-bottom, then left-to-right).
 
-> `block_type` is never `math`: the layout model has no formula category. See
+> `block_type` is rarely `math`: the default layout model has no formula category. See
 > [Blocker.md](../../../OcrModule/Blocked/Docs/Blocker.md).
 
 ## Troubleshooting
