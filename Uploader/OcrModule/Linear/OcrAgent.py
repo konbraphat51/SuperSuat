@@ -1,11 +1,12 @@
 import logging
+from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 from .Tools import LinearTools
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
-from ..OcrSchema import OcrResultSection
+from ..OcrSchema import OcrResultSection, TEXT_BLOCK_TYPES
 from ..LlmHelper import (
     ImageBase64,
     ImageMessageBuilder,
@@ -19,6 +20,48 @@ logger = logging.getLogger(__name__)
 # single page at roughly 50 tool calls; without it the default limit of ~10000
 # lets an agent stuck in a loop spend thousands of model calls before failing.
 RECURSION_LIMIT = 100
+
+class AddTextBlockInputSchema(BaseModel):
+    """Add a new text block to the specified section."""
+
+    section_block_index: int = Field(
+        description="The block_index of the section to add this block into."
+    )
+    block_type: TEXT_BLOCK_TYPES = Field(
+        description="The kind of text block this is."
+    )
+    text: str = Field(description="The block's text.")
+
+class AddImageBlockInputSchema(BaseModel):
+    """Add a new figure block to the specified section. bounding_box must be
+    in the pixel coordinates of the current page."""
+
+    section_block_index: int = Field(
+        description="The block_index of the section to add this block into."
+    )
+    bounding_box: tuple[int, int, int, int] = Field(
+        description="(x, y, width, height) of the figure, in the current page's pixel coordinates."
+    )
+    caption: str = Field(description="The figure's caption.")
+
+class AddSectionInputSchema(BaseModel):
+    """Add a new empty section under the specified parent section."""
+
+    parent_section_block_index: int = Field(
+        description="The block_index of the section to add this new section into."
+    )
+
+class EditBlockInputSchema(BaseModel):
+    """Edit the text of an existing block by its index."""
+
+    block_index: int = Field(description="The block_index of the block to edit.")
+    text: str = Field(description="The block's new text.")
+
+class OutputSchema(BaseModel):
+    adding_text_block: list[AddTextBlockInputSchema] = []
+    adding_image_block: list[AddImageBlockInputSchema] = []
+    adding_section: list[AddSectionInputSchema] = []
+    editing_block: list[EditBlockInputSchema] = []
 
 
 class OcrAgent:
