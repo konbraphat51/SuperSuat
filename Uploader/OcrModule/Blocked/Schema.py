@@ -13,6 +13,7 @@ class Block(BaseModel):
     bounding_box: tuple[int, int, int, int] = Field(
         ..., description="The bounding box of the block in (x, y, width, height) format."
     )
+    block_id: int = Field(..., description="A unique identifier for the block within the document.")
 
 class BlockerResult(BaseModel):
     blocks: list[Block] = Field(..., description="List of blocks detected in the document.")
