@@ -1,17 +1,17 @@
-"""Manual test for YomitokuBlocker against the sample PDFs.
+"""Manual test for the Blocker implementations against the sample PDFs.
 
-Runs the layout stage over every PDF in `../Ocr/Sample/` and writes, per PDF,
-the detected blocks as JSON plus one PNG per page with the blocks drawn on it,
-into `Output/`. Nothing is sent to a paid API: the layout models run locally,
-on the GPU when there is one.
+Runs the layout stage over every PDF in `../Ocr/Sample/` and writes, per
+blocker and per PDF, the detected blocks as JSON plus one PNG per page with the
+blocks drawn on it, into `Output/<blocker>/`. Nothing is sent to a paid API:
+every layout model runs locally, on the GPU when there is one.
 
 Usage (from the `Uploader` directory):
 
-    uv run python Test/Manual/Blocked/TestYomitoku.py
-    uv run python Test/Manual/Blocked/TestYomitoku.py --pdf tate.pdf --max-pages 2
-    uv run python Test/Manual/Blocked/TestYomitoku.py --device cpu --no-render
+    uv run python Test/Manual/Blocked/TestBlocker.py
+    uv run python Test/Manual/Blocked/TestBlocker.py --blocker yomitoku --pdf tate.pdf
+    uv run python Test/Manual/Blocked/TestBlocker.py --blocker ppstructure --no-render
 
-See TestYomitoku_setup.md for the setup this needs.
+See TestBlocker_setup.md for the setup this needs.
 """
 
 import argparse
@@ -27,7 +27,7 @@ from PIL import Image, ImageDraw
 UPLOADER_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(UPLOADER_ROOT))
 
-from OcrModule.Blocked.Blocker.Yomitoku import YomitokuBlocker  # noqa: E402
+from OcrModule.Blocked.Blocker.Blocker import Blocker  # noqa: E402
 from OcrModule.Blocked.Schema import Block, BlockType  # noqa: E402
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "Ocr" / "Sample"
@@ -42,6 +42,36 @@ BLOCK_COLORS = {
     BlockType.MATH: "#d62728",
     BlockType.IMAGE: "#2ca02c",
     BlockType.TABLE: "#ff7f0e",
+}
+
+
+def build_yomitoku(device: str | None) -> Blocker:
+    """The yomitoku blocker, imported only when it is the one asked for."""
+    from OcrModule.Blocked.Blocker.Yomitoku import YomitokuBlocker
+
+    return YomitokuBlocker(device=device)
+
+
+def build_doclayout(device: str | None) -> Blocker:
+    """The DocLayout-YOLO blocker, imported only when it is the one asked for."""
+    from OcrModule.Blocked.Blocker.DocLayoutYolo import DocLayoutYoloBlocker
+
+    return DocLayoutYoloBlocker(device=device)
+
+
+def build_ppstructure(device: str | None) -> Blocker:
+    """The PP-StructureV3 blocker, imported only when it is the one asked for."""
+    from OcrModule.Blocked.Blocker.PpStructure import PpStructureBlocker
+
+    return PpStructureBlocker(device=device)
+
+
+# Every blocker this test can run, by the name `--blocker` takes. The builders
+# are lazy because each one loads a different heavy framework.
+BLOCKER_BUILDERS = {
+    "yomitoku": build_yomitoku,
+    "doclayout": build_doclayout,
+    "ppstructure": build_ppstructure,
 }
 
 
@@ -77,7 +107,7 @@ def render_blocks(page: Image.Image, blocks: list[Block], output_path: Path) -> 
     canvas.save(output_path)
 
 
-def run_one_pdf(pdf_path: Path, blocker: YomitokuBlocker, args) -> Path:
+def run_one_pdf(pdf_path: Path, blocker: Blocker, output_dir: Path, args) -> Path:
     print(f"\n=== {pdf_path.name} ===", flush=True)
 
     images = pdf_to_images(pdf_path, args.dpi, args.max_pages)
@@ -87,8 +117,8 @@ def run_one_pdf(pdf_path: Path, blocker: YomitokuBlocker, args) -> Path:
     result = blocker.block(images)
     elapsed = time.monotonic() - started_at
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = OUTPUT_DIR / f"{pdf_path.stem}.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{pdf_path.stem}.json"
     output_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
 
     if not args.no_render:
@@ -99,7 +129,7 @@ def run_one_pdf(pdf_path: Path, blocker: YomitokuBlocker, args) -> Path:
             render_blocks(
                 page,
                 page_blocks,
-                OUTPUT_DIR / f"{pdf_path.stem}_p{page_number}.png",
+                output_dir / f"{pdf_path.stem}_p{page_number}.png",
             )
 
     counts = {
@@ -115,6 +145,12 @@ def run_one_pdf(pdf_path: Path, blocker: YomitokuBlocker, args) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--blocker",
+        action="append",
+        choices=sorted(BLOCKER_BUILDERS),
+        help="Blocker to run. Repeatable. Defaults to every one of them.",
+    )
     parser.add_argument(
         "--pdf",
         action="append",
@@ -135,7 +171,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--device",
         default=None,
-        help="Torch device for the layout models. Default: cuda when available, else cpu.",
+        help="Device for the layout models, named as the chosen blocker names it ('cuda'/'cpu', 'gpu'/'cpu'). Default: the GPU when available.",
     )
     parser.add_argument(
         "--no-render",
@@ -161,6 +197,25 @@ def resolve_pdfs(selected: list[str] | None) -> list[Path]:
     return paths
 
 
+def run_one_blocker(name: str, pdfs: list[Path], args) -> list[str]:
+    """Runs one blocker over every PDF, returning the names of those that failed."""
+    print(f"\n########## {name} ##########", flush=True)
+
+    blocker = BLOCKER_BUILDERS[name](args.device)
+    output_dir = OUTPUT_DIR / name
+
+    failures: list[str] = []
+    for pdf_path in pdfs:
+        try:
+            run_one_pdf(pdf_path, blocker, output_dir, args)
+        except Exception as error:
+            # One bad PDF should not cost the results of the others.
+            print(f"FAILED {name}/{pdf_path.name}: {error}", file=sys.stderr)
+            failures.append(f"{name}/{pdf_path.name}")
+
+    return failures
+
+
 def main() -> int:
     args = parse_args()
 
@@ -169,18 +224,13 @@ def main() -> int:
         print(f"No PDFs found in {SAMPLE_DIR}", file=sys.stderr)
         return 1
 
-    blocker = YomitokuBlocker(device=args.device)
-    print(f"device: {args.device or YomitokuBlocker.default_device()}")
+    blockers = args.blocker or sorted(BLOCKER_BUILDERS)
+    print(f"blockers: {', '.join(blockers)}")
     print(f"targets: {', '.join(p.name for p in pdfs)}")
 
     failures: list[str] = []
-    for pdf_path in pdfs:
-        try:
-            run_one_pdf(pdf_path, blocker, args)
-        except Exception as error:
-            # One bad PDF should not cost the results of the others.
-            print(f"FAILED {pdf_path.name}: {error}", file=sys.stderr)
-            failures.append(pdf_path.name)
+    for name in blockers:
+        failures.extend(run_one_blocker(name, pdfs, args))
 
     if failures:
         print(f"\nFAILED: {', '.join(failures)}", file=sys.stderr)
