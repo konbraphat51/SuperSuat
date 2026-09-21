@@ -100,6 +100,91 @@ def mark_existing_page(
     return found
 
 
+def _section_exists(reference: str, entire_section: OcrResultSection) -> bool:
+    """Whether `reference` names a section that already exists, by block_index."""
+    try:
+        find_section_by_index(int(reference), entire_section)
+    except (ValueError, KeyError):
+        return False
+
+    return True
+
+
+def validate_output(
+    output: OutputSchema, entire_section: OcrResultSection
+) -> list[str]:
+    """Every problem that would stop `output` from being applied, phrased for
+    the model that produced it - an empty list means it can be applied as is.
+
+    Checked before anything is written, so a response with a bad reference in
+    it can be handed back to the model whole, rather than half-applied and
+    then rejected."""
+    errors: list[str] = []
+    declared_ids: list[str] = []
+
+    for position, addition in enumerate(output.adding_section):
+        temporary_id = addition.temporary_id.strip()
+
+        if not temporary_id:
+            errors.append(
+                f"adding_section[{position}]: temporary_id is empty. Give the section a short name."
+            )
+        elif temporary_id.lstrip("-").isdigit():
+            errors.append(
+                f"adding_section[{position}]: temporary_id {temporary_id!r} is a number, which is "
+                "ambiguous with the block_index of a section that already exists. Use a name instead."
+            )
+        elif temporary_id in declared_ids:
+            errors.append(
+                f"adding_section[{position}]: temporary_id {temporary_id!r} is used by more than one "
+                "new section. Each one needs its own."
+            )
+        else:
+            declared_ids.append(temporary_id)
+
+        parent = addition.parent.strip()
+        if parent not in declared_ids and not _section_exists(
+            parent, entire_section
+        ):
+            errors.append(
+                f"adding_section[{position}]: parent {parent!r} is neither the block_index of an "
+                "existing section nor the temporary_id of a section listed before it in adding_section."
+            )
+
+    known_ids = set(declared_ids)
+
+    for field_name, additions in (
+        ("adding_text_block", output.adding_text_block),
+        ("adding_image_block", output.adding_image_block),
+    ):
+        for position, addition in enumerate(additions):
+            section = addition.section.strip()
+            if section not in known_ids and not _section_exists(
+                section, entire_section
+            ):
+                errors.append(
+                    f"{field_name}[{position}]: section {section!r} is neither the block_index of an "
+                    "existing section nor the temporary_id of a section in adding_section."
+                )
+
+    for position, edit in enumerate(output.editing_block):
+        try:
+            block = find_block_by_index(edit.block_index, entire_section)
+        except KeyError:
+            errors.append(
+                f"editing_block[{position}]: there is no block with block_index {edit.block_index}."
+            )
+            continue
+
+        if not isinstance(block, OcrResultBlockText):
+            errors.append(
+                f"editing_block[{position}]: block {edit.block_index} is a {block.block_type}, "
+                "not a text block, so its text cannot be edited."
+            )
+
+    return errors
+
+
 class OcrDataEditor:
     """Applies one page's batched OutputSchema to the document tree.
 
@@ -109,47 +194,71 @@ class OcrDataEditor:
     OutputSchema, and this class performs them all at once - the same
     operations Tools.py's LinearTools used to perform one tool call at a
     time, minus the per-call "ERROR: ..." string replies, since there is no
-    further model turn left in this page to read them. An operation that
-    targets a section or block that doesn't exist is logged and skipped
-    instead, so one bad reference costs only itself rather than the page."""
+    further model turn left in this page to read them.
+
+    Expects `output` to have passed validate_output already - the caller
+    hands a response back to the model rather than applying a broken one.
+    The skip-and-warn paths below are only a backstop for that."""
 
     def __init__(self, entire_section: OcrResultSection) -> None:
         self.entire_section = entire_section
 
     def apply(self, output: OutputSchema, page_number: int) -> None:
         """Applies every edit in `output`, in a fixed order: new sections
-        first, then edits to existing blocks, then new text and figure
-        blocks. Note that a section added here has no block_index the model
-        could have known about when it wrote this same response, so
-        section_block_index on an addition below always has to name a
-        section that already existed before this page - never one from
-        `output.adding_section` itself."""
+        first (so the blocks that name one can find it), then edits to
+        existing blocks, then new text and figure blocks."""
+        # temporary_id -> the block_index it actually got, so the additions
+        # below can resolve a section that did not exist when the model named it
+        temporary_ids: dict[str, int] = {}
+
         for addition in output.adding_section:
-            self._add_section(addition, page_number)
+            new_section_index = self._add_section(
+                addition, page_number, temporary_ids
+            )
+            if new_section_index is not None:
+                temporary_ids[addition.temporary_id.strip()] = new_section_index
 
         for edit in output.editing_block:
             self._edit_block(edit, page_number)
 
         for addition in output.adding_text_block:
-            self._add_text_block(addition, page_number)
+            self._add_text_block(addition, page_number, temporary_ids)
 
         for addition in output.adding_image_block:
-            self._add_image_block(addition, page_number)
+            self._add_image_block(addition, page_number, temporary_ids)
+
+    def _resolve_section(
+        self, reference: str, temporary_ids: dict[str, int]
+    ) -> OcrResultSection | None:
+        """The section a placement names, whether by the temporary_id of one
+        added in this same response or by an existing block_index."""
+        block_index = temporary_ids.get(reference.strip())
+
+        if block_index is None:
+            try:
+                block_index = int(reference)
+            except ValueError:
+                return None
+
+        try:
+            return find_section_by_index(block_index, self.entire_section)
+        except KeyError:
+            return None
 
     def _add_section(
-        self, addition: AddSectionInputSchema, page_number: int
-    ) -> None:
-        try:
-            parent_section = find_section_by_index(
-                addition.parent_section_block_index, self.entire_section
-            )
-        except KeyError:
+        self,
+        addition: AddSectionInputSchema,
+        page_number: int,
+        temporary_ids: dict[str, int],
+    ) -> int | None:
+        parent_section = self._resolve_section(addition.parent, temporary_ids)
+        if parent_section is None:
             logger.warning(
-                "page %d | add_section: section %d not found, skipping",
+                "page %d | add_section: parent %r not found, skipping",
                 page_number,
-                addition.parent_section_block_index,
+                addition.parent,
             )
-            return
+            return None
 
         new_section_index = get_max_block_index(self.entire_section) + 1
         new_section = OcrResultSection(
@@ -160,6 +269,8 @@ class OcrDataEditor:
         )
         parent_section.section_content.append(new_section)
         mark_existing_page(self.entire_section, new_section_index, page_number)
+
+        return new_section_index
 
     def _edit_block(
         self, edit: EditBlockInputSchema, page_number: int
@@ -186,17 +297,17 @@ class OcrDataEditor:
         mark_existing_page(self.entire_section, edit.block_index, page_number)
 
     def _add_text_block(
-        self, addition: AddTextBlockInputSchema, page_number: int
+        self,
+        addition: AddTextBlockInputSchema,
+        page_number: int,
+        temporary_ids: dict[str, int],
     ) -> None:
-        try:
-            section = find_section_by_index(
-                addition.section_block_index, self.entire_section
-            )
-        except KeyError:
+        section = self._resolve_section(addition.section, temporary_ids)
+        if section is None:
             logger.warning(
-                "page %d | add_text_block: section %d not found, skipping",
+                "page %d | add_text_block: section %r not found, skipping",
                 page_number,
-                addition.section_block_index,
+                addition.section,
             )
             return
 
@@ -211,17 +322,17 @@ class OcrDataEditor:
         mark_existing_page(self.entire_section, new_block_index, page_number)
 
     def _add_image_block(
-        self, addition: AddImageBlockInputSchema, page_number: int
+        self,
+        addition: AddImageBlockInputSchema,
+        page_number: int,
+        temporary_ids: dict[str, int],
     ) -> None:
-        try:
-            section = find_section_by_index(
-                addition.section_block_index, self.entire_section
-            )
-        except KeyError:
+        section = self._resolve_section(addition.section, temporary_ids)
+        if section is None:
             logger.warning(
-                "page %d | add_image_block: section %d not found, skipping",
+                "page %d | add_image_block: section %r not found, skipping",
                 page_number,
-                addition.section_block_index,
+                addition.section,
             )
             return
 

@@ -2,13 +2,17 @@ from pydantic import BaseModel, Field
 
 from ..OcrSchema import TEXT_BLOCK_TYPES
 
+SECTION_REFERENCE_DESCRIPTION = (
+    "Which section to put this into: the block_index of a section that already "
+    'exists, written as a string (e.g. "0"), or the temporary_id of a section '
+    "from adding_section in this same response."
+)
+
 
 class AddTextBlockInputSchema(BaseModel):
     """Add a new text block to the specified section."""
 
-    section_block_index: int = Field(
-        description="The block_index of the section to add this block into."
-    )
+    section: str = Field(description=SECTION_REFERENCE_DESCRIPTION)
     block_type: TEXT_BLOCK_TYPES = Field(
         description="The kind of text block this is."
     )
@@ -20,9 +24,7 @@ class AddImageBlockInputSchema(BaseModel):
     in the pixel coordinates of the current page - use the clip_image tool to
     get an accurate one rather than estimating it by eye."""
 
-    section_block_index: int = Field(
-        description="The block_index of the section to add this block into."
-    )
+    section: str = Field(description=SECTION_REFERENCE_DESCRIPTION)
     bounding_box: tuple[int, int, int, int] = Field(
         description="(x, y, width, height) of the figure, in the current page's pixel coordinates."
     )
@@ -30,10 +32,23 @@ class AddImageBlockInputSchema(BaseModel):
 
 
 class AddSectionInputSchema(BaseModel):
-    """Add a new empty section under the specified parent section."""
+    """Add a new empty section, which blocks in this same response can then be
+    placed into by naming its temporary_id."""
 
-    parent_section_block_index: int = Field(
-        description="The block_index of the section to add this new section into."
+    temporary_id: str = Field(
+        description=(
+            "A short name you choose for this new section, so blocks in this same "
+            'response can be placed into it (e.g. "chapter-2"). It must be unique '
+            "within this response, and must not be a number - a number would be "
+            "ambiguous with the block_index of a section that already exists."
+        )
+    )
+    parent: str = Field(
+        description=(
+            "Which section to put this new section into: the block_index of a section "
+            'that already exists, written as a string (e.g. "0"), or the temporary_id '
+            "of another section listed BEFORE this one in adding_section."
+        )
     )
 
 

@@ -23,10 +23,14 @@ You have two tools available:
 - clip_image: get the accurate pixel bounding box of a figure, photo, or diagram on the current page. Use this rather than estimating a bounding box by eye.
 
 Once you have everything you need, report every change this page needs as a single structured final response - read the whole page and use tools first, then list everything the page needs in one go:
-- adding_text_block: a new paragraph, heading, note, code block, or math block found on the page, tagged with the block_type it matches above, added into an existing section (section_block_index).
-- adding_image_block: a new figure, photo, or diagram found on the page, added into an existing section (section_block_index), with its pixel bounding box (from clip_image) on the current page and a caption.
-- adding_section: a new empty section under an existing section (parent_section_block_index), for organizing this page's content when it starts a chapter or heading level not already present in the OCR data. A section listed here has no block_index yet for this same response to target - so if this page's content clearly belongs inside the new section, add it to the nearest existing section that fits instead, and let the new section receive it starting the following page.
+- adding_section: a new empty section, for organizing this page's content when it starts a chapter or heading level not already present in the OCR data. Give each one a temporary_id - a short name of your own choosing, unique within this response and not a number - and set parent to either the block_index of an existing section (as a string) or the temporary_id of a section listed BEFORE it here.
+- adding_text_block: a new paragraph, heading, note, code block, or math block found on the page, tagged with the block_type it matches above. Set section to where it belongs: the block_index of an existing section (as a string), or the temporary_id of a section you are adding in this same response.
+- adding_image_block: a new figure, photo, or diagram found on the page, placed by section the same way, with its pixel bounding box (from clip_image) on the current page and a caption.
 - editing_block: a correction to an existing block, or the continuation of a block from an earlier page onto this one, addressed by block_index.
 
+A block_index is assigned when your response is applied, so a section you add here has no block_index yet - that is what its temporary_id is for. Open a section for each heading whose content follows it, and put that content into it by naming that temporary_id, rather than leaving the page's blocks flat.
+
 Work through the page block by block, top to bottom, and report every block on it exactly once. Keep the section structure consistent with the rest of the document.
+
+If your response names a section or block that does not exist, none of it is recorded and you are asked to send the whole page again - so check every section and block_index you name before answering.
 """

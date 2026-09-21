@@ -3,6 +3,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain.agents import create_agent
+from .OcrDataEditor import validate_output
 from .OcrOutputSchema import OutputSchema
 from .Tools import LinearTools
 from .prompt import OCR_AGENT_SYSTEM_PROMPT
@@ -17,6 +18,18 @@ from ..LlmHelper import (
 logger = logging.getLogger(__name__)
 
 RECURSION_LIMIT = 20
+
+MAX_OUTPUT_ATTEMPTS = 3
+
+
+def _rejection_message(errors: list[str]) -> str:
+    """What the model is told when its response can't be applied."""
+    listed = "\n".join(f"- {error}" for error in errors)
+
+    return (
+        "Your response could not be applied, and nothing from it was recorded. "
+        f"Fix these problems and report the whole page again:\n{listed}"
+    )
 
 
 class OcrAgent:
@@ -71,8 +84,10 @@ class OcrAgent:
         page_number: int,
     ) -> OutputSchema:
         """Reads one page and returns every edit it needs, as a single
-        OutputSchema. Applying that to the document tree is the caller's job
-        (see OcrDataEditor) - this class only produces it."""
+        OutputSchema that has been checked against the document tree.
+        Applying it is the caller's job (see OcrDataEditor) - this class only
+        produces it, and hands a response the tree would reject back to the
+        model to correct."""
         self.linear_tools.set_current_page(page_number)
 
         ocr_data_json = build_ocr_context_string(
@@ -82,32 +97,52 @@ class OcrAgent:
 
         logger.info("page %d | starting", page_number)
 
-        result = self.agent.invoke(
-            {
-                "messages": [
-                    HumanMessage(
-                        content=[
-                            {
-                                "type": "text",
-                                "text": f"Here is the OCR data collected so far, as JSON:\n{ocr_data_json}",
-                            },
-                            *page_image_content,
-                        ]
-                    )
+        messages = [
+            HumanMessage(
+                content=[
+                    {
+                        "type": "text",
+                        "text": f"Here is the OCR data collected so far, as JSON:\n{ocr_data_json}",
+                    },
+                    *page_image_content,
                 ]
-            },
-            config={"recursion_limit": RECURSION_LIMIT},
-        )
+            )
+        ]
+        logged_message_count = 0
 
-        for message in result["messages"]:
-            log_agent_message(f"page {page_number}", message)
-
-        structured_response = result.get("structured_response")
-        if structured_response is None:
-            raise RuntimeError(
-                f"Page {page_number}: agent finished without a structured response"
+        for attempt in range(1, MAX_OUTPUT_ATTEMPTS + 1):
+            result = self.agent.invoke(
+                {"messages": messages},
+                config={"recursion_limit": RECURSION_LIMIT},
             )
 
-        logger.info("page %d | done", page_number)
+            for message in result["messages"][logged_message_count:]:
+                log_agent_message(f"page {page_number}", message)
+            logged_message_count = len(result["messages"])
 
-        return structured_response
+            structured_response = result.get("structured_response")
+            if structured_response is None:
+                raise RuntimeError(
+                    f"Page {page_number}: agent finished without a structured response"
+                )
+
+            errors = validate_output(structured_response, self.entire_section)
+            if not errors:
+                logger.info("page %d | done", page_number)
+                return structured_response
+
+            logger.warning(
+                "page %d | attempt %d/%d rejected: %s",
+                page_number,
+                attempt,
+                MAX_OUTPUT_ATTEMPTS,
+                "; ".join(errors),
+            )
+            messages = list(result["messages"]) + [
+                HumanMessage(content=_rejection_message(errors))
+            ]
+
+        raise RuntimeError(
+            f"Page {page_number}: the model's response still could not be applied "
+            f"after {MAX_OUTPUT_ATTEMPTS} attempts: {'; '.join(errors)}"
+        )
