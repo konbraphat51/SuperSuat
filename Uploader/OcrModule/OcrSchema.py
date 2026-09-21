@@ -7,7 +7,7 @@ TEXT_BLOCK_TYPES = Literal[
     "paragraph",  # main body text
     "heading",  # any heading, including chapter titles and the document's own title
     "document_index",  # page numbers, running heads - anything not part of the content
-    "note",  # footnote, endnote, sidenote
+    "note",  # footnote, endnote, sidenote, column note, etc.
     "code",  # source code or pseudocode
     "math",  # formula or equation, in KaTeX format
 ]
