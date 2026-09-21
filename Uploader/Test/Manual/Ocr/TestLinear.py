@@ -1,9 +1,12 @@
 """Manual test for LinearOcr against the sample PDFs.
 
 Runs the Linear OCR pipeline over every PDF in `Sample/` and writes one JSON
-file per PDF into `Output/`. The OCR agent runs on the OpenAI API (needs
-tool_choice enforcement, which Bedrock's Qwen models don't support - see
-TestLinear_setup.md); the clipper stays on Amazon Bedrock.
+file per PDF into `Output/`. The OCR agent and the clipper can each run on
+either Amazon Bedrock or the OpenAI API, set independently via OCR_PROVIDER /
+CLIPPER_PROVIDER in `.env` (or --ocr-provider / --clipper-provider) - default
+is OCR on OpenAI, clipper on Bedrock, since Bedrock's Qwen models don't
+support the forced tool_choice the OCR agent's structured final response
+depends on (see OcrOutputSchema).
 
 Usage (from the `Uploader` directory):
 
@@ -48,15 +51,25 @@ from OcrModule.LlmHelper import (  # noqa: E402
 SAMPLE_DIR = Path(__file__).resolve().parent / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
 
-# The clipper runs on Bedrock. Override with CLIPPER_MODEL_ID if the account
-# needs a fully qualified model id (e.g. an inference profile prefixed with
-# the region).
-DEFAULT_CLIPPER_MODEL_ID = "qwen.qwen3-vl-235b-a22b"
-DEFAULT_REGION = "us-west-2"
+PROVIDERS = ("bedrock", "openai")
 
-# The OCR agent runs on the OpenAI API. Confirm this is the exact model id
-# the account should call - override with OPENAI_OCR_MODEL_ID if not.
-DEFAULT_OPENAI_OCR_MODEL_ID = "gpt-5.6-luna"
+# Which provider each role uses by default when OCR_PROVIDER / CLIPPER_PROVIDER
+# isn't set - Bedrock's Qwen models don't support the forced tool_choice the
+# OCR agent's structured final response depends on (see OcrOutputSchema), so
+# the OCR agent defaults to OpenAI; the clipper has no such requirement and
+# defaults to Bedrock.
+DEFAULT_OCR_PROVIDER = "openai"
+DEFAULT_CLIPPER_PROVIDER = "bedrock"
+
+# Default model id per provider, used for whichever role (OCR or clipper)
+# lands on that provider. Override with OCR_MODEL_ID / CLIPPER_MODEL_ID for a
+# fully qualified id (e.g. a Bedrock inference profile prefixed with the
+# region), or if the OpenAI model id below isn't the exact one to call.
+DEFAULT_MODEL_IDS = {
+    "bedrock": "qwen.qwen3-vl-235b-a22b",
+    "openai": "gpt-5.6-luna",
+}
+DEFAULT_REGION = "us-west-2"
 
 # 200 DPI keeps small kana and subscripts legible without blowing up the
 # base64 payload that every page image is sent as.
@@ -79,10 +92,8 @@ def build_bedrock_model(model_id: str, region: str, api_key: str | None):
 
 
 def build_openai_model(model_id: str, api_key: str | None):
-    """An OpenAI chat model, used for the OCR agent: unlike Bedrock's Qwen
-    models, it supports forced tool_choice, which the OcrAgent's structured
-    final response (see OcrOutputSchema) depends on. Imported lazily so that
-    `--help` works without langchain-openai installed."""
+    """An OpenAI chat model. Imported lazily so that `--help` works without
+    langchain-openai installed."""
     from langchain_openai import ChatOpenAI
 
     return ChatOpenAI(
@@ -90,6 +101,26 @@ def build_openai_model(model_id: str, api_key: str | None):
         max_tokens=DEFAULT_MAX_TOKENS,
         temperature=0,
         **({"api_key": api_key} if api_key else {}),
+    )
+
+
+def build_model(
+    provider: str,
+    model_id: str,
+    region: str,
+    aws_api_key: str | None,
+    openai_api_key: str | None,
+):
+    if provider == "openai":
+        return build_openai_model(model_id, openai_api_key)
+    return build_bedrock_model(model_id, region, aws_api_key)
+
+
+def image_message_builder_for(provider: str):
+    return (
+        build_image_message_openai
+        if provider == "openai"
+        else build_image_message_bedrock
     )
 
 
@@ -129,12 +160,24 @@ def run_one_pdf(
     print(f"rendered {len(images)} page(s) at {args.dpi} DPI", flush=True)
 
     ocr = LinearOcr(
-        ocr_model=build_openai_model(args.ocr_model, openai_api_key),
-        clipper_model=build_bedrock_model(
-            args.clipper_model, args.region, aws_api_key
+        ocr_model=build_model(
+            args.ocr_provider,
+            args.ocr_model,
+            args.region,
+            aws_api_key,
+            openai_api_key,
         ),
-        image_message_builder=build_image_message_openai,
-        clipper_image_message_builder=build_image_message_bedrock,
+        clipper_model=build_model(
+            args.clipper_provider,
+            args.clipper_model,
+            args.region,
+            aws_api_key,
+            openai_api_key,
+        ),
+        image_message_builder=image_message_builder_for(args.ocr_provider),
+        clipper_image_message_builder=image_message_builder_for(
+            args.clipper_provider
+        ),
     )
 
     started_at = time.monotonic()
@@ -172,20 +215,33 @@ def parse_args() -> argparse.Namespace:
         help="Only read the first N pages of each PDF. Useful for a cheap smoke run.",
     )
     parser.add_argument(
+        "--ocr-provider",
+        choices=PROVIDERS,
+        default=None,
+        help=f"Provider for the OCR agent. Default: OCR_PROVIDER in .env, else {DEFAULT_OCR_PROVIDER!r}.",
+    )
+    parser.add_argument(
+        "--clipper-provider",
+        choices=PROVIDERS,
+        default=None,
+        help=f"Provider for the clipper. Default: CLIPPER_PROVIDER in .env, else {DEFAULT_CLIPPER_PROVIDER!r}.",
+    )
+    parser.add_argument(
         "--ocr-model",
-        default=os.getenv("OPENAI_OCR_MODEL_ID", DEFAULT_OPENAI_OCR_MODEL_ID),
-        help="OpenAI model id for the OCR agent.",
+        default=None,
+        help="Model id for the OCR agent. Default: OCR_MODEL_ID in .env, else a per-provider default.",
     )
     parser.add_argument(
         "--clipper-model",
-        default=os.getenv("CLIPPER_MODEL_ID", DEFAULT_CLIPPER_MODEL_ID),
-        help="Bedrock model id for the clipper.",
+        default=None,
+        help="Model id for the clipper. Default: CLIPPER_MODEL_ID in .env, else a per-provider default.",
     )
     parser.add_argument(
         "--region",
         default=os.getenv("AWS_REGION")
         or os.getenv("AWS_DEFAULT_REGION")
         or DEFAULT_REGION,
+        help="Bedrock region, used by whichever role (OCR/clipper) is on Bedrock.",
     )
     parser.add_argument(
         "--log-level",
@@ -198,7 +254,30 @@ def parse_args() -> argparse.Namespace:
         default=str(OUTPUT_DIR / "TestLinear.log"),
         help="Where to write the log described above. Default: Output/TestLinear.log (overwritten every run).",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Resolved here (--ocr-model/--clipper-model default to None above) rather
+    # than as argparse defaults, since the sensible default model id depends
+    # on which provider ends up selected - which itself may come from .env
+    # rather than the CLI.
+    args.ocr_provider = args.ocr_provider or os.getenv(
+        "OCR_PROVIDER", DEFAULT_OCR_PROVIDER
+    )
+    args.clipper_provider = args.clipper_provider or os.getenv(
+        "CLIPPER_PROVIDER", DEFAULT_CLIPPER_PROVIDER
+    )
+    args.ocr_model = (
+        args.ocr_model
+        or os.getenv("OCR_MODEL_ID")
+        or DEFAULT_MODEL_IDS[args.ocr_provider]
+    )
+    args.clipper_model = (
+        args.clipper_model
+        or os.getenv("CLIPPER_MODEL_ID")
+        or DEFAULT_MODEL_IDS[args.clipper_provider]
+    )
+
+    return args
 
 
 def configure_logging(log_level: str, log_file: Path) -> None:
@@ -240,9 +319,10 @@ def resolve_pdfs(selected: list[str] | None) -> list[Path]:
 
 
 def main() -> int:
-    # Must run before parse_args(): its --region/--ocr-model/--clipper-model
-    # defaults read os.environ at argument-definition time, so .env has to be
-    # loaded first or those defaults silently fall back to the hardcoded ones.
+    # Must run before parse_args(): it reads os.environ (OCR_PROVIDER,
+    # CLIPPER_PROVIDER, OCR_MODEL_ID, CLIPPER_MODEL_ID, AWS_REGION, ...), so
+    # .env has to be loaded first or those defaults silently fall back to the
+    # hardcoded ones.
     load_dotenv(UPLOADER_ROOT / ".env")
     args = parse_args()
     log_file = Path(args.log_file)
@@ -266,11 +346,16 @@ def main() -> int:
         os.environ.pop("AWS_PROFILE", None)
 
     # ChatOpenAI would otherwise fail deep inside the OCR agent's first call;
-    # failing here instead makes a missing key obvious immediately.
+    # failing here instead makes a missing key obvious immediately. Only
+    # required when a role actually landed on openai.
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
+    if (
+        "openai" in (args.ocr_provider, args.clipper_provider)
+        and not openai_api_key
+    ):
         print(
-            "ERROR: OPENAI_API_KEY is not set (see TestLinear_setup.md).",
+            "ERROR: OPENAI_API_KEY is not set, but OCR_PROVIDER/CLIPPER_PROVIDER "
+            "selects openai for at least one role.",
             file=sys.stderr,
         )
         return 1
@@ -280,8 +365,10 @@ def main() -> int:
         print(f"No PDFs found in {SAMPLE_DIR}", file=sys.stderr)
         return 1
 
-    print(f"OCR model (OpenAI): {args.ocr_model}")
-    print(f"clipper model (Bedrock): {args.clipper_model} @ {args.region}")
+    print(f"OCR model: {args.ocr_model} [{args.ocr_provider}]")
+    print(f"clipper model: {args.clipper_model} [{args.clipper_provider}]")
+    if "bedrock" in (args.ocr_provider, args.clipper_provider):
+        print(f"region: {args.region}")
     print(f"targets: {', '.join(p.name for p in pdfs)}")
     print(f"log: {log_file}")
 
