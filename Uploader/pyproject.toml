@@ -11,9 +11,25 @@ dependencies = [
     "langchain-openai>=1.6.2",
     "langgraph>=1.1.10",
     "langgraph-checkpoint>=4.2.0",
+    "numpy>=2.0.0",
     "pillow>=11.0.0",
     "pydantic>=2.12.5",
     "pymupdf>=1.27.2.3",
     "python-dotenv>=1.2.2",
+    # Declared directly, though yomitoku already needs them: [tool.uv.sources]
+    # below only redirects the project's own dependencies to the CUDA index.
+    "torch>=2.14.0",
+    "torchvision>=0.29.0",
     "tqdm>=4.70.1",
+    "yomitoku>=0.15.0",
 ]
+
+# Torch comes from the CUDA 13.0 wheel index: the layout models run on the GPU.
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
