@@ -93,13 +93,20 @@ def build_bedrock_model(model_id: str, region: str, api_key: str | None):
 
 def build_openai_model(model_id: str, api_key: str | None):
     """An OpenAI chat model. Imported lazily so that `--help` works without
-    langchain-openai installed."""
+    langchain-openai installed.
+
+    Goes through the Responses API rather than chat completions: a reasoning
+    model refuses function tools there unless reasoning is turned off
+    ("Function tools with reasoning_effort are not supported ... in
+    /v1/chat/completions"), and the OCR agent needs both its tools and the
+    model's reasoning. `temperature` is left alone for the same reason -
+    reasoning models reject it."""
     from langchain_openai import ChatOpenAI
 
     return ChatOpenAI(
         model=model_id,
+        use_responses_api=True,
         max_tokens=DEFAULT_MAX_TOKENS,
-        temperature=0,
         **({"api_key": api_key} if api_key else {}),
     )
 
