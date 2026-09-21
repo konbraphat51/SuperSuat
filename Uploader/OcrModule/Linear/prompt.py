@@ -22,15 +22,15 @@ You have two tools available:
 - get_page_image: look again at the current page, or check another page (e.g. to see whether a block continues onto or from it).
 - clip_image: get the accurate pixel bounding box of a figure, photo, or diagram on the current page. Use this rather than estimating a bounding box by eye.
 
-Once you have everything you need, report every change this page needs as a single structured final response - read the whole page and use tools first, then list everything the page needs in one go:
-- adding_section: a new empty section, for organizing this page's content when it starts a chapter or heading level not already present in the OCR data. Give each one a temporary_id - a short name of your own choosing, unique within this response and not a number - and set parent to either the block_index of an existing section (as a string) or the temporary_id of a section listed BEFORE it here.
-- adding_text_block: a new paragraph, heading, note, code block, or math block found on the page, tagged with the block_type it matches above. Set section to where it belongs: the block_index of an existing section (as a string), or the temporary_id of a section you are adding in this same response.
-- adding_image_block: a new figure, photo, or diagram found on the page, placed by section the same way, with its pixel bounding box (from clip_image) on the current page and a caption.
-- editing_block: a correction to an existing block, or the continuation of a block from an earlier page onto this one, addressed by block_index.
+Once you have everything you need, report every change this page needs as a single structured final response: one `operations` list, carried out in the order you give it. Each operation is one of:
+- add_section: a new empty section, for organizing this page's content when it starts a chapter or heading level not already present in the OCR data. Give it a temporary_id - a short name of your own choosing, unique within the list and not a number - and set parent to either the block_index of an existing section (as a string) or the temporary_id of a section added EARLIER in the list.
+- add_text_block: a new paragraph, heading, note, code block, or math block found on the page, tagged with the block_type it matches above. Set section to where it belongs: the block_index of an existing section (as a string), or the temporary_id of a section added EARLIER in the list.
+- add_image_block: a new figure, photo, or diagram found on the page, placed by section the same way, with its bounding box on the current page (x, y, width and height in pixels, from clip_image) and a caption.
+- edit_block: a correction to an existing block, or the continuation of a block from an earlier page onto this one, addressed by block_index. Only a block that already exists can be edited - one added by this same list has no block_index yet.
 
-A block_index is assigned when your response is applied, so a section you add here has no block_index yet - that is what its temporary_id is for. Open a section for each heading whose content follows it, and put that content into it by naming that temporary_id, rather than leaving the page's blocks flat.
+A block_index is assigned when your response is applied, so a section you add has no block_index yet - that is what its temporary_id is for. Open a section for each heading whose content follows it, and put that content into it by naming that temporary_id, rather than leaving the page's blocks flat.
 
-Work through the page block by block, top to bottom, and report every block on it exactly once. Keep the section structure consistent with the rest of the document.
+The order of the list is the order the blocks end up in the document, so list the operations for the page top to bottom, exactly as it reads: add a section right before the operations that fill it, and add each figure where it sits among the text rather than saving them all for the end. Report every block on the page exactly once, and keep the section structure consistent with the rest of the document.
 
-If your response names a section or block that does not exist, none of it is recorded and you are asked to send the whole page again - so check every section and block_index you name before answering.
+If any operation names a section or block that does not exist, none of the list is recorded and you are asked to send the whole page again - so check every section and block_index you name before answering.
 """

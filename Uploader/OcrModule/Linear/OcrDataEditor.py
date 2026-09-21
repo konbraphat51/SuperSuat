@@ -7,10 +7,10 @@ from ..OcrSchema import (
     OcrResultSection,
 )
 from .OcrOutputSchema import (
-    AddImageBlockInputSchema,
-    AddSectionInputSchema,
-    AddTextBlockInputSchema,
-    EditBlockInputSchema,
+    AddImageBlockOperation,
+    AddSectionOperation,
+    AddTextBlockOperation,
+    EditBlockOperation,
     OutputSchema,
 )
 
@@ -118,69 +118,75 @@ def validate_output(
 
     Checked before anything is written, so a response with a bad reference in
     it can be handed back to the model whole, rather than half-applied and
-    then rejected."""
+    then rejected.
+
+    The operations are checked in order, the same way they are applied: a
+    temporary_id only counts as known once the add_section that declares it
+    has been passed, which is what makes a forward reference (and so a cycle)
+    impossible to express."""
     errors: list[str] = []
-    declared_ids: list[str] = []
+    known_ids: set[str] = set()
 
-    for position, addition in enumerate(output.adding_section):
-        temporary_id = addition.temporary_id.strip()
+    for position, operation in enumerate(output.operations):
+        where = f"operations[{position}] ({operation.operation})"
 
-        if not temporary_id:
-            errors.append(
-                f"adding_section[{position}]: temporary_id is empty. Give the section a short name."
-            )
-        elif temporary_id.lstrip("-").isdigit():
-            errors.append(
-                f"adding_section[{position}]: temporary_id {temporary_id!r} is a number, which is "
-                "ambiguous with the block_index of a section that already exists. Use a name instead."
-            )
-        elif temporary_id in declared_ids:
-            errors.append(
-                f"adding_section[{position}]: temporary_id {temporary_id!r} is used by more than one "
-                "new section. Each one needs its own."
-            )
-        else:
-            declared_ids.append(temporary_id)
+        if isinstance(operation, AddSectionOperation):
+            temporary_id = operation.temporary_id.strip()
 
-        parent = addition.parent.strip()
-        if parent not in declared_ids and not _section_exists(
-            parent, entire_section
+            if not temporary_id:
+                errors.append(
+                    f"{where}: temporary_id is empty. Give the section a short name."
+                )
+            elif temporary_id.lstrip("-").isdigit():
+                errors.append(
+                    f"{where}: temporary_id {temporary_id!r} is a number, which is ambiguous "
+                    "with the block_index of a section that already exists. Use a name instead."
+                )
+            elif temporary_id in known_ids:
+                errors.append(
+                    f"{where}: temporary_id {temporary_id!r} is already used by an earlier "
+                    "add_section. Each new section needs its own."
+                )
+            else:
+                known_ids.add(temporary_id)
+
+            parent = operation.parent.strip()
+            if parent not in known_ids and not _section_exists(
+                parent, entire_section
+            ):
+                errors.append(
+                    f"{where}: parent {parent!r} is neither the block_index of an existing "
+                    "section nor the temporary_id of a section added earlier in this list."
+                )
+
+        elif isinstance(
+            operation, (AddTextBlockOperation, AddImageBlockOperation)
         ):
-            errors.append(
-                f"adding_section[{position}]: parent {parent!r} is neither the block_index of an "
-                "existing section nor the temporary_id of a section listed before it in adding_section."
-            )
-
-    known_ids = set(declared_ids)
-
-    for field_name, additions in (
-        ("adding_text_block", output.adding_text_block),
-        ("adding_image_block", output.adding_image_block),
-    ):
-        for position, addition in enumerate(additions):
-            section = addition.section.strip()
+            section = operation.section.strip()
             if section not in known_ids and not _section_exists(
                 section, entire_section
             ):
                 errors.append(
-                    f"{field_name}[{position}]: section {section!r} is neither the block_index of an "
-                    "existing section nor the temporary_id of a section in adding_section."
+                    f"{where}: section {section!r} is neither the block_index of an existing "
+                    "section nor the temporary_id of a section added earlier in this list."
                 )
 
-    for position, edit in enumerate(output.editing_block):
-        try:
-            block = find_block_by_index(edit.block_index, entire_section)
-        except KeyError:
-            errors.append(
-                f"editing_block[{position}]: there is no block with block_index {edit.block_index}."
-            )
-            continue
+        elif isinstance(operation, EditBlockOperation):
+            try:
+                block = find_block_by_index(
+                    operation.block_index, entire_section
+                )
+            except KeyError:
+                errors.append(
+                    f"{where}: there is no block with block_index {operation.block_index}."
+                )
+                continue
 
-        if not isinstance(block, OcrResultBlockText):
-            errors.append(
-                f"editing_block[{position}]: block {edit.block_index} is a {block.block_type}, "
-                "not a text block, so its text cannot be edited."
-            )
+            if not isinstance(block, OcrResultBlockText):
+                errors.append(
+                    f"{where}: block {operation.block_index} is a {block.block_type}, "
+                    "not a text block, so its text cannot be edited."
+                )
 
     return errors
 
@@ -204,28 +210,32 @@ class OcrDataEditor:
         self.entire_section = entire_section
 
     def apply(self, output: OutputSchema, page_number: int) -> None:
-        """Applies every edit in `output`, in a fixed order: new sections
-        first (so the blocks that name one can find it), then edits to
-        existing blocks, then new text and figure blocks."""
-        # temporary_id -> the block_index it actually got, so the additions
-        # below can resolve a section that did not exist when the model named it
+        """Carries out `output.operations` in the order given.
+
+        Order is the point: a block is appended to its section as its
+        operation is reached, so the order the model reports them in is the
+        order they end up in the document. Splitting them by kind first would
+        put every figure after every paragraph, and every subsection before
+        the heading that introduces it."""
+        # temporary_id -> the block_index it actually got, so a later
+        # operation can resolve a section that did not exist when it was named
         temporary_ids: dict[str, int] = {}
 
-        for addition in output.adding_section:
-            new_section_index = self._add_section(
-                addition, page_number, temporary_ids
-            )
-            if new_section_index is not None:
-                temporary_ids[addition.temporary_id.strip()] = new_section_index
-
-        for edit in output.editing_block:
-            self._edit_block(edit, page_number)
-
-        for addition in output.adding_text_block:
-            self._add_text_block(addition, page_number, temporary_ids)
-
-        for addition in output.adding_image_block:
-            self._add_image_block(addition, page_number, temporary_ids)
+        for operation in output.operations:
+            if isinstance(operation, AddSectionOperation):
+                new_section_index = self._add_section(
+                    operation, page_number, temporary_ids
+                )
+                if new_section_index is not None:
+                    temporary_ids[operation.temporary_id.strip()] = (
+                        new_section_index
+                    )
+            elif isinstance(operation, AddTextBlockOperation):
+                self._add_text_block(operation, page_number, temporary_ids)
+            elif isinstance(operation, AddImageBlockOperation):
+                self._add_image_block(operation, page_number, temporary_ids)
+            elif isinstance(operation, EditBlockOperation):
+                self._edit_block(operation, page_number)
 
     def _resolve_section(
         self, reference: str, temporary_ids: dict[str, int]
@@ -247,16 +257,16 @@ class OcrDataEditor:
 
     def _add_section(
         self,
-        addition: AddSectionInputSchema,
+        operation: AddSectionOperation,
         page_number: int,
         temporary_ids: dict[str, int],
     ) -> int | None:
-        parent_section = self._resolve_section(addition.parent, temporary_ids)
+        parent_section = self._resolve_section(operation.parent, temporary_ids)
         if parent_section is None:
             logger.warning(
                 "page %d | add_section: parent %r not found, skipping",
                 page_number,
-                addition.parent,
+                operation.parent,
             )
             return None
 
@@ -273,15 +283,15 @@ class OcrDataEditor:
         return new_section_index
 
     def _edit_block(
-        self, edit: EditBlockInputSchema, page_number: int
+        self, operation: EditBlockOperation, page_number: int
     ) -> None:
         try:
-            block = find_block_by_index(edit.block_index, self.entire_section)
+            block = find_block_by_index(operation.block_index, self.entire_section)
         except KeyError:
             logger.warning(
                 "page %d | edit_block: block %d not found, skipping",
                 page_number,
-                edit.block_index,
+                operation.block_index,
             )
             return
 
@@ -289,50 +299,50 @@ class OcrDataEditor:
             logger.warning(
                 "page %d | edit_block: block %d is not a text block, skipping",
                 page_number,
-                edit.block_index,
+                operation.block_index,
             )
             return
 
-        block.text = edit.text
-        mark_existing_page(self.entire_section, edit.block_index, page_number)
+        block.text = operation.text
+        mark_existing_page(self.entire_section, operation.block_index, page_number)
 
     def _add_text_block(
         self,
-        addition: AddTextBlockInputSchema,
+        operation: AddTextBlockOperation,
         page_number: int,
         temporary_ids: dict[str, int],
     ) -> None:
-        section = self._resolve_section(addition.section, temporary_ids)
+        section = self._resolve_section(operation.section, temporary_ids)
         if section is None:
             logger.warning(
                 "page %d | add_text_block: section %r not found, skipping",
                 page_number,
-                addition.section,
+                operation.section,
             )
             return
 
         new_block_index = get_max_block_index(self.entire_section) + 1
         new_block = OcrResultBlockText(
-            block_type=addition.block_type,
+            block_type=operation.block_type,
             existing_pages=[],
             block_index=new_block_index,
-            text=addition.text,
+            text=operation.text,
         )
         section.section_content.append(new_block)
         mark_existing_page(self.entire_section, new_block_index, page_number)
 
     def _add_image_block(
         self,
-        addition: AddImageBlockInputSchema,
+        operation: AddImageBlockOperation,
         page_number: int,
         temporary_ids: dict[str, int],
     ) -> None:
-        section = self._resolve_section(addition.section, temporary_ids)
+        section = self._resolve_section(operation.section, temporary_ids)
         if section is None:
             logger.warning(
                 "page %d | add_image_block: section %r not found, skipping",
                 page_number,
-                addition.section,
+                operation.section,
             )
             return
 
@@ -342,8 +352,8 @@ class OcrDataEditor:
             existing_pages=[],
             block_index=new_block_index,
             page_number=page_number,
-            bounding_box=addition.bounding_box,
-            caption=addition.caption,
+            bounding_box=operation.bounding_box,
+            caption=operation.caption,
         )
         section.section_content.append(new_block)
         mark_existing_page(self.entire_section, new_block_index, page_number)
