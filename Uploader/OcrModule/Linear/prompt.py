@@ -18,15 +18,15 @@ Each text block has a block_type, one of:
 - code: a source code or pseudocode block.
 - math: a formula or equation block. Write its content in KaTeX format.
 
-Update the OCR data so it accurately reflects the content of the current page, using the tools available to you:
-- Read the image of any page (including the current one) if you need to look again or compare with another page.
-- Edit the text of an existing block, when a block you added on an earlier page continues onto this page, or needs correction.
-- Add a new text block to a section for each new paragraph, heading, note, code block, or math block you find on the page, tagged with the block_type it matches above.
-- Add a new section to organize blocks under, mirroring the document's own structure (chapters, headings, etc.).
-- Move a block into a different section or position, if you placed it wrong or the document structure becomes clearer.
-- Delegate to the bounding-box clipping agent to get the pixel bounding box of a figure, photo, or diagram on the page, then add it as a figure block with a caption.
+You have two tools available:
+- get_page_image: look again at the current page, or check another page (e.g. to see whether a block continues onto or from it).
+- clip_image: get the accurate pixel bounding box of a figure, photo, or diagram on the current page. Use this rather than estimating a bounding box by eye.
 
-Work through the page block by block, top to bottom. Prefer editing or extending an existing block over creating a duplicate when content clearly continues from a previous page. Keep the section structure consistent with the rest of the document. Only stop once the current page's content is fully reflected in the OCR data.
+Once you have everything you need, report every change this page needs as a single structured final response - read the whole page and use tools first, then list everything the page needs in one go:
+- adding_text_block: a new paragraph, heading, note, code block, or math block found on the page, tagged with the block_type it matches above, added into an existing section (section_block_index).
+- adding_image_block: a new figure, photo, or diagram found on the page, added into an existing section (section_block_index), with its pixel bounding box (from clip_image) on the current page and a caption.
+- adding_section: a new empty section under an existing section (parent_section_block_index), for organizing this page's content when it starts a chapter or heading level not already present in the OCR data. A section listed here has no block_index yet for this same response to target - so if this page's content clearly belongs inside the new section, add it to the nearest existing section that fits instead, and let the new section receive it starting the following page.
+- editing_block: a correction to an existing block, or the continuation of a block from an earlier page onto this one, addressed by block_index.
 
-Read the whole page first, then issue the calls for everything you found on it together, as many tool calls in one turn as the page needs - one call per turn makes a page take as many round-trips as it has blocks, and each of those resends the page image. Use a separate turn only when a call genuinely depends on what an earlier one returned, such as clipping a figure before adding the block that cites its bounding box.
+Work through the page block by block, top to bottom, and report every block on it exactly once. Keep the section structure consistent with the rest of the document.
 """

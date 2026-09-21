@@ -10,6 +10,7 @@ from ..LlmHelper import (
     pil_to_base64,
 )
 from .OcrAgent import OcrAgent
+from .OcrDataEditor import OcrDataEditor
 
 
 class LinearOcr(Ocr):
@@ -45,6 +46,7 @@ class LinearOcr(Ocr):
             entire_section=self.entire_section,
             image_message_builder=self.image_message_builder,
         )
+        editor = OcrDataEditor(self.entire_section)
 
         # Pages can each take a while (multiple LLM/tool round-trips), so a
         # progress bar showing which page is in flight makes it obvious the
@@ -54,7 +56,8 @@ class LinearOcr(Ocr):
             page_progress.set_description(
                 f"OCR (page {page_number + 1}/{len(all_pages)})"
             )
-            ocr_agent.read_page(page_number)
+            output = ocr_agent.read_page(page_number)
+            editor.apply(output, page_number)
 
         return OcrResult(root_section=self.entire_section)
 
