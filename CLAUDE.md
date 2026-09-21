@@ -1,7 +1,6 @@
 - Write SOLID, readable, and maintainable code
 - Write comments in English
-  - Comments cannot be too much.
-    - But if it is able to be concise, be concise.
+  - Comments should be concise, be concise.
     - There is NO need to leave comments for each code update.
       - ex: "This code is left because of..."
       - ex: "This code is deleted because of..."
