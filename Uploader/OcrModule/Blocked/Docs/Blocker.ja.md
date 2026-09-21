@@ -20,6 +20,19 @@ classDiagram
         +default_device() str
         +block(pages: list[Image]) BlockerResult
     }
+    class DocLayoutYoloBlocker {
+        -_device: str
+        -_model: YOLOv10
+        +default_device() str
+        +default_weight_path() str
+        +block(pages: list[Image]) BlockerResult
+    }
+    class PpStructureBlocker {
+        -_device: str
+        -_detector: LayoutDetection
+        +default_device() str
+        +block(pages: list[Image]) BlockerResult
+    }
     class BlockerResult {
         +blocks: list[Block]
     }
@@ -29,34 +42,62 @@ classDiagram
         +bounding_box: tuple[int, int, int, int]
     }
     Blocker <|-- YomitokuBlocker
-    YomitokuBlocker ..> BlockerResult
+    Blocker <|-- DocLayoutYoloBlocker
+    Blocker <|-- PpStructureBlocker
+    Blocker ..> BlockerResult
     BlockerResult *-- Block
 ```
 
-パイプラインが依存するのは `Blocker` のみ。別のレイアウトモデルによる実装に差し替えても、
+パイプラインが依存するのは `Blocker` のみ。実装同士は差し替え可能で、どれに変えても
 後続の段階には影響しない。
+
+いずれの実装も同じ流れをとる。
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Blocker
+    participant LayoutModel
+    Caller->>Blocker: block(pages)
+    loop 各ページ
+        Blocker->>Blocker: PIL画像をモデルが要求する形式へ変換
+        Blocker->>LayoutModel: 領域を検出
+        LayoutModel-->>Blocker: クラス付きの矩形
+        Blocker->>Blocker: Blockへ変換し上から下へ並べ替え
+    end
+    Blocker-->>Caller: BlockerResult
+```
+
+## 規約
+
+全実装に共通する取り決め。
+
+- `page_number` はOCRモジュール全体と同様に0始まり。
+- モデルの出力は `[x1, y1, x2, y2]`、`Block.bounding_box` は `(x, y, width, height)`。
+- 同一ページのブロックは上から下、次に左から右へ並べる。これは安定した順序であり、
+  読み順ではない。読み順の推定は第3段階の役割。
+- キャプション・柱・フッター・ノンブルは本文と同じ文字列なので `TEXT` として返す。
+  扱いは第3段階が決める。
+- モデルの重みは初回実行時にダウンロードされキャッシュされるため、各実装の初回実行には
+  ネットワーク接続が必要。
+
+## 使い分け
+
+| | `YomitokuBlocker` | `DocLayoutYoloBlocker` | `PpStructureBlocker` |
+| --- | --- | --- | --- |
+| モデル | yomitoku `LayoutAnalyzer`（RT-DETRv2） | DocLayout-YOLO（YOLOv10, DocStructBench） | PP-DocLayout_plus-L（PP-StructureV3のレイアウト段） |
+| フレームワーク | torch | torch | paddle |
+| クラス数 | paragraphのrole4種＋figures＋tables | 10 | 20 |
+| 数式クラス | 既定モデルには無い | 独立数式のみ有り | 有り |
+| 主な学習対象 | 日本語文書 | 各種の実文書 | 中国語・英語を中心とした各種文書 |
+| RTX 4070でのA4 200DPI | 約0.2〜0.5秒/ページ | 約0.1〜0.3秒/ページ | 約0.1〜0.4秒/ページ |
+
+3つともローカル実行であり、課金は発生せず、データは外部に出ない。
 
 ## YomitokuBlocker
 
 [yomitoku](https://github.com/kotaro-kinoshita/yomitoku) の `LayoutAnalyzer`
 （レイアウト解析と表構造認識を組み合わせたもの）を利用する。
-
-```mermaid
-sequenceDiagram
-    participant Caller
-    participant YomitokuBlocker
-    participant LayoutAnalyzer
-    Caller->>YomitokuBlocker: block(pages)
-    loop 各ページ
-        YomitokuBlocker->>YomitokuBlocker: PIL画像をBGR配列へ変換
-        YomitokuBlocker->>LayoutAnalyzer: __call__(bgr_array)
-        LayoutAnalyzer-->>YomitokuBlocker: paragraphs, figures, tables
-        YomitokuBlocker->>YomitokuBlocker: Blockへ変換し上から下へ並べ替え
-    end
-    YomitokuBlocker-->>Caller: BlockerResult
-```
-
-### ブロック種別の対応
 
 | yomitokuの要素 | `BlockType` |
 | --- | --- |
@@ -69,18 +110,47 @@ sequenceDiagram
 して返り、第3段階のLLMが判別する。`MATH` が出るのは、数式ロールを出力するモデルを
 `configs=` で指定した場合のみ。
 
-### 規約
+## DocLayoutYoloBlocker
 
-- `page_number` はOCRモジュール全体と同様に0始まり。
-- yomitokuの矩形は `[x1, y1, x2, y2]`、`Block.bounding_box` は
-  `(x, y, width, height)`。
-- 同一ページのブロックは上から下、次に左から右へ並べる。これは安定した順序であり、
-  読み順ではない。読み順の推定は第3段階の役割。
+[DocLayout-YOLO](https://github.com/opendatalab/DocLayout-YOLO) の公開重み
+（DocStructBench、Hugging Face Hub の `juliozhao/DocLayout-YOLO-DocStructBench`）を使う。
+1ページ1回の推論で全領域とそのクラスが得られる単一モデルであり、パイプラインではない。
 
-### デバイス
+| DocStructBenchのクラス | `BlockType` |
+| --- | --- |
+| `isolate_formula` | `MATH` |
+| `figure` | `IMAGE` |
+| `table` | `TABLE` |
+| `title`・`plain text`・`abandon`・`figure_caption`・`table_caption`・`table_footnote`・`formula_caption` | `TEXT` |
 
-`YomitokuBlocker()` はGPUが利用可能なら `cuda`、無ければ `cpu` を選ぶ。`device=` で
-明示指定も可能。torchはCUDA 12.8のwheelインデックスから導入される
-（`pyproject.toml` の `[tool.uv.sources]`）ため、`uv sync` でGPU対応版が入る。
+`abandon` は柱・フッター・ノンブルのクラス。検出パラメータ（`image_size`・`confidence`・
+`iou`）はコンストラクタ引数で、既定値は公式デモと同じ。
 
-モデルの重みは初回実行時にHugging Face Hubからダウンロードされ、キャッシュされる。
+## PpStructureBlocker
+
+[PP-StructureV3](https://github.com/PaddlePaddle/PaddleOCR) のレイアウト検出モデル
+`PP-DocLayout_plus-L` を、PaddleOCR の `LayoutDetection` 経由で使う。PP-StructureV3 の
+残りの部分（OCR・表認識・数式認識）は意図的に使わない。それらが読む文字は、結局
+第2段階がブロック単位で読み直すため。`model_name=` を渡せば `PP-DocLayout-L`・`-M`・
+`-S` などの軽量版も使える。
+
+| PP-DocLayoutのラベル | `BlockType` |
+| --- | --- |
+| `formula` | `MATH` |
+| `image`・`chart`・`seal` | `IMAGE` |
+| `table` | `TABLE` |
+| `text`・`paragraph_title`・`doc_title`・`abstract`・`content`・`figure_title`・`number`・`reference`・`reference_content`・`footnote`・`header`・`footer`・`algorithm`・`formula_number`・`aside_text` | `TEXT` |
+
+## デバイス
+
+`YomitokuBlocker()` と `DocLayoutYoloBlocker()` はGPUが利用可能なら `cuda`、無ければ
+`cpu` を選ぶ。`PpStructureBlocker()` も同様に paddle の `gpu` を選ぶ。`device=` で明示
+指定もできる。
+
+torchはCUDA 13.0、paddleはCUDA 12.9のwheelインデックスから導入される
+（`pyproject.toml` の `[tool.uv.sources]`）ため、`uv sync` で両方ともGPU対応版が入る。
+
+> Windowsではpaddleが自身のDLLディレクトリをtorchより先に登録するため、paddleの後に
+> importしたtorchはロードに失敗する。そのため `PpStructure.py` はpaddleより先にtorchを
+> importしている。この行を消さないこと。torch系とpaddle系のBlockerを同一プロセスで
+> 併用できるのは、この順序のおかげ。

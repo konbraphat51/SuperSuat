@@ -20,6 +20,19 @@ classDiagram
         +default_device() str
         +block(pages: list[Image]) BlockerResult
     }
+    class DocLayoutYoloBlocker {
+        -_device: str
+        -_model: YOLOv10
+        +default_device() str
+        +default_weight_path() str
+        +block(pages: list[Image]) BlockerResult
+    }
+    class PpStructureBlocker {
+        -_device: str
+        -_detector: LayoutDetection
+        +default_device() str
+        +block(pages: list[Image]) BlockerResult
+    }
     class BlockerResult {
         +blocks: list[Block]
     }
@@ -29,34 +42,63 @@ classDiagram
         +bounding_box: tuple[int, int, int, int]
     }
     Blocker <|-- YomitokuBlocker
-    YomitokuBlocker ..> BlockerResult
+    Blocker <|-- DocLayoutYoloBlocker
+    Blocker <|-- PpStructureBlocker
+    Blocker ..> BlockerResult
     BlockerResult *-- Block
 ```
 
-`Blocker` is the only thing the pipeline depends on, so an implementation backed by
-another layout model can replace `YomitokuBlocker` without touching the later steps.
+`Blocker` is the only thing the pipeline depends on, so the implementations are
+interchangeable: swapping one for another never touches the later steps.
+
+Every implementation follows the same shape.
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Blocker
+    participant LayoutModel
+    Caller->>Blocker: block(pages)
+    loop each page
+        Blocker->>Blocker: convert the PIL image to what the model wants
+        Blocker->>LayoutModel: detect regions
+        LayoutModel-->>Blocker: boxes with their classes
+        Blocker->>Blocker: map to Block, sort top-to-bottom
+    end
+    Blocker-->>Caller: BlockerResult
+```
+
+## Conventions
+
+Shared by every implementation:
+
+- `page_number` is 0-indexed, as everywhere else in the OCR module.
+- The models report boxes as `[x1, y1, x2, y2]`; `Block.bounding_box` is
+  `(x, y, width, height)`.
+- Blocks of one page are sorted top-to-bottom, then left-to-right. This is a stable
+  order, not a reading order — reading order is step 3's job.
+- Captions, running heads, footers, and page numbers are prose, so they come out as
+  `TEXT`; step 3 decides what to do with them.
+- Model weights are downloaded on first use and cached, so the first run of each
+  implementation needs a network connection.
+
+## Choosing one
+
+| | `YomitokuBlocker` | `DocLayoutYoloBlocker` | `PpStructureBlocker` |
+| --- | --- | --- | --- |
+| Model | yomitoku `LayoutAnalyzer` (RT-DETRv2) | DocLayout-YOLO (YOLOv10, DocStructBench) | PP-DocLayout_plus-L (PP-StructureV3's layout stage) |
+| Framework | torch | torch | paddle |
+| Classes | 4 paragraph roles + figures + tables | 10 | 20 |
+| Formula class | no (with the default model) | yes, isolated formulas only | yes |
+| Trained mainly on | Japanese documents | mixed real-world documents | mixed, Chinese and English documents |
+| Speed on an RTX 4070, A4 at 200 DPI | ~0.2–0.5 s/page | ~0.1–0.3 s/page | ~0.1–0.4 s/page |
+
+All three are local: nothing is billed and nothing leaves the machine.
 
 ## YomitokuBlocker
 
 Uses [yomitoku](https://github.com/kotaro-kinoshita/yomitoku)'s `LayoutAnalyzer`,
 which combines layout parsing with table structure recognition.
-
-```mermaid
-sequenceDiagram
-    participant Caller
-    participant YomitokuBlocker
-    participant LayoutAnalyzer
-    Caller->>YomitokuBlocker: block(pages)
-    loop each page
-        YomitokuBlocker->>YomitokuBlocker: convert PIL image to BGR array
-        YomitokuBlocker->>LayoutAnalyzer: __call__(bgr_array)
-        LayoutAnalyzer-->>YomitokuBlocker: paragraphs, figures, tables
-        YomitokuBlocker->>YomitokuBlocker: map to Block, sort top-to-bottom
-    end
-    YomitokuBlocker-->>Caller: BlockerResult
-```
-
-### Block type mapping
 
 | yomitoku element | `BlockType` |
 | --- | --- |
@@ -69,18 +111,51 @@ The default layout model (`rtdetrv2v2`) has no formula category, so in practice 
 formula comes out as `TEXT` and step 3's LLM tells the two apart. `MATH` appears only
 with a model that emits the formula roles, configured through `configs=`.
 
-### Conventions
+## DocLayoutYoloBlocker
 
-- `page_number` is 0-indexed, as everywhere else in the OCR module.
-- yomitoku reports boxes as `[x1, y1, x2, y2]`; `Block.bounding_box` is
-  `(x, y, width, height)`.
-- Blocks of one page are sorted top-to-bottom, then left-to-right. This is a stable
-  order, not a reading order — reading order is step 3's job.
+Uses [DocLayout-YOLO](https://github.com/opendatalab/DocLayout-YOLO) with the released
+DocStructBench checkpoint, fetched from Hugging Face Hub
+(`juliozhao/DocLayout-YOLO-DocStructBench`). One forward pass per page gives every
+region and its class, so it is a single model rather than a pipeline.
 
-### Device
+| DocStructBench class | `BlockType` |
+| --- | --- |
+| `isolate_formula` | `MATH` |
+| `figure` | `IMAGE` |
+| `table` | `TABLE` |
+| `title`, `plain text`, `abandon`, `figure_caption`, `table_caption`, `table_footnote`, `formula_caption` | `TEXT` |
 
-`YomitokuBlocker()` picks `cuda` when a GPU is available and falls back to `cpu`;
-pass `device=` to force one. Torch is installed from the CUDA 12.8 wheel index
-(`[tool.uv.sources]` in `pyproject.toml`), so `uv sync` gives a GPU-capable build.
+`abandon` is the class for running heads, footers, and page numbers. Detection
+parameters (`image_size`, `confidence`, `iou`) are constructor arguments; the defaults
+are the ones the model's own demo uses.
 
-The model weights are downloaded from Hugging Face Hub on first use and cached.
+## PpStructureBlocker
+
+Uses the layout detection model of
+[PP-StructureV3](https://github.com/PaddlePaddle/PaddleOCR), `PP-DocLayout_plus-L`,
+through PaddleOCR's `LayoutDetection`. The rest of PP-StructureV3 (its OCR, table, and
+formula recognizers) is deliberately left out: it would read the text that step 2 reads
+anyway, block by block. Pass `model_name=` to run a lighter variant such as
+`PP-DocLayout-L`, `-M`, or `-S`.
+
+| PP-DocLayout label | `BlockType` |
+| --- | --- |
+| `formula` | `MATH` |
+| `image`, `chart`, `seal` | `IMAGE` |
+| `table` | `TABLE` |
+| `text`, `paragraph_title`, `doc_title`, `abstract`, `content`, `figure_title`, `number`, `reference`, `reference_content`, `footnote`, `header`, `footer`, `algorithm`, `formula_number`, `aside_text` | `TEXT` |
+
+## Device
+
+`YomitokuBlocker()` and `DocLayoutYoloBlocker()` pick `cuda` when a GPU is available and
+fall back to `cpu`; `PpStructureBlocker()` picks paddle's `gpu` the same way. Pass
+`device=` to force one.
+
+Torch is installed from the CUDA 13.0 wheel index and paddle from the CUDA 12.9 one
+(`[tool.uv.sources]` in `pyproject.toml`), so `uv sync` gives GPU-capable builds of
+both.
+
+> On Windows, paddle puts its own DLL directory ahead of torch's, and a torch imported
+> after paddle fails to load. `PpStructure.py` therefore imports torch first, before
+> paddle. Keep that import — it is what lets the torch-based blockers and the
+> paddle-based one live in one process.
