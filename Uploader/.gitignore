@@ -1,3 +1,4 @@
 .claude/**
 .env
 Test/Manual/Ocr/Output/
+Test/Manual/Blocked/Output/
