@@ -125,9 +125,7 @@ def _collect_keep_block_indices(
                 has_previous_page_block = True
 
         if has_previous_page_block:
-            path = _find_section_path(root_section, section.block_index) or [
-                section
-            ]
+            path = _find_section_path(root_section, section.block_index) or [section]
             for ancestor in path:
                 for block in ancestor.section_content:
                     if (
@@ -162,8 +160,7 @@ def format_existing_pages(pages: list[int]) -> str:
     ranges.append((start, previous))
 
     return ",".join(
-        str(first) if first == last else f"{first}-{last}"
-        for first, last in ranges
+        str(first) if first == last else f"{first}-{last}" for first, last in ranges
     )
 
 
@@ -195,9 +192,7 @@ def _build_context_node(
                 continue
         elif block.block_index in keep_indices:
             child_node = asdict(block)
-            child_node["existing_pages"] = format_existing_pages(
-                block.existing_pages
-            )
+            child_node["existing_pages"] = format_existing_pages(block.existing_pages)
         else:
             omitted_pending = True
             continue
@@ -233,9 +228,9 @@ def build_ocr_context_string(
         root_section, current_page_number, recent_page_count
     )
     # the root never collapses, since it is the document itself
-    context_dict = _build_context_node(
-        root_section, keep_indices
-    ) or _context_node(root_section, [OMITTED_MARKER])
+    context_dict = _build_context_node(root_section, keep_indices) or _context_node(
+        root_section, [OMITTED_MARKER]
+    )
     # compact separators: this is resent on every page, and indenting it roughly doubles the cost
     return json.dumps(context_dict, ensure_ascii=False, separators=(",", ":"))
 

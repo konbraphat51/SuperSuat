@@ -103,9 +103,7 @@ class OcrAgent:
         model to correct."""
         self.linear_tools.set_current_page(page_number)
 
-        ocr_data_json = build_ocr_context_string(
-            self.entire_section, page_number
-        )
+        ocr_data_json = build_ocr_context_string(self.entire_section, page_number)
         page_image_content = self.linear_tools.get_page_image(page_number)
 
         logger.info("page %d | starting", page_number)

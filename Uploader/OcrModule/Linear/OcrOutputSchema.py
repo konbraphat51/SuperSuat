@@ -40,9 +40,7 @@ class AddTextBlockOperation(BaseModel):
 
     operation: Literal["add_text_block"]
     section: str = Field(description=SECTION_REFERENCE_DESCRIPTION)
-    block_type: TEXT_BLOCK_TYPES = Field(
-        description="The kind of text block this is."
-    )
+    block_type: TEXT_BLOCK_TYPES = Field(description="The kind of text block this is.")
     text: str = Field(description="The block's text.")
 
 

@@ -153,17 +153,13 @@ def validate_output(
                 known_ids.add(temporary_id)
 
             parent = operation.parent.strip()
-            if parent not in known_ids and not _section_exists(
-                parent, entire_section
-            ):
+            if parent not in known_ids and not _section_exists(parent, entire_section):
                 errors.append(
                     f"{where}: parent {parent!r} is neither the block_index of an existing "
                     "section nor the temporary_id of a section added earlier in this list."
                 )
 
-        elif isinstance(
-            operation, (AddTextBlockOperation, AddImageBlockOperation)
-        ):
+        elif isinstance(operation, (AddTextBlockOperation, AddImageBlockOperation)):
             section = operation.section.strip()
             if section not in known_ids and not _section_exists(
                 section, entire_section
@@ -175,9 +171,7 @@ def validate_output(
 
         elif isinstance(operation, EditBlockOperation):
             try:
-                block = find_block_by_index(
-                    operation.block_index, entire_section
-                )
+                block = find_block_by_index(operation.block_index, entire_section)
             except KeyError:
                 errors.append(
                     f"{where}: there is no block with block_index {operation.block_index}."
@@ -216,9 +210,7 @@ class OcrDataEditor:
                     operation, page_number, temporary_ids
                 )
                 if new_section_index is not None:
-                    temporary_ids[operation.temporary_id.strip()] = (
-                        new_section_index
-                    )
+                    temporary_ids[operation.temporary_id.strip()] = new_section_index
             elif isinstance(operation, AddTextBlockOperation):
                 self._add_text_block(operation, page_number, temporary_ids)
             elif isinstance(operation, AddImageBlockOperation):
@@ -270,13 +262,9 @@ class OcrDataEditor:
 
         return new_section_index
 
-    def _edit_block(
-        self, operation: EditBlockOperation, page_number: int
-    ) -> None:
+    def _edit_block(self, operation: EditBlockOperation, page_number: int) -> None:
         try:
-            block = find_block_by_index(
-                operation.block_index, self.entire_section
-            )
+            block = find_block_by_index(operation.block_index, self.entire_section)
         except KeyError:
             logger.warning(
                 "page %d | edit_block: block %d not found, skipping",
@@ -294,9 +282,7 @@ class OcrDataEditor:
             return
 
         block.text = operation.text
-        mark_existing_page(
-            self.entire_section, operation.block_index, page_number
-        )
+        mark_existing_page(self.entire_section, operation.block_index, page_number)
 
     def _add_text_block(
         self,

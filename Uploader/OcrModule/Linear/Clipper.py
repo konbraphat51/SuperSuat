@@ -38,9 +38,7 @@ def clip_image_with_agent(
         f"with 0 <= x <= {width} and 0 <= y <= {height}."
     )
 
-    structured_clipper_model = clipper_model.with_structured_output(
-        BoundingBoxOutput
-    )
+    structured_clipper_model = clipper_model.with_structured_output(BoundingBoxOutput)
     result = structured_clipper_model.invoke(
         [HumanMessage(content=image_message_builder(instruction, img_b64))]
     )
