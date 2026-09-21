@@ -261,6 +261,18 @@ def log_agent_message(label: str, message: BaseMessage) -> None:
     what the agent is doing (and where it is spending time) can be inspected
     as it happens rather than only after the whole run has finished."""
     if isinstance(message, AIMessage):
+        usage = message.usage_metadata
+        if usage:
+            # Every turn resends the whole conversation, page image included,
+            # so input tokens grow with each round-trip. Logging them per turn
+            # is what makes that cost visible when a page runs slow.
+            logger.info(
+                "%s | usage: input=%s output=%s total=%s",
+                label,
+                usage.get("input_tokens"),
+                usage.get("output_tokens"),
+                usage.get("total_tokens"),
+            )
         text = stringify_message_content(message.content)
         if text:
             logger.info("%s | model: %s", label, text)
