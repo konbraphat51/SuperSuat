@@ -44,11 +44,15 @@ classDiagram
         +page_number: int
         +bounding_box: tuple[int, int, int, int]
     }
+    class BlockRenderer {
+        +render(pages: list[Image], blocker_result: BlockerResult) list[Image]
+    }
     Blocker <|-- YomitokuBlocker
     Blocker <|-- DocLayoutYoloBlocker
     Blocker <|-- PpStructureBlocker
     Blocker ..> BlockerResult
     BlockerResult *-- Block
+    BlockRenderer ..> BlockerResult
 ```
 
 `Blocker` is the only thing the pipeline depends on, so the implementations are
@@ -157,6 +161,13 @@ anyway, block by block. Pass `model_name=` to run a lighter variant such as
 | `image`, `chart`, `seal` | `IMAGE` |
 | `table` | `TABLE` |
 | `text`, `paragraph_title`, `doc_title`, `abstract`, `content`, `figure_title`, `number`, `reference`, `reference_content`, `footnote`, `header`, `footer`, `algorithm`, `formula_number`, `aside_text` | `TEXT` |
+
+## BlockRenderer
+
+A debugging helper, not part of the pipeline itself: draws every block's box and
+`block_id` onto a copy of its page, colored by `BlockType` (see `BLOCK_TYPE_COLORS`).
+Useful for eyeballing a `Blocker`'s output; `TestBlocker.py` and
+`TestBlockRenderer.py` (see `Test/Manual/Blocked/`) both use it to write PNGs.
 
 ## Device
 

@@ -44,11 +44,15 @@ classDiagram
         +page_number: int
         +bounding_box: tuple[int, int, int, int]
     }
+    class BlockRenderer {
+        +render(pages: list[Image], blocker_result: BlockerResult) list[Image]
+    }
     Blocker <|-- YomitokuBlocker
     Blocker <|-- DocLayoutYoloBlocker
     Blocker <|-- PpStructureBlocker
     Blocker ..> BlockerResult
     BlockerResult *-- Block
+    BlockRenderer ..> BlockerResult
 ```
 
 パイプラインが依存するのは `Blocker` のみ。実装同士は差し替え可能で、どれに変えても
@@ -152,6 +156,13 @@ sequenceDiagram
 | `image`・`chart`・`seal` | `IMAGE` |
 | `table` | `TABLE` |
 | `text`・`paragraph_title`・`doc_title`・`abstract`・`content`・`figure_title`・`number`・`reference`・`reference_content`・`footnote`・`header`・`footer`・`algorithm`・`formula_number`・`aside_text` | `TEXT` |
+
+## BlockRenderer
+
+パイプライン本体には含まれないデバッグ用のヘルパー。各ブロックの矩形と `block_id` を、
+`BlockType` ごとの色（`BLOCK_TYPE_COLORS`）でページのコピー上に描画する。`Blocker` の
+出力を目視確認するためのもので、`TestBlocker.py` と `TestBlockRenderer.py`
+（`Test/Manual/Blocked/` 参照）がどちらもこれを使ってPNGを書き出す。
 
 ## デバイス
 
