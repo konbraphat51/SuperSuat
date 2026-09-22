@@ -2,7 +2,13 @@
 
 from dataclasses import dataclass
 from typing import Literal
-from ..Schema import BlockType, BlockerResult, Block, TranscriptionResult, TranscriptionBlock
+from ..Schema import (
+    BlockType,
+    BlockerResult,
+    Block,
+    TranscriptionResult,
+    TranscriptionBlock,
+)
 from ...OcrSchema import TEXT_BLOCK_TYPES
 
 
@@ -12,6 +18,7 @@ class ProcessingBlock:
 
     Attributes:
         block_id: The unique identifier of the block, matching Block.block_id.
+        page_number: The 0-indexed page the block was found on.
         recognized_blocker_type: The block type as detected by the Blocker.
         new_type: The type assigned by the organizer, if labeled.
         have_been_labeled: Whether new_type has been assigned.
@@ -19,6 +26,7 @@ class ProcessingBlock:
     """
 
     block_id: int
+    page_number: int
     recognized_blocker_type: BlockType
     new_type: TEXT_BLOCK_TYPES | Literal["figure", "section"] | None = None
     have_been_labeled: bool = False
@@ -90,6 +98,7 @@ def convert_blocker_result_to_processing_blocks(
             processing_blocks.append(
                 ProcessingBlockFigure(
                     block_id=block.block_id,
+                    page_number=block.page_number,
                     recognized_blocker_type=block.block_type,
                     bounding_box=block.bounding_box,
                 )
@@ -100,6 +109,7 @@ def convert_blocker_result_to_processing_blocks(
             processing_blocks.append(
                 ProcessingBlockText(
                     block_id=block.block_id,
+                    page_number=block.page_number,
                     recognized_blocker_type=block.block_type,
                     text=texts_by_block_id.get(block.block_id, ""),
                 )
