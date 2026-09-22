@@ -135,25 +135,19 @@ def image_message_builder_for(provider: str):
     )
 
 
-def pdf_to_images(
-    pdf_path: Path, dpi: int, max_pages: int | None
-) -> list[Image.Image]:
+def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Image.Image]:
     """Every page of the PDF rendered to an RGB PIL image."""
     images: list[Image.Image] = []
 
     with fitz.open(pdf_path) as document:
         page_count = (
-            len(document)
-            if max_pages is None
-            else min(len(document), max_pages)
+            len(document) if max_pages is None else min(len(document), max_pages)
         )
 
         for page_number in range(page_count):
             pixmap = document[page_number].get_pixmap(dpi=dpi)
             images.append(
-                Image.frombytes(
-                    "RGB", (pixmap.width, pixmap.height), pixmap.samples
-                )
+                Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
             )
 
     return images
@@ -187,9 +181,7 @@ def run_one_pdf(
             openai_api_key,
         ),
         image_message_builder=image_message_builder_for(args.ocr_provider),
-        clipper_image_message_builder=image_message_builder_for(
-            args.clipper_provider
-        ),
+        clipper_image_message_builder=image_message_builder_for(args.clipper_provider),
     )
 
     started_at = time.monotonic()
@@ -366,10 +358,7 @@ def main() -> int:
     # failing here instead makes a missing key obvious immediately. Only
     # required when a role actually landed on openai.
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    if (
-        "openai" in (args.ocr_provider, args.clipper_provider)
-        and not openai_api_key
-    ):
+    if "openai" in (args.ocr_provider, args.clipper_provider) and not openai_api_key:
         print(
             "ERROR: OPENAI_API_KEY is not set, but OCR_PROVIDER/CLIPPER_PROVIDER "
             "selects openai for at least one role.",
