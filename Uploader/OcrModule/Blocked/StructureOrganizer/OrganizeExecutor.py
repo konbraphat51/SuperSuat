@@ -48,7 +48,9 @@ def _execute_order(order: Order, processing_data: list[ProcessingBlock]) -> None
         case "set_block_type":
             _execute_set_block_type(_as(order, OrderSetBlockType), processing_data)
         case "set_heading_level":
-            _execute_set_heading_level(_as(order, OrderSetHeadingLevel), processing_data)
+            _execute_set_heading_level(
+                _as(order, OrderSetHeadingLevel), processing_data
+            )
         case "reorder":
             _execute_reorder(_as(order, OrderReorder), processing_data)
         case "delete_block":
