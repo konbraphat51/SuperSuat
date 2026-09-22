@@ -10,6 +10,15 @@
     - If Python, write in docstring format
     - If C#, write in XML format
     - If TypeScript, write in TSDoc format
+  - Write comments for `for` loop like:
+
+```py
+# for each block...
+for block in blocker_result.blocks:
+    # ...extract block image
+    block_image = self._extract_block_image(all_pages[block.page_index], block)
+```
+
 - Prepare English and Japanese versions for all documents.
 - all in-UI text should be in English by default, but support Japanese localization.
 - Everytime updated the code, check all documents and update them if necessary.
