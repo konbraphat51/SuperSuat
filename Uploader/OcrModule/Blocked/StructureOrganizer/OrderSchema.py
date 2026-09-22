@@ -10,6 +10,7 @@ class Order(BaseModel):
         "reorder",
         "delete_block",
         "edit_block",
+        "set_caption",
     ]
 
 
@@ -52,6 +53,14 @@ class OrderEditBlock(Order):
         description="The new heading level to set for the block, if changing."
     )
 
+
+class OrderSetCaption(Order):
+    target_image_block_id: int = Field(
+        description="The block_index of the image block to set the caption for."
+    )
+    target_caption_block_id: int = Field(
+        description="The block_index of the text block to set as the caption for the image block."
+    )
 
 class OrderBatch(BaseModel):
     orders: list[Order] = Field(
