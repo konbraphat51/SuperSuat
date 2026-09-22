@@ -67,3 +67,6 @@ class OrderBatch(BaseModel):
     orders: list[Order] = Field(
         description="The list of orders to apply, in order. Each order is applied to the document state resulting from all previous orders in this list."
     )
+    is_last_batch: bool = Field(
+        description="Whether this is the last batch of orders for the page. If True, you cannot order further edits."
+    )
