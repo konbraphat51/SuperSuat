@@ -7,6 +7,9 @@ from ..Schema import (
     TranscriptionBlock,
     TranscriptionResult,
 )
+from ...LlmHelper import (
+    pil_to_base64,
+)
 from .Transcriber import Transcriber
 
 class LlmTranscriber(Transcriber):
@@ -15,3 +18,10 @@ class LlmTranscriber(Transcriber):
         ocr_model: BaseChatModel,
     ) -> None:
         self.ocr_model = ocr_model
+
+    def _ocr_block_image(
+        self,
+        block_image: Image,
+    ) -> str:
+        # convert image data
+        image_base64 = pil_to_base64(block_image)
