@@ -46,9 +46,8 @@ class Organizer:
     def _scan_page(
         self,
         page_number: int,  # 1-indexed
-        page_image: Image,
+        all_page_images: list[Image],
         page_image_rendered: Image,
-        page_images_former: list[Image],
         processing_blocks: list[ProcessingBlock],
     ) -> None:
         pass

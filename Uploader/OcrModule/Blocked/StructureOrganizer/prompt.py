@@ -22,6 +22,7 @@ The document is worked through one page at a time, and you are in charge of page
 
 # What you are given
 
+- The page image of each heading page {page_number} still sits under, outermost heading first: the level 1 heading of the document, then the heading under it that this page's content belongs to, and so on down to the innermost heading still open when the previous page ended. They show you the hierarchy this page continues, so a heading on page {page_number} gets a level that fits under them.
 - The images of the pages just before page {page_number}, for context only. They have already been handled.
 - The image of page {page_number} itself, as it was scanned.
 - The same page {page_number} with the detected blocks drawn on top: each block is outlined and labeled with its block_id at the box's top-left corner. The outline color is the type the block detector guessed - blue for text, purple for math, green for an image, orange for a table. That guess is only a hint; judge from the page itself.

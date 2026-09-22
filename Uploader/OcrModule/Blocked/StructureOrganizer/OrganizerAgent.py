@@ -9,7 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.messages.content import create_text_block
 from ...LlmHelper import build_image_message, pil_to_base64
-from .ProcessingSchema import ProcessingBlock
+from .ProcessingSchema import ProcessingBlock, ProcessingBlockTextHeading
 from .OrderSchema import OrderBatch
 from .OrganizeExecutor import execute_orders
 from .prompt import ORGANIZER_AGENT_SYSTEM_PROMPT
@@ -48,28 +48,26 @@ class OrganizerAgent:
     def scan_page(
         self,
         page_number: int,  # 1-indexed
-        page_image: Image,
+        all_page_images: list[Image],
         page_image_rendered: Image,
-        page_images_former: list[Image],
         processing_blocks: list[ProcessingBlock],
     ) -> None:
         """Settles the structure of one page, editing processing_blocks in place.
 
         Args:
             page_number: The 1-indexed page being settled.
-            page_image: The page as it was scanned.
-            page_image_rendered: The same page with the detected blocks drawn on top.
-            page_images_former: The images of the pages just before this one,
-                oldest first, at most RECENT_PAGE_COUNT of them.
+            all_page_images: Every page of the document, as scanned, 0-indexed.
+                Only a few of them are shown to the model: this page, the pages
+                just before it, and the page of each heading it sits under.
+            page_image_rendered: This page with the detected blocks drawn on top.
             processing_blocks: Every block of the document, in current order.
                 Only this page's blocks and those of the pages just before it
                 are shown to the model, but an order may reach any of them.
         """
         messages = self._build_messages(
             page_number=page_number,
-            page_image=page_image,
+            all_page_images=all_page_images,
             page_image_rendered=page_image_rendered,
-            page_images_former=page_images_former,
             processing_blocks=processing_blocks,
         )
 
@@ -139,25 +137,42 @@ class OrganizerAgent:
     def _build_messages(
         self,
         page_number: int,  # 1-indexed
-        page_image: Image,
+        all_page_images: list[Image],
         page_image_rendered: Image,
-        page_images_former: list[Image],
         processing_blocks: list[ProcessingBlock],
     ) -> list[BaseMessage]:
         """The system prompt plus the page's images and current block state."""
+        current_page_index = page_number - 1
         content: list[dict] = []
+        shown_page_indices: set[int] = {current_page_index}
 
-        # the pages already handled, oldest first, for context only
-        first_former_page_number = page_number - len(page_images_former)
-        for offset, former_image in enumerate(page_images_former):
+        # where in the document this page sits: the page of each heading still
+        # open when the previous page ended, outermost heading first
+        for heading in _collect_ancestor_headings(page_number, processing_blocks):
+            if heading.page_number in shown_page_indices:
+                continue
+
+            shown_page_indices.add(heading.page_number)
             content += build_image_message(
-                f"Page {first_former_page_number + offset}, already handled, for context only:",
-                pil_to_base64(former_image),
+                f"Page {heading.page_number + 1}, holding the level {heading.heading_level} "
+                f'heading "{heading.text}" this page is still under:',
+                pil_to_base64(all_page_images[heading.page_number]),
+            )
+
+        # the pages just before this one, oldest first, for context only
+        for former_page_index in _former_page_indices(page_number):
+            if former_page_index in shown_page_indices:
+                continue
+
+            shown_page_indices.add(former_page_index)
+            content += build_image_message(
+                f"Page {former_page_index + 1}, already handled, for context only:",
+                pil_to_base64(all_page_images[former_page_index]),
             )
 
         content += build_image_message(
             f"Page {page_number}, the page you are in charge of:",
-            pil_to_base64(page_image),
+            pil_to_base64(all_page_images[current_page_index]),
         )
         content += build_image_message(
             f"Page {page_number} again, with each detected block outlined and labeled with its block_id:",
@@ -173,6 +188,52 @@ class OrganizerAgent:
             ),
             HumanMessage(content=content),
         ]
+
+
+def _former_page_indices(page_number: int) -> range:  # page_number is 1-indexed
+    """The 0-indexed pages just before this one, oldest first."""
+    current_page_index = page_number - 1
+    return range(max(0, current_page_index - RECENT_PAGE_COUNT), current_page_index)
+
+
+def _collect_ancestor_headings(
+    page_number: int,  # 1-indexed
+    processing_blocks: list[ProcessingBlock],
+) -> list[ProcessingBlockTextHeading]:
+    """The headings still open when the page before this one ended, outermost
+    first.
+
+    That is the last heading before this page, then the nearest heading above
+    it of a lower level, and so on up to level 1 - the chapter and section this
+    page's content is sitting inside. A heading of a level already covered is
+    a sibling that has since been closed, so it is skipped.
+    """
+    current_page_index = page_number - 1
+    ancestors: list[ProcessingBlockTextHeading] = []
+    innermost_level: int | None = None
+
+    # walk backwards from the page before this one
+    for block in reversed(processing_blocks):
+        if block.page_number >= current_page_index:
+            continue
+
+        if not isinstance(block, ProcessingBlockTextHeading):
+            continue
+
+        if block.heading_level is None:
+            continue
+
+        if innermost_level is not None and block.heading_level >= innermost_level:
+            continue
+
+        ancestors.append(block)
+        innermost_level = block.heading_level
+
+        # nothing sits above the document's own title
+        if innermost_level <= 1:
+            break
+
+    return list(reversed(ancestors))
 
 
 def _block_state_text(
