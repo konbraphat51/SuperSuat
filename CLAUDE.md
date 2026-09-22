@@ -10,13 +10,37 @@
     - If Python, write in docstring format
     - If C#, write in XML format
     - If TypeScript, write in TSDoc format
-  - Write comments for `for` loop like:
 
-```py
-# for each block...
-for block in blocker_result.blocks:
-    # ...extract block image
-    block_image = self._extract_block_image(all_pages[block.page_index], block)
+```python:sample.py
+def transcribe(
+    self,
+    all_pages: list[Image],
+    blocker_result: BlockerResult,
+) -> TranscriptionResult:
+    """Transcribes every TEXT block of blocker_result, cropped from all_pages.
+
+    Args:
+        all_pages: Every page image, indexed by Block.page_number.
+        blocker_result: The blocks detected by a Blocker, to be transcribed.
+    """
+    transcriptions: list[TranscriptionBlock] = []
+
+    # for each block...
+    for block in blocker_result.blocks:
+        # ...OCR the block
+
+        # skip if the block is not text
+        if block.block_type != BlockType.TEXT:
+            continue
+
+        # image extraction
+        block_image = self._extract_block_image(all_pages[block.page_number], block)
+
+        # transcribe the block image
+        text = self._ocr_block_image(block_image)
+        transcriptions.append(TranscriptionBlock(block, text))
+
+    return TranscriptionResult(transcriptions)
 ```
 
 - Prepare English and Japanese versions for all documents.
