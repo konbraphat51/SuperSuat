@@ -1,3 +1,5 @@
+"""Abstract base for the transcription stage of the OCR pipeline."""
+
 from abc import ABC, abstractmethod
 from PIL.Image import Image
 from ..Schema import (
@@ -8,14 +10,27 @@ from ..Schema import (
     TranscriptionResult,
 )
 
+
 class Transcriber(ABC):
+    """Reads the text of each TEXT block found by a Blocker.
+
+    Blocks are OCR'd one at a time, in isolation, so each recognition call
+    sees only the text it needs to read. Non-TEXT blocks (MATH, IMAGE, TABLE)
+    are left for later pipeline stages and are not transcribed here."""
+
     def transcribe(
         self,
         all_pages: list[Image],
         blocker_result: BlockerResult,
     ) -> TranscriptionResult:
+        """Transcribes every TEXT block of blocker_result, cropped from all_pages.
+
+        Args:
+            all_pages: Every page image, indexed by Block.page_number.
+            blocker_result: The blocks detected by a Blocker, to be transcribed.
+        """
         transcriptions: list[TranscriptionBlock] = []
-        
+
         # for each block...
         for block in blocker_result.blocks:
             # ...OCR the block
@@ -32,7 +47,6 @@ class Transcriber(ABC):
             transcriptions.append(TranscriptionBlock(block, text))
 
         return TranscriptionResult(transcriptions)
-
 
     def _extract_block_image(
         self,
