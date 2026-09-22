@@ -1,5 +1,5 @@
+from dataclasses import dataclass
 from enum import Enum
-from pydantic import BaseModel, Field
 
 
 class BlockType(str, Enum):
@@ -9,32 +9,53 @@ class BlockType(str, Enum):
     TABLE = "table"
 
 
-class Block(BaseModel):
-    block_type: BlockType = Field(..., description="The type of the block.")
-    page_number: int = Field(
-        ..., description="The page number where the block is located."
-    )
-    bounding_box: tuple[int, int, int, int] = Field(
-        ...,
-        description="The bounding box of the block in (x, y, width, height) format.",
-    )
-    block_id: int = Field(
-        ..., description="A unique identifier for the block within the document."
-    )
+@dataclass
+class Block:
+    """A single detected block within a document page.
+
+    Attributes:
+        block_type: The type of the block.
+        page_number: The page number where the block is located.
+        bounding_box: The bounding box of the block in (x, y, width, height) format.
+        block_id: A unique identifier for the block within the document.
+    """
+
+    block_type: BlockType
+    page_number: int
+    bounding_box: tuple[int, int, int, int]
+    block_id: int
 
 
-class BlockerResult(BaseModel):
-    blocks: list[Block] = Field(
-        ..., description="List of blocks detected in the document."
-    )
+@dataclass
+class BlockerResult:
+    """The result of running a blocker over a document.
+
+    Attributes:
+        blocks: List of blocks detected in the document.
+    """
+
+    blocks: list[Block]
 
 
-class TranscriptionBlock(BaseModel):
-    block_id: int = Field(..., description="The unique identifier of the block.")
-    text: str = Field(..., description="The transcribed text of the block.")
+@dataclass
+class TranscriptionBlock:
+    """A transcribed block of text.
+
+    Attributes:
+        block_id: The unique identifier of the block.
+        text: The transcribed text of the block.
+    """
+
+    block_id: int
+    text: str
 
 
-class TranscriptionResult(BaseModel):
-    transcriptions: list[TranscriptionBlock] = Field(
-        ..., description="List of transcribed blocks."
-    )
+@dataclass
+class TranscriptionResult:
+    """The result of transcribing a document's blocks.
+
+    Attributes:
+        transcriptions: List of transcribed blocks.
+    """
+
+    transcriptions: list[TranscriptionBlock]
