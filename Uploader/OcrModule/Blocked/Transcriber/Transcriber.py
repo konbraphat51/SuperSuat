@@ -43,7 +43,7 @@ class Transcriber(ABC):
             block_image = self._extract_block_image(all_pages[block.page_number], block)
 
             # transcribe the block image
-            text = self._ocr_block_image(block_image)
+            text = self._ocr_text_block_image(block_image)
             transcriptions.append(TranscriptionBlock(block, text))
 
         return TranscriptionResult(transcriptions)
@@ -58,9 +58,17 @@ class Transcriber(ABC):
         return page.crop((x, y, x + width, y + height))
 
     @abstractmethod
-    def _ocr_block_image(
+    def _ocr_text_block_image(
         self,
         block_image: Image,
     ) -> str:
-        """Returns the transcribed text of the block image."""
+        """Returns the transcribed text of the text block image."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    @abstractmethod
+    def _ocr_table_block_image(
+        self,
+        block_image: Image,
+    ) -> str:
+        """Returns the transcribed text of the table block image."""
         raise NotImplementedError("Subclasses must implement this method.")

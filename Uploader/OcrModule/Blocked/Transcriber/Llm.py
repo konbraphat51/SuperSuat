@@ -22,6 +22,19 @@ Rules:
 - If the image contains no legible text, output nothing.
 """
 
+TABLE_PROMPT = """You are a highly precise OCR engine. Transcribe the table in the given image into a single Markdown table.
+
+Rules:
+- Output only the Markdown table itself: no preamble, no explanation, no surrounding quotes or code fences.
+- Reproduce the table's row and column structure exactly as shown, including header rows.
+- For merged cells, repeat the same content in every cell the merge spans.
+- Write every mathematical expression in KaTeX-compatible LaTeX: `$...$` for inline math and `$$...$$` for display/block equations.
+- Keep the transcription in the same language as the text in the image. Never translate, paraphrase, or summarize.
+- Reproduce text verbatim, including punctuation, casing, and numbers.
+- Do not invent, complete, or correct text that is unclear or cut off; transcribe only what is actually visible.
+- If a cell is empty in the image, leave it empty in the output.
+"""
+
 
 class LlmTranscriber(Transcriber):
     """Reads block text by asking a multimodal chat model to transcribe the
@@ -37,7 +50,7 @@ class LlmTranscriber(Transcriber):
         """
         self.ocr_model = ocr_model
 
-    def _ocr_block_image(
+    def _ocr_text_block_image(
         self,
         block_image: Image,
     ) -> str:
@@ -46,13 +59,25 @@ class LlmTranscriber(Transcriber):
         image_base64 = pil_to_base64(block_image)
 
         # get transcription from LLM
-        return self._send_to_llm(image_base64)
+        return self._send_to_llm(image_base64, PROMPT)
+
+    def _ocr_table_block_image(
+        self,
+        block_image: Image,
+    ) -> str:
+        """Returns the transcribed Markdown table of the table block image."""
+        # convert image data
+        image_base64 = pil_to_base64(block_image)
+
+        # get transcription from LLM
+        return self._send_to_llm(image_base64, TABLE_PROMPT)
 
     def _send_to_llm(
         self,
         image_base64: str,
+        prompt: str,
     ) -> str:
         """Image -> transcription"""
-        message = HumanMessage(content=build_image_message(PROMPT, image_base64))
+        message = HumanMessage(content=build_image_message(prompt, image_base64))
         result = self.ocr_model.invoke([message])
         return stringify_message_content(result.content).strip()

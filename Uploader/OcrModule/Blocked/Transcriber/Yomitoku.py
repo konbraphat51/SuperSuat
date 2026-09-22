@@ -5,7 +5,11 @@ import logging
 import numpy as np
 import torch
 from PIL.Image import Image
-from yomitoku import TextRecognizer
+from yomitoku import TableStructureRecognizer, TextDetector, TextRecognizer
+from yomitoku.document_analyzer import extract_words_within_element
+from yomitoku.export.export_markdown import table_to_md
+from yomitoku.ocr import ocr_aggregate
+from yomitoku.schemas import OCRSchema
 
 from .Transcriber import Transcriber
 
@@ -38,6 +42,11 @@ class YomitokuTranscriber(Transcriber):
             device=self._device,
             visualize=visualize,
         )
+        self._detector = TextDetector(device=self._device, visualize=visualize)
+        self._table_structure_recognizer = TableStructureRecognizer(
+            device=self._device,
+            visualize=visualize,
+        )
         logger.info("YomitokuTranscriber ready on device=%s", self._device)
 
     @staticmethod
@@ -45,10 +54,33 @@ class YomitokuTranscriber(Transcriber):
         """ "cuda" whenever this machine can run the model on the GPU."""
         return "cuda" if torch.cuda.is_available() else "cpu"
 
-    def _ocr_block_image(self, block_image: Image) -> str:
+    def _ocr_text_block_image(self, block_image: Image) -> str:
         """Returns the transcribed text of the block image."""
         results, _ = self._recognizer(self._to_bgr_array(block_image))
         return "".join(results.contents)
+
+    def _ocr_table_block_image(self, block_image: Image) -> str:
+        """Returns the transcribed Markdown table of the table block image."""
+        image = self._to_bgr_array(block_image)
+        height, width = image.shape[:2]
+
+        # detect and recognize every word in the table
+        detection, _ = self._detector(image)
+        recognition, _ = self._recognizer(image, detection.points)
+        words = OCRSchema(words=ocr_aggregate(detection, recognition)).words
+
+        # recognize the table structure, treating the whole crop as one table
+        tables, _ = self._table_structure_recognizer(image, [[0, 0, width, height]])
+        if not tables:
+            return ""
+        table = tables[0]
+
+        # assign each cell its contained words
+        for cell in table.cells:
+            contents, _, _ = extract_words_within_element(words, cell)
+            cell.contents = contents or ""
+
+        return table_to_md(table, ignore_line_break=False)["md"].strip()
 
     @staticmethod
     def _to_bgr_array(image: Image) -> np.ndarray:
