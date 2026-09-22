@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
-from ..LlmHelper import ImageMessageBuilder
+from ..LlmHelper import build_image_message
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,6 @@ def clip_image_with_agent(
     order: str,
     img_b64: str,
     image_size: tuple[int, int],
-    image_message_builder: ImageMessageBuilder,
 ) -> BoundingBoxOutput:
     """The bounding box of whatever `order` describes, clamped to the image.
 
@@ -40,7 +39,7 @@ def clip_image_with_agent(
 
     structured_clipper_model = clipper_model.with_structured_output(BoundingBoxOutput)
     result = structured_clipper_model.invoke(
-        [HumanMessage(content=image_message_builder(instruction, img_b64))]
+        [HumanMessage(content=build_image_message(instruction, img_b64))]
     )
 
     raw_bounding_box = result.bounding_box

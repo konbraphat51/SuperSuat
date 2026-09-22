@@ -3,10 +3,10 @@
 import base64
 import json
 import logging
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from io import BytesIO
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages.content import create_image_block, create_text_block
 from PIL.Image import Image
 
 from .OcrSchema import OcrResultBlockText, OcrResultSection
@@ -29,46 +29,15 @@ def pil_to_base64(img: Image, format: str = "PNG") -> str:
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
-# Providers spell an image differently in message content, so the builder is injected.
-ImageMessageBuilder = Callable[[str | None, str], list[dict]]
-
-
-def _text_content(text: str | None) -> list[dict]:
-    """The leading text block, or nothing at all when there is no message to
-    accompany the image."""
-    if text is None:
-        return []
-
-    return [{"type": "text", "text": text}]
-
-
-def build_image_message_openai(text: str | None, img_b64: str) -> list[dict]:
-    """Text + PNG image content in the OpenAI chat completions format."""
-    return [
-        *_text_content(text),
-        {
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/png;base64,{img_b64}",
-            },
-        },
-    ]
-
-
-def build_image_message_bedrock(text: str | None, img_b64: str) -> list[dict]:
-    """Text + PNG image content in the Bedrock (Converse) format, which takes
-    the raw base64 payload and its media type rather than a data URL."""
-    return [
-        *_text_content(text),
-        {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/png",
-                "data": img_b64,
-            },
-        },
-    ]
+def build_image_message(text: str | None, img_b64: str) -> list[dict]:
+    """Text + PNG image content as provider-agnostic standard content blocks
+    (langchain_core.messages.content), which every chat model integration
+    translates to its own wire format."""
+    blocks: list[dict] = []
+    if text is not None:
+        blocks.append(create_text_block(text))
+    blocks.append(create_image_block(base64=img_b64, mime_type="image/png"))
+    return blocks
 
 
 OMITTED_MARKER = "... (omitted)"

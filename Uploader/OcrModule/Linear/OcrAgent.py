@@ -12,7 +12,6 @@ from .prompt import OCR_AGENT_SYSTEM_PROMPT
 from ..OcrSchema import OcrResultSection
 from ..LlmHelper import (
     ImageBase64,
-    ImageMessageBuilder,
     build_ocr_context_string,
     log_agent_message,
 )
@@ -52,31 +51,20 @@ class OcrAgent:
         clipper_model: BaseChatModel,
         all_pages: list[ImageBase64],
         entire_section: OcrResultSection,
-        image_message_builder: ImageMessageBuilder,
-        clipper_image_message_builder: ImageMessageBuilder | None = None,
     ) -> None:
         self.entire_section = entire_section
-        self._initialize_tools(
-            all_pages,
-            clipper_model,
-            image_message_builder,
-            clipper_image_message_builder,
-        )
+        self._initialize_tools(all_pages, clipper_model)
         self._initialize_agent(ocr_model)
 
     def _initialize_tools(
         self,
         all_pages: list[ImageBase64],
         clipper_model: BaseChatModel,
-        image_message_builder: ImageMessageBuilder,
-        clipper_image_message_builder: ImageMessageBuilder | None,
     ) -> None:
         self.linear_tools = LinearTools(
             all_pages=all_pages,
             ocr_entire_section=self.entire_section,
             clipper_model=clipper_model,
-            image_message_builder=image_message_builder,
-            clipper_image_message_builder=clipper_image_message_builder,
         )
 
         self.tools = [

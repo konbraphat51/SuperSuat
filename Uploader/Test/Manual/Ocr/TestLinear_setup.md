@@ -5,7 +5,7 @@
 
 - プロバイダー: **Amazon Bedrock**（`ChatBedrockConverse`）
 - OcrAgent / Clipper ともに **`qwen.qwen3-vl-235b-a22b`**
-- 画像メッセージ形式: `build_image_message_bedrock`
+- 画像メッセージ形式: `build_image_message`（プロバイダー非依存の標準コンテンツブロック）
 
 実際にBedrockのAPIを叩くため、**課金が発生します**。1ページごとにエージェントが複数回モデルを呼ぶので、
 まずは `--max-pages 1` で1ページだけ試すことを推奨します。

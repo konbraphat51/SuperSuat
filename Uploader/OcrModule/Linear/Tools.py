@@ -2,7 +2,7 @@
 
 from langchain_core.language_models import BaseChatModel
 from ..OcrSchema import OcrResultSection
-from ..LlmHelper import ImageBase64, ImageMessageBuilder
+from ..LlmHelper import ImageBase64, build_image_message
 from .Clipper import clip_image_with_agent
 
 
@@ -57,16 +57,10 @@ class LinearTools:
         all_pages: list[ImageBase64],
         ocr_entire_section: OcrResultSection,
         clipper_model: BaseChatModel,
-        image_message_builder: ImageMessageBuilder,
-        clipper_image_message_builder: ImageMessageBuilder | None = None,
     ) -> None:
         self.all_pages = all_pages
         self.ocr_entire_section = ocr_entire_section
         self.clipper_model = clipper_model
-        self.image_message_builder = image_message_builder
-        self.clipper_image_message_builder = (
-            clipper_image_message_builder or image_message_builder
-        )
         self.current_page_number = -1  # 0-indexed
 
     def set_current_page(
@@ -85,7 +79,7 @@ class LinearTools:
         if page_number < 0 or page_number >= len(self.all_pages):
             return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_pages) - 1}"
 
-        return self.image_message_builder(
+        return build_image_message(
             f"this is the image of page {page_number}",
             self.all_pages[page_number].b64,
         )
@@ -108,7 +102,6 @@ class LinearTools:
                 order,
                 current_page.b64,
                 current_page.size,
-                self.clipper_image_message_builder,
             )
         except Exception as error:
             return f"ERROR: The clipping agent failed: {error}"

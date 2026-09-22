@@ -43,10 +43,6 @@ sys.path.insert(0, str(UPLOADER_ROOT))
 from dotenv import load_dotenv  # noqa: E402
 
 from OcrModule.Linear.LinearOcr import LinearOcr  # noqa: E402
-from OcrModule.LlmHelper import (  # noqa: E402
-    build_image_message_bedrock,
-    build_image_message_openai,
-)
 
 SAMPLE_DIR = Path(__file__).resolve().parent / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
@@ -127,14 +123,6 @@ def build_model(
     return build_bedrock_model(model_id, region, aws_api_key)
 
 
-def image_message_builder_for(provider: str):
-    return (
-        build_image_message_openai
-        if provider == "openai"
-        else build_image_message_bedrock
-    )
-
-
 def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Image.Image]:
     """Every page of the PDF rendered to an RGB PIL image."""
     images: list[Image.Image] = []
@@ -180,8 +168,6 @@ def run_one_pdf(
             aws_api_key,
             openai_api_key,
         ),
-        image_message_builder=image_message_builder_for(args.ocr_provider),
-        clipper_image_message_builder=image_message_builder_for(args.clipper_provider),
     )
 
     started_at = time.monotonic()
