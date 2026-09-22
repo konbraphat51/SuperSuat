@@ -64,6 +64,7 @@ class OrderSetCaption(Order):
         description="The block_index of the text block to set as the caption for the image block."
     )
 
+
 class OrderBatch(BaseModel):
     orders: list[Order] = Field(
         description="The list of orders to apply, in order. Each order is applied to the document state resulting from all previous orders in this list."

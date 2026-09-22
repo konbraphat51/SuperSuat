@@ -105,9 +105,7 @@ def run_one_pdf(pdf_path: Path, blocker: Blocker, output_dir: Path, args) -> Pat
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{pdf_path.stem}.json"
-    output_path.write_text(
-        json.dumps(asdict(result), indent=2), encoding="utf-8"
-    )
+    output_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
 
     if not args.no_render:
         for page_number, page in enumerate(RENDERER.render(images, result)):
