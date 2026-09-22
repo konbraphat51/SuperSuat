@@ -17,3 +17,10 @@ class Block(BaseModel):
 
 class BlockerResult(BaseModel):
     blocks: list[Block] = Field(..., description="List of blocks detected in the document.")
+
+class TranscriptionBlock(BaseModel):
+    block_id: int = Field(..., description="The unique identifier of the block.")
+    text: str = Field(..., description="The transcribed text of the block.")
+
+class TranscriptionResult(BaseModel):
+    transcriptions: list[TranscriptionBlock] = Field(..., description="List of transcribed blocks.")    
