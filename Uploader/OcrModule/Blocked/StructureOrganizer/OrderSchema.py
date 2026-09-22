@@ -11,8 +11,6 @@ class Order(BaseModel):
         "delete_block",
         "edit_block",
         "set_caption",
-        "set_figure",
-        "set_section",
     ]
 
 

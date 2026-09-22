@@ -36,7 +36,6 @@ def execute_orders(
         ValueError: An order targets a block_id absent from processing_data,
             or targets a block of a kind the order cannot be applied to.
         TypeError: An order's payload does not match its order_label.
-        NotImplementedError: The order_label has no order schema yet.
     """
     # for each order...
     for order in order_batch.orders:
@@ -59,11 +58,7 @@ def _execute_order(order: Order, processing_data: list[ProcessingBlock]) -> None
         case "set_caption":
             _execute_set_caption(_as(order, OrderSetCaption), processing_data)
         case _:
-            # "set_figure" and "set_section" are declared in Order.order_label
-            # but have no schema to carry their payload yet.
-            raise NotImplementedError(
-                f"Order label not supported yet: {order.order_label}"
-            )
+            raise ValueError(f"Unknown order label: {order.order_label}")
 
 
 def _execute_set_block_type(
