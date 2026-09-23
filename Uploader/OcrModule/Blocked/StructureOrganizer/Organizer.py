@@ -36,7 +36,7 @@ class Organizer:
         )
 
         # for all pages...
-        for page_number in range(len(all_page_images)):
+        for page_index in range(len(all_page_images)):
             # ... scan this page
             raise NotImplementedError("Organizer.organize() is not yet implemented.")
 
@@ -45,7 +45,7 @@ class Organizer:
 
     def _scan_page(
         self,
-        page_number: int,  # 1-indexed
+        page_index: int,
         all_page_images: list[Image],
         page_image_rendered: Image,
         processing_blocks: list[ProcessingBlock],

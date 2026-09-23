@@ -47,7 +47,7 @@ class OrganizerAgent:
 
     def scan_page(
         self,
-        page_number: int,  # 1-indexed
+        page_index: int,
         all_page_images: list[Image],
         page_image_rendered: Image,
         processing_blocks: list[ProcessingBlock],
@@ -55,7 +55,9 @@ class OrganizerAgent:
         """Settles the structure of one page, editing processing_blocks in place.
 
         Args:
-            page_number: The 1-indexed page being settled.
+            page_index: The page being settled, 0-indexed. Every page number
+                shown to the model is this plus one, since a reader counts
+                pages from 1.
             all_page_images: Every page of the document, as scanned, 0-indexed.
                 Only a few of them are shown to the model: this page, the pages
                 just before it, and the page of each heading it sits under.
@@ -65,14 +67,14 @@ class OrganizerAgent:
                 are shown to the model, but an order may reach any of them.
         """
         messages = self._build_messages(
-            page_number=page_number,
+            page_index=page_index,
             all_page_images=all_page_images,
             page_image_rendered=page_image_rendered,
             processing_blocks=processing_blocks,
         )
 
         for batch_number in range(1, MAX_BATCH_COUNT + 1):
-            order_batch = self._request_orders(messages, page_number, batch_number)
+            order_batch = self._request_orders(messages, page_index, batch_number)
             messages.append(AIMessage(content=order_batch.model_dump_json()))
 
             # apply to a copy, so a batch that fails halfway leaves nothing behind
@@ -84,7 +86,10 @@ class OrganizerAgent:
                 )
             except (ValueError, TypeError) as error:
                 logger.warning(
-                    "page %d | batch %d rejected: %s", page_number, batch_number, error
+                    "page %d | batch %d rejected: %s",
+                    page_index + 1,
+                    batch_number,
+                    error,
                 )
                 messages.append(HumanMessage(content=_rejection_message(error)))
                 continue
@@ -94,26 +99,26 @@ class OrganizerAgent:
             # if the model indicated to finish...
             if order_batch.is_last_batch:
                 # ...finish loop
-                logger.info("page %d | done", page_number)
+                logger.info("page %d | done", page_index + 1)
                 return
 
             # ...otherwise show what the orders did and let it continue
             messages.append(
                 HumanMessage(
-                    content=_continuation_message(page_number, processing_blocks)
+                    content=_continuation_message(page_index, processing_blocks)
                 )
             )
 
         logger.warning(
             "page %d | gave up after %d batches without is_last_batch",
-            page_number,
+            page_index + 1,
             MAX_BATCH_COUNT,
         )
 
     def _request_orders(
         self,
         messages: list[BaseMessage],
-        page_number: int,
+        page_index: int,
         batch_number: int,
     ) -> OrderBatch:
         """Asks the model for the next batch of orders."""
@@ -121,12 +126,12 @@ class OrganizerAgent:
 
         if not isinstance(order_batch, OrderBatch):
             raise RuntimeError(
-                f"Page {page_number}: the organizer model returned no order batch."
+                f"Page {page_index + 1}: the organizer model returned no order batch."
             )
 
         logger.info(
             "page %d | batch %d: %d order(s), is_last_batch=%s",
-            page_number,
+            page_index + 1,
             batch_number,
             len(order_batch.orders),
             order_batch.is_last_batch,
@@ -136,20 +141,19 @@ class OrganizerAgent:
 
     def _build_messages(
         self,
-        page_number: int,  # 1-indexed
+        page_index: int,
         all_page_images: list[Image],
         page_image_rendered: Image,
         processing_blocks: list[ProcessingBlock],
     ) -> list[BaseMessage]:
         """The system prompt plus the page's images and current block state."""
-        current_page_index = page_number - 1
         content: list[dict] = []
-        shown_page_indices: set[int] = {current_page_index}
+        shown_page_indices: set[int] = {page_index}
 
         # where in the document this page sits: the page of each heading still
         # open when the previous page ended, outermost heading first. Several
         # of those headings can share a page, which is then sent once.
-        ancestor_headings = _collect_ancestor_headings(page_number, processing_blocks)
+        ancestor_headings = _collect_ancestor_headings(page_index, processing_blocks)
         for heading_page_index, headings in _group_by_page(ancestor_headings):
             shown_page_indices.add(heading_page_index)
             content += build_image_message(
@@ -159,7 +163,7 @@ class OrganizerAgent:
             )
 
         # the pages just before this one, oldest first, for context only
-        for former_page_index in _former_page_indices(page_number):
+        for former_page_index in _former_page_indices(page_index):
             if former_page_index in shown_page_indices:
                 continue
 
@@ -170,33 +174,32 @@ class OrganizerAgent:
             )
 
         content += build_image_message(
-            f"Page {page_number}, the page you are in charge of:",
-            pil_to_base64(all_page_images[current_page_index]),
+            f"Page {page_index + 1}, the page you are in charge of:",
+            pil_to_base64(all_page_images[page_index]),
         )
         content += build_image_message(
-            f"Page {page_number} again, with each detected block outlined and labeled with its block_id:",
+            f"Page {page_index + 1} again, with each detected block outlined and labeled with its block_id:",
             pil_to_base64(page_image_rendered),
         )
         content.append(
-            create_text_block(_block_state_text(page_number, processing_blocks))
+            create_text_block(_block_state_text(page_index, processing_blocks))
         )
 
         return [
             SystemMessage(
-                content=ORGANIZER_AGENT_SYSTEM_PROMPT.format(page_number=page_number)
+                content=ORGANIZER_AGENT_SYSTEM_PROMPT.format(page_number=page_index + 1)
             ),
             HumanMessage(content=content),
         ]
 
 
-def _former_page_indices(page_number: int) -> range:  # page_number is 1-indexed
-    """The 0-indexed pages just before this one, oldest first."""
-    current_page_index = page_number - 1
-    return range(max(0, current_page_index - RECENT_PAGE_COUNT), current_page_index)
+def _former_page_indices(page_index: int) -> range:
+    """The pages just before this one, oldest first."""
+    return range(max(0, page_index - RECENT_PAGE_COUNT), page_index)
 
 
 def _collect_ancestor_headings(
-    page_number: int,  # 1-indexed
+    page_index: int,
     processing_blocks: list[ProcessingBlock],
 ) -> list[ProcessingBlockTextHeading]:
     """The headings still open when the page before this one ended, outermost
@@ -207,13 +210,12 @@ def _collect_ancestor_headings(
     page's content is sitting inside. A heading of a level already covered is
     a sibling that has since been closed, so it is skipped.
     """
-    current_page_index = page_number - 1
     ancestors: list[ProcessingBlockTextHeading] = []
     innermost_level: int | None = None
 
     # walk backwards from the page before this one
     for block in reversed(processing_blocks):
-        if block.page_number >= current_page_index:
+        if block.page_number >= page_index:
             continue
 
         if not isinstance(block, ProcessingBlockTextHeading):
@@ -262,18 +264,18 @@ def _describe_headings(headings: list[ProcessingBlockTextHeading]) -> str:
 
 
 def _block_state_text(
-    page_number: int,  # 1-indexed
+    page_index: int,
     processing_blocks: list[ProcessingBlock],
 ) -> str:
     """The blocks of this page and the pages just before it, as JSON."""
     return (
         "The current state of the blocks, in their current order:\n"
-        f"{_build_blocks_context_string(page_number, processing_blocks)}"
+        f"{_build_blocks_context_string(page_index, processing_blocks)}"
     )
 
 
 def _build_blocks_context_string(
-    page_number: int,  # 1-indexed
+    page_index: int,
     processing_blocks: list[ProcessingBlock],
 ) -> str:
     """The blocks the model is shown, as JSON, in their current order.
@@ -281,11 +283,7 @@ def _build_blocks_context_string(
     Kept to this page and the RECENT_PAGE_COUNT pages before it: the rest of
     the document is already settled, and resending it grows with every page.
     """
-    # ProcessingBlock.page_number is 0-indexed, page_number is not
-    current_page_index = page_number - 1
-    shown_pages = range(
-        max(0, current_page_index - RECENT_PAGE_COUNT), current_page_index + 1
-    )
+    shown_pages = range(max(0, page_index - RECENT_PAGE_COUNT), page_index + 1)
 
     shown_blocks = [
         _block_to_dict(block)
@@ -298,7 +296,7 @@ def _build_blocks_context_string(
 
 
 def _block_to_dict(block: ProcessingBlock) -> dict:
-    """One block as the model sees it, page numbers shown 1-indexed."""
+    """One block as the model sees it, its page counted from 1."""
     block_dict = asdict(block)
     block_dict["page_number"] = block.page_number + 1
     return block_dict
@@ -314,12 +312,12 @@ def _rejection_message(error: Exception) -> str:
 
 
 def _continuation_message(
-    page_number: int,  # 1-indexed
+    page_index: int,
     processing_blocks: list[ProcessingBlock],
 ) -> str:
     """What the model is told when it asked to see its orders' result."""
     return (
         "Your orders were applied.\n"
-        f"{_block_state_text(page_number, processing_blocks)}\n"
-        f"Continue with page {page_number}, and set is_last_batch to true once it is done."
+        f"{_block_state_text(page_index, processing_blocks)}\n"
+        f"Continue with page {page_index + 1}, and set is_last_batch to true once it is done."
     )
