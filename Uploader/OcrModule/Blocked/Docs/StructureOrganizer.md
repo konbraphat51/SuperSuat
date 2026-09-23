@@ -49,7 +49,12 @@ classDiagram
         +have_caption_checked: bool
         +caption_text_block_id: int | None
     }
+    class DataExporter {
+        +export_processing_blocks_to_ocr_result(processing_blocks) OcrResult
+    }
     Organizer ..> OrganizerAgent
+    Organizer ..> DataExporter
+    DataExporter ..> OcrResult
     OrganizerAgent ..> OrderBatch
     OrderBatch *-- Order
     Order <|-- OrderSetBlockType
@@ -135,6 +140,28 @@ Every page scan resends the whole context, so it is kept to what the page needs:
 Orders apply in list order, each one acting on the state the previous ones left. A
 text block becomes a `ProcessingBlockTextHeading` as soon as it is labeled a heading
 or given a level.
+
+## Export
+
+Once every page has been scanned, `export_processing_blocks_to_ocr_result()` turns the
+flat list of blocks into the `OcrResult` tree, walking it in reading order:
+
+- A heading opens a section, nested under the innermost open section of a lower level,
+  and the heading itself becomes that section's first block. A heading of the same or
+  a lower level closes the sections it is not inside, so `1.1` under `1.` nests, and a
+  following `2.` becomes `1.`'s sibling.
+- Anything else is appended to the section currently open. Blocks before the first
+  heading land in the root section, which is the document itself.
+- A figure's caption block is folded into the figure's `caption` and is not emitted as
+  a block of its own, so the caption text appears once.
+- Each section's `existing_pages` is the union of its contents', and `block_index` is
+  handed out in document order, the root taking 0.
+
+Nothing here rejects a document. A block the organizer never labeled is written down
+as a `paragraph`, a heading left without a level opens no section, and a caption
+pointing at a block that is not there is dropped - each with a warning in the log,
+since losing a whole run over one block is worse than a document with one odd block
+in it.
 
 ## Conventions
 

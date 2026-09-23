@@ -49,7 +49,12 @@ classDiagram
         +have_caption_checked: bool
         +caption_text_block_id: int | None
     }
+    class DataExporter {
+        +export_processing_blocks_to_ocr_result(processing_blocks) OcrResult
+    }
     Organizer ..> OrganizerAgent
+    Organizer ..> DataExporter
+    DataExporter ..> OcrResult
     OrganizerAgent ..> OrderBatch
     OrderBatch *-- Order
     Order <|-- OrderSetBlockType
@@ -132,6 +137,27 @@ sequenceDiagram
 
 orderはリスト順に適用され、各orderは直前までの結果に対して働く。見出しとして分類される
 か、レベルを与えられた時点で、テキストブロックは `ProcessingBlockTextHeading` になる。
+
+## エクスポート
+
+全ページのスキャン後、`export_processing_blocks_to_ocr_result()` が平坦なブロック列を
+`OcrResult` の木に変換する。読み順に走査し、
+
+- 見出しはセクションを開く。ネスト先は、より小さいレベルで開いている最も内側の
+  セクション。見出し自身はそのセクションの先頭ブロックになる。同レベル以下の見出しは
+  内側にいないセクションを閉じるため、`1.` の下に `1.1` が入り、続く `2.` は `1.` の
+  兄弟になる。
+- それ以外は現在開いているセクションに追加する。最初の見出しより前のブロックは、
+  ドキュメント自身であるルートセクションに入る。
+- 図のキャプションブロックは図の `caption` に畳み込まれ、独立したブロックとしては
+  出力しない。キャプションのテキストが重複しないようにするため。
+- 各セクションの `existing_pages` は内容の和集合。`block_index` はドキュメント順に
+  採番し、ルートが0。
+
+ここでドキュメントを拒否することはない。ラベルの無いブロックは `paragraph` として、
+レベルの無い見出しはセクションを開かずに、存在しないブロックを指すキャプションは破棄
+して書き出す。いずれもログに警告を残す。ブロック1つのために実行全体を失う方が、
+おかしなブロックが1つ混じるより悪いため。
 
 ## 規約
 
