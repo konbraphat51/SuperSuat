@@ -1,6 +1,6 @@
 - Write SOLID, readable, and maintainable code
 - Write comments in English
-  - Comments should be concise. Should be only single line per topic.
+  - Comments should be concise. Should be only single line per topic. Do not alterline comments even if they are long.
     - There is NO need to leave comments for each code update.
       - ex: "This code is left because of..."
       - ex: "This code is deleted because of..."
