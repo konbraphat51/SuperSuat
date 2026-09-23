@@ -16,6 +16,7 @@ from .ProcessingSchema import (
 
 from .OrganizerAgent import OrganizerAgent
 
+
 class Organizer:
     def __init__(
         self,

@@ -125,7 +125,7 @@ def _execute_delete_block(
             and block.caption_text_block_id == order.target_block_id
         ):
             block.caption_text_block_id = None
-            block.have_caption_set = False
+            block.have_caption_checked = False
 
 
 def _execute_edit_block(
@@ -170,7 +170,7 @@ def _execute_set_caption(
     )
 
     figure.caption_text_block_id = order.target_caption_block_id
-    figure.have_caption_set = True
+    figure.have_caption_checked = True
 
 
 def _find_index(processing_data: list[ProcessingBlock], block_id: int) -> int:

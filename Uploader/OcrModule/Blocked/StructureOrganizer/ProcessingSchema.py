@@ -63,12 +63,12 @@ class ProcessingBlockFigure(ProcessingBlock):
 
     Attributes:
         bounding_box: The bounding box of the block in (x, y, width, height) format.
-        have_caption_set: Whether a caption has been assigned to this figure.
+        have_caption_checked: Whether a caption has been checked for this figure.
         caption_text_block_id: The block_id of the caption text block, if set.
     """
 
     bounding_box: tuple[int, int, int, int]
-    have_caption_set: bool = False
+    have_caption_checked: bool = False
     caption_text_block_id: int | None = None
 
 

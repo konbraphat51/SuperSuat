@@ -9,14 +9,19 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.messages.content import create_text_block
 from ...LlmHelper import build_image_message, pil_to_base64
-from .ProcessingSchema import ProcessingBlock, ProcessingBlockTextHeading
+from .ProcessingSchema import (
+    ProcessingBlock,
+    ProcessingBlockText,
+    ProcessingBlockTextHeading,
+    ProcessingBlockFigure,
+)
 from .OrderSchema import OrderBatch
 from .OrganizeExecutor import execute_orders
 from .prompt import ORGANIZER_AGENT_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
-# How many already-handled pages are shown alongside the current one. 
+# How many already-handled pages are shown alongside the current one.
 RECENT_PAGE_COUNT = 1
 
 # Guard against a model that never sets is_last_batch
@@ -187,6 +192,93 @@ class OrganizerAgent:
             ),
             HumanMessage(content=content),
         ]
+
+    def _is_able_to_finish(
+        self,
+        page_index: int,
+        processing_blocks: list[ProcessingBlock],
+    ) -> tuple[bool, str]:
+        """Whether every block on the page is settled, and what is missing.
+
+        Args:
+            page_index: The page being checked, 0-indexed.
+            processing_blocks: Every block of the document, in current order.
+
+        Returns:
+            (True, "") when the page is done, otherwise (False, message) with
+            one line per problem, naming every block at fault.
+        """
+        page_blocks = [
+            block for block in processing_blocks if block.page_index == page_index
+        ]
+
+        problems = [
+            problem
+            for problem in (
+                _unlabeled_text_problem(page_blocks),
+                _unleveled_heading_problem(page_blocks),
+                _unchecked_figure_problem(page_blocks),
+            )
+            if problem is not None
+        ]
+
+        return not problems, "\n".join(problems)
+
+
+def _unlabeled_text_problem(page_blocks: list[ProcessingBlock]) -> str | None:
+    """The text blocks of the page still carrying no block_type, if any."""
+    block_ids = [
+        block.block_id
+        for block in page_blocks
+        if isinstance(block, ProcessingBlockText) and not block.have_been_labeled
+    ]
+
+    if not block_ids:
+        return None
+
+    return (
+        f"These text blocks still have no block_type: {_list_ids(block_ids)}. "
+        "Label each one."
+    )
+
+
+def _unleveled_heading_problem(page_blocks: list[ProcessingBlock]) -> str | None:
+    """The headings of the page still carrying no level, if any."""
+    block_ids = [
+        block.block_id
+        for block in page_blocks
+        if isinstance(block, ProcessingBlockTextHeading) and block.heading_level is None
+    ]
+
+    if not block_ids:
+        return None
+
+    return (
+        f"These headings still have no heading level: {_list_ids(block_ids)}. "
+        "Give each one the level it holds in the document's hierarchy."
+    )
+
+
+def _unchecked_figure_problem(page_blocks: list[ProcessingBlock]) -> str | None:
+    """The figures of the page whose caption has not been checked, if any."""
+    block_ids = [
+        block.block_id
+        for block in page_blocks
+        if isinstance(block, ProcessingBlockFigure) and not block.have_caption_checked
+    ]
+
+    if not block_ids:
+        return None
+
+    return (
+        f"These figures have not been checked for a caption yet: "
+        f"{_list_ids(block_ids)}. Tie each one to the text block holding its caption."
+    )
+
+
+def _list_ids(block_ids: list[int]) -> str:
+    """The block ids as one comma-separated list."""
+    return ", ".join(str(block_id) for block_id in block_ids)
 
 
 def _former_page_indices(page_index: int) -> range:

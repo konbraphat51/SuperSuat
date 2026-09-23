@@ -46,7 +46,7 @@ classDiagram
     }
     class ProcessingBlockFigure {
         +bounding_box: tuple
-        +have_caption_set: bool
+        +have_caption_checked: bool
         +caption_text_block_id: int | None
     }
     Organizer ..> OrganizerAgent
