@@ -5,7 +5,6 @@ from .OrderSchema import (
     Order,
     OrderBatch,
     OrderSetBlockType,
-    OrderSetHeadingLevel,
     OrderReorder,
     OrderDeleteBlock,
     OrderEditBlock,
@@ -48,10 +47,6 @@ def _execute_order(order: Order, processing_data: list[ProcessingBlock]) -> None
     match order.order_label:
         case "set_block_type":
             _execute_set_block_type(_as(order, OrderSetBlockType), processing_data)
-        case "set_heading_level":
-            _execute_set_heading_level(
-                _as(order, OrderSetHeadingLevel), processing_data
-            )
         case "reorder":
             _execute_reorder(_as(order, OrderReorder), processing_data)
         case "delete_block":
@@ -82,21 +77,6 @@ def _execute_set_block_type(
 
     block.new_type = order.new_label
     block.have_been_labeled = True
-
-
-def _execute_set_heading_level(
-    order: OrderSetHeadingLevel, processing_data: list[ProcessingBlock]
-) -> None:
-    """Sets the heading level of the target block, making it a heading."""
-    index = _find_index(processing_data, order.target_block_id)
-    block = _promote_to_heading(
-        _require_text(processing_data[index], order.target_block_id)
-    )
-    processing_data[index] = block
-
-    block.new_type = "heading"
-    block.have_been_labeled = True
-    block.heading_level = order.new_level
 
 
 def _execute_reorder(
@@ -130,8 +110,8 @@ def _execute_edit_block(
     index = _find_index(processing_data, order.target_block_id)
     block = _require_text(processing_data[index], order.target_block_id)
 
-    # a level, or a "heading" label, needs the richer block
-    if order.new_heading_level is not None or order.new_label == "heading":
+    # a heading needs the richer block so a level can be attached later
+    if order.new_label == "heading":
         block = _promote_to_heading(block)
         processing_data[index] = block
 
@@ -142,10 +122,6 @@ def _execute_edit_block(
     if order.new_text is not None:
         block.text = order.new_text
         block.have_been_edited = True
-
-    if order.new_heading_level is not None:
-        assert isinstance(block, ProcessingBlockTextHeading)
-        block.heading_level = order.new_heading_level
 
 
 def _execute_set_caption(

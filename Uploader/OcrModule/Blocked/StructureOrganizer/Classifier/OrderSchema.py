@@ -6,7 +6,6 @@ from ....OcrSchema import TEXT_BLOCK_TYPES
 
 ORDER_LABELS = Literal[
     "set_block_type",
-    "set_heading_level",
     "reorder",
     "delete_block",
     "edit_block",
@@ -37,16 +36,6 @@ class OrderSetBlockType(Order):
     )
 
 
-class OrderSetHeadingLevel(Order):
-    """Places a heading in the document's heading hierarchy."""
-
-    order_label: Literal["set_heading_level"] = "set_heading_level"
-    target_block_id: int = Field(
-        description="The block_index of the block to set the heading level for."
-    )
-    new_level: int = Field(description="The new heading level to set for the block.")
-
-
 class OrderReorder(Order):
     """Moves a block to its place in the document's reading order."""
 
@@ -74,9 +63,6 @@ class OrderEditBlock(Order):
     )
     new_text: str | None = Field(
         description="The new text to set for the block, if changing."
-    )
-    new_heading_level: int | None = Field(
-        description="The new heading level to set for the block, if changing."
     )
 
 
@@ -108,7 +94,6 @@ class OrderSetCaption(Order):
 # pydantic which schema to validate it against
 AnyOrder = Annotated[
     OrderSetBlockType
-    | OrderSetHeadingLevel
     | OrderReorder
     | OrderDeleteBlock
     | OrderEditBlock

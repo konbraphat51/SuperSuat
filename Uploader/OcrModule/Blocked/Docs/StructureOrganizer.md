@@ -3,16 +3,30 @@
 Step 3 of the blocked OCR pipeline (see [Plan.md](Plan.md)): the blocks a `Blocker`
 found and a `Transcriber` read are settled into a document structure — each text
 block's type, each heading's level in the hierarchy, each figure's caption, and the
-reading order — one page at a time, by a multimodal model.
+reading order — by a multimodal model.
 
 日本語版: [StructureOrganizer.ja.md](StructureOrganizer.ja.md)
+
+## The two model stages
+
+The work splits by what a decision needs to see:
+
+- **`Classifier/`** settles one page at a time: what each block is, which blocks
+  belong to which figure, what order they are read in. Everything it decides can be
+  decided from the page in front of it.
+- **`Leveler/`** ranks the headings. A heading's level means nothing except against
+  the rest of the document, so this runs once, after every page has been classified,
+  and sees every page that holds a heading at the same time.
+
+`Organizer` runs the two in that order and hands the result to `DataExporter`.
 
 ## Structure
 
 ```mermaid
 classDiagram
     class Organizer {
-        -organizer_model: BaseChatModel
+        -classifier: Classifier
+        -leveler: Leveler
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
         -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     }
@@ -21,6 +35,13 @@ classDiagram
         +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
         -_request_orders(messages, page_index, batch_number) OrderBatch
         -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
+        -_is_able_to_finish(page_index, processing_blocks) tuple[bool, str]
+    }
+    class Leveler {
+        -leveler_model: Runnable
+        +level_headings(all_page_images, processing_blocks)
+        -_request_levels(messages, attempt) HeadingLevels
+        -_build_messages(all_page_images, headings) list[BaseMessage]
     }
     class OrderBatch {
         +orders: list[AnyOrder]
@@ -28,6 +49,13 @@ classDiagram
     }
     class Order {
         +order_label: ORDER_LABELS
+    }
+    class HeadingLevels {
+        +levels: list[HeadingLevel]
+    }
+    class HeadingLevel {
+        +target_block_id: int
+        +heading_level: int
     }
     class ProcessingBlock {
         +block_id: int
@@ -54,12 +82,14 @@ classDiagram
         +export_processing_blocks_to_ocr_result(processing_blocks) OcrResult
     }
     Organizer ..> Classifier
+    Organizer ..> Leveler
     Organizer ..> DataExporter
     DataExporter ..> OcrResult
     Classifier ..> OrderBatch
+    Leveler ..> HeadingLevels
+    HeadingLevels *-- HeadingLevel
     OrderBatch *-- Order
     Order <|-- OrderSetBlockType
-    Order <|-- OrderSetHeadingLevel
     Order <|-- OrderReorder
     Order <|-- OrderDeleteBlock
     Order <|-- OrderEditBlock
@@ -69,6 +99,7 @@ classDiagram
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
     Classifier ..> ProcessingBlock
+    Leveler ..> ProcessingBlockTextHeading
 ```
 
 The model never edits the blocks itself: it answers with an `OrderBatch`, and
@@ -111,22 +142,17 @@ sets `is_last_batch` when the page is done; `MAX_BATCH_COUNT` only guards agains
 model that never does.
 
 Saying the page is done does not make it so: `_is_able_to_finish()` checks every block
-on the page for a block_type, a heading for its level, and a figure for its caption
-check, and a page still missing any of them goes back to the model with the blocks at
-fault named. Once the page passes, its blocks are marked `have_been_checked`.
+on the page for a block_type and every figure for its caption check, and a page still
+missing either goes back to the model with the blocks at fault named. Heading levels
+are not checked here — no page can answer for them. Once the page passes, its blocks
+are marked `have_been_checked`.
 
-## Context given to the model
+### Context given to the model
 
 Every page scan resends the whole context, so it is kept to what the page needs:
 
-- The page image of each heading the page still sits under, outermost first — the
-  innermost heading open when the previous page ended, then the heading above it, up
-  to the document's level 1 title. This is what keeps heading levels consistent across
-  a long document: if the previous page ended under an H3, the pages of that H3, its
-  H2, and the H1 are shown. Headings that share a page are named together on that one
-  page image, which is sent once.
 - The `RECENT_PAGE_COUNT` pages just before this one, for blocks that continue across
-  a page boundary. A page already shown as a heading page is not sent twice.
+  a page boundary.
 - The page itself, as scanned.
 - The page again, with each block outlined and labeled with its `block_id`, as
   `BlockRenderer` draws it (see [Blocker.md](Blocker.md)).
@@ -134,26 +160,63 @@ Every page scan resends the whole context, so it is kept to what the page needs:
   current order. One page back is all a block spanning a page boundary needs, and
   everything earlier is settled and is left out.
 
-## Orders
+### Orders
 
 | Order | Effect |
 | --- | --- |
 | `set_block_type` | Labels a text block with one of the `TEXT_BLOCK_TYPES`. |
-| `set_heading_level` | Gives a heading its level, and labels it a heading. |
 | `reorder` | Moves a block immediately in front of another. |
 | `delete_block` | Removes a block, and clears any caption pointing at it. |
-| `edit_block` | Changes only the fields it fills in: label, text, heading level. |
+| `edit_block` | Changes only the fields it fills in: label, text. |
 | `set_caption` | Ties a figure to its caption block, or to null for a figure that has none. Either way the figure counts as checked. |
 | `set_merging_previous_page` | Marks a block as the rest of a block the previous page broke off. The join itself happens on export. |
 
 Orders apply in list order, each one acting on the state the previous ones left. A
-text block becomes a `ProcessingBlockTextHeading` as soon as it is labeled a heading
-or given a level.
+text block becomes a `ProcessingBlockTextHeading` as soon as it is labeled a heading,
+with its level still empty for the `Leveler` to fill in.
+
+## Heading levels
+
+```mermaid
+sequenceDiagram
+    participant Organizer
+    participant Leveler
+    participant Model
+    Organizer->>Leveler: level_headings(all_page_images, processing_blocks)
+    Leveler->>Leveler: collect every ProcessingBlockTextHeading
+    alt the document holds no heading
+        Leveler-->>Organizer: nothing to do
+    else
+        Leveler->>Leveler: _build_messages (prompt + one image per heading page + the headings as JSON)
+        loop until every heading has a level, at most MAX_ATTEMPT_COUNT
+            Leveler->>Model: invoke(messages)
+            Model-->>Leveler: HeadingLevels
+            Leveler->>Leveler: write each usable level onto its heading
+            opt a heading is still unleveled
+                Leveler->>Leveler: append what is missing, and why an answer was unusable
+            end
+        end
+        Leveler-->>Organizer: processing_blocks, edited in place
+    end
+```
+
+The model is given the image of every page that holds a heading — labeled with the
+`block_id`s of the headings on it — and the headings themselves as JSON, in document
+order. Pages holding no heading are not sent: the hierarchy is decided from the
+headings and how they are printed, so a page of body text adds nothing.
+
+It answers with one level per heading rather than with orders: this stage changes one
+field, and an answer that covers every heading at once is what makes the levels
+consistent. A level below 1, or one for a `block_id` that is not a heading of this
+document, is not written down and comes back to the model along with the headings
+still unleveled. A heading that is still unleveled after `MAX_ATTEMPT_COUNT` attempts
+is left without a level rather than guessed at — the export already handles one.
 
 ## Export
 
-Once every page has been scanned, `export_processing_blocks_to_ocr_result()` turns the
-flat list of blocks into the `OcrResult` tree, walking it in reading order:
+Once every page has been scanned and the headings are leveled,
+`export_processing_blocks_to_ocr_result()` turns the flat list of blocks into the
+`OcrResult` tree, walking it in reading order:
 
 - A heading opens a section, nested under the innermost open section of a lower level,
   and the heading itself becomes that section's first block. A heading of the same or
@@ -186,7 +249,7 @@ in it.
   it can actually judge.
 - Every page held in a variable is an index counting from 0, named `page_index`:
   `scan_page`'s argument and `ProcessingBlock.page_index` alike. The `+ 1` happens
-  only where a page number is shown - the prompt, the image labels, the block state
+  only where a page number is shown - the prompts, the image labels, the block state
   JSON, and the logs - since a reader counts pages from 1. That is also why the JSON
   the model sees calls the field `page_number`.
 - The model is given only ids that exist in the JSON it was shown, and an order

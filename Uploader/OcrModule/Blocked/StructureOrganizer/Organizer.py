@@ -15,6 +15,7 @@ from .ProcessingSchema import (
 )
 
 from .Classifier.Classifier import Classifier
+from .Leveler.Leveler import Leveler
 from .DataExporter import export_processing_blocks_to_ocr_result
 
 
@@ -24,6 +25,7 @@ class Organizer:
         organizer_model: BaseChatModel,
     ) -> None:
         self.classifier = Classifier(classifier_model=organizer_model)
+        self.leveler = Leveler(leveler_model=organizer_model)
 
     def organize(
         self,
@@ -47,6 +49,12 @@ class Organizer:
                 page_image_rendered=all_page_images_rendered[page_index],
                 processing_blocks=processing_blocks,
             )
+
+        # rank the headings of every page against each other
+        self.leveler.level_headings(
+            all_page_images=all_page_images,
+            processing_blocks=processing_blocks,
+        )
 
         # build the document tree out of the settled blocks
         return export_processing_blocks_to_ocr_result(processing_blocks)

@@ -12,7 +12,6 @@ from ....LlmHelper import build_image_message, pil_to_base64
 from ..ProcessingSchema import (
     ProcessingBlock,
     ProcessingBlockText,
-    ProcessingBlockTextHeading,
     ProcessingBlockFigure,
 )
 from .OrderSchema import OrderBatch
@@ -65,8 +64,8 @@ class Classifier:
                 shown to the model is this plus one, since a reader counts
                 pages from 1.
             all_page_images: Every page of the document, as scanned, 0-indexed.
-                Only a few of them are shown to the model: this page, the pages
-                just before it, and the page of each heading it sits under.
+                Only this page and the pages just before it are shown to the
+                model.
             page_image_rendered: This page with the detected blocks drawn on top.
             processing_blocks: Every block of the document, in current order.
                 Only this page's blocks and those of the pages just before it
@@ -170,24 +169,9 @@ class Classifier:
     ) -> list[BaseMessage]:
         """The system prompt plus the page's images and current block state."""
         content: list[dict] = []
-        shown_page_indices: set[int] = {page_index}
-
-        # Ancestor headings
-        ancestor_headings = _collect_ancestor_headings(page_index, processing_blocks)
-        for heading_page_index, headings in _group_by_page(ancestor_headings):
-            shown_page_indices.add(heading_page_index)
-            content += build_image_message(
-                f"Page {heading_page_index + 1}, holding {_describe_headings(headings)} "
-                "this page is still under:",
-                pil_to_base64(all_page_images[heading_page_index]),
-            )
 
         # the pages just before this one, oldest first, for context only
         for former_page_index in _former_page_indices(page_index):
-            if former_page_index in shown_page_indices:
-                continue
-
-            shown_page_indices.add(former_page_index)
             content += build_image_message(
                 f"Page {former_page_index + 1}, already handled, for context only:",
                 pil_to_base64(all_page_images[former_page_index]),
@@ -236,7 +220,6 @@ class Classifier:
             problem
             for problem in (
                 _unlabeled_text_problem(page_blocks),
-                _unleveled_heading_problem(page_blocks),
                 _unchecked_figure_problem(page_blocks),
             )
             if problem is not None
@@ -259,23 +242,6 @@ def _unlabeled_text_problem(page_blocks: list[ProcessingBlock]) -> str | None:
     return (
         f"These text blocks still have no block_type: {_list_ids(block_ids)}. "
         "Label each one."
-    )
-
-
-def _unleveled_heading_problem(page_blocks: list[ProcessingBlock]) -> str | None:
-    """The headings of the page still carrying no level, if any."""
-    block_ids = [
-        block.block_id
-        for block in page_blocks
-        if isinstance(block, ProcessingBlockTextHeading) and block.heading_level is None
-    ]
-
-    if not block_ids:
-        return None
-
-    return (
-        f"These headings still have no heading level: {_list_ids(block_ids)}. "
-        "Give each one the level it holds in the document's hierarchy."
     )
 
 
@@ -319,71 +285,6 @@ def _mark_page_checked(
 def _former_page_indices(page_index: int) -> range:
     """The pages just before this one, oldest first."""
     return range(max(0, page_index - RECENT_PAGE_COUNT), page_index)
-
-
-def _collect_ancestor_headings(
-    page_index: int,
-    processing_blocks: list[ProcessingBlock],
-) -> list[ProcessingBlockTextHeading]:
-    """The headings still open when the page before this one ended, outermost
-    first.
-
-    That is the last heading before this page, then the nearest heading above
-    it of a lower level, and so on up to level 1 - the chapter and section this
-    page's content is sitting inside. A heading of a level already covered is
-    a sibling that has since been closed, so it is skipped.
-    """
-    ancestors: list[ProcessingBlockTextHeading] = []
-    innermost_level: int | None = None
-
-    # walk backwards from the page before this one
-    for block in reversed(processing_blocks):
-        if block.page_index >= page_index:
-            continue
-
-        if not isinstance(block, ProcessingBlockTextHeading):
-            continue
-
-        if block.heading_level is None:
-            continue
-
-        if innermost_level is not None and block.heading_level >= innermost_level:
-            continue
-
-        ancestors.append(block)
-        innermost_level = block.heading_level
-
-        # nothing sits above the document's own title
-        if innermost_level <= 1:
-            break
-
-    return list(reversed(ancestors))
-
-
-def _group_by_page(
-    headings: list[ProcessingBlockTextHeading],
-) -> list[tuple[int, list[ProcessingBlockTextHeading]]]:
-    """The headings grouped by the page they are on, each page once, in the
-    order the pages first appear in the list."""
-    grouped: dict[int, list[ProcessingBlockTextHeading]] = {}
-
-    for heading in headings:
-        grouped.setdefault(heading.page_index, []).append(heading)
-
-    return list(grouped.items())
-
-
-def _describe_headings(headings: list[ProcessingBlockTextHeading]) -> str:
-    """The headings named as one phrase, for the label of their page image."""
-    described = [
-        f'the level {heading.heading_level} heading "{heading.text}"'
-        for heading in headings
-    ]
-
-    if len(described) == 1:
-        return described[0]
-
-    return f"{', '.join(described[:-1])} and {described[-1]}"
 
 
 def _block_state_text(

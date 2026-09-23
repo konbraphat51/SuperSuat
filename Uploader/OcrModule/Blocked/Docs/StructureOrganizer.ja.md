@@ -1,18 +1,31 @@
 # StructureOrganizer
 
 ブロック分割OCRパイプラインの第3段階（[Plan.md](Plan.md) 参照）。`Blocker` が検出し
-`Transcriber` が読み取ったブロックを、マルチモーダルモデルがページ単位で処理し、
-ドキュメント構造を確定する。確定するのは、各テキストブロックの種別、各見出しの階層
-レベル、各図のキャプション、そして読み順。
+`Transcriber` が読み取ったブロックを、マルチモーダルモデルがドキュメント構造へと
+確定する。確定するのは、各テキストブロックの種別、各見出しの階層レベル、各図の
+キャプション、そして読み順。
 
 English version: [StructureOrganizer.md](StructureOrganizer.md)
+
+## 2つのモデル段階
+
+判断に何が見えている必要があるかで、処理を分割している。
+
+- **`Classifier/`** はページ単位で確定する。各ブロックが何か、どの図にどのキャプションが
+  付くか、どの順に読むか——いずれも目の前のページだけで判断できる事柄。
+- **`Leveler/`** は見出しのレベルを決める。見出しのレベルはドキュメント全体との関係で
+  しか意味を持たないため、全ページの分類が終わった後に1回だけ実行し、見出しを含む
+  ページ群を一度にまとめて見る。
+
+`Organizer` がこの順に両者を実行し、結果を `DataExporter` に渡す。
 
 ## 構造
 
 ```mermaid
 classDiagram
     class Organizer {
-        -organizer_model: BaseChatModel
+        -classifier: Classifier
+        -leveler: Leveler
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
         -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     }
@@ -21,6 +34,13 @@ classDiagram
         +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
         -_request_orders(messages, page_index, batch_number) OrderBatch
         -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
+        -_is_able_to_finish(page_index, processing_blocks) tuple[bool, str]
+    }
+    class Leveler {
+        -leveler_model: Runnable
+        +level_headings(all_page_images, processing_blocks)
+        -_request_levels(messages, attempt) HeadingLevels
+        -_build_messages(all_page_images, headings) list[BaseMessage]
     }
     class OrderBatch {
         +orders: list[AnyOrder]
@@ -28,6 +48,13 @@ classDiagram
     }
     class Order {
         +order_label: ORDER_LABELS
+    }
+    class HeadingLevels {
+        +levels: list[HeadingLevel]
+    }
+    class HeadingLevel {
+        +target_block_id: int
+        +heading_level: int
     }
     class ProcessingBlock {
         +block_id: int
@@ -54,12 +81,14 @@ classDiagram
         +export_processing_blocks_to_ocr_result(processing_blocks) OcrResult
     }
     Organizer ..> Classifier
+    Organizer ..> Leveler
     Organizer ..> DataExporter
     DataExporter ..> OcrResult
     Classifier ..> OrderBatch
+    Leveler ..> HeadingLevels
+    HeadingLevels *-- HeadingLevel
     OrderBatch *-- Order
     Order <|-- OrderSetBlockType
-    Order <|-- OrderSetHeadingLevel
     Order <|-- OrderReorder
     Order <|-- OrderDeleteBlock
     Order <|-- OrderEditBlock
@@ -69,6 +98,7 @@ classDiagram
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
     Classifier ..> ProcessingBlock
+    Leveler ..> ProcessingBlockTextHeading
 ```
 
 モデル自身はブロックを書き換えない。モデルは `OrderBatch` を返すだけで、
@@ -110,46 +140,77 @@ sequenceDiagram
 `MAX_BATCH_COUNT` は宣言しないモデルに対する保険でしかない。
 
 ただし宣言すれば完了というわけではない。`_is_able_to_finish()` が、ページ上の全ブロックに
-block_type があるか、見出しにレベルがあるか、図のキャプションが確認済みかを検査し、
-足りなければ該当ブロックを名指しでモデルに差し戻す。通過したページのブロックには
-`have_been_checked` が立つ。
+block_type があるか、図のキャプションが確認済みかを検査し、足りなければ該当ブロックを
+名指しでモデルに差し戻す。見出しレベルはここでは検査しない——どのページも単独では
+答えられないため。通過したページのブロックには `have_been_checked` が立つ。
 
-## モデルに与えるコンテキスト
+### モデルに与えるコンテキスト
 
 ページスキャンのたびにコンテキスト全体を送り直すため、そのページに必要なものだけに絞る。
 
-- そのページが属している見出しのページ画像。外側から順に、直前ページ終了時点で開いて
-  いた最も内側の見出し、その上の見出し、…、レベル1のドキュメントタイトルまで。長い
-  ドキュメントでも見出しレベルを一貫させるのはこの仕組み。直前ページがH3で終わって
-  いれば、そのH3・H2・H1のページ画像が渡る。同一ページに複数の上位見出しがある場合は、
-  そのページ画像を1枚だけ送り、その中の見出しをまとめて示す。
-- 直前 `RECENT_PAGE_COUNT` ページの画像。ページ境界をまたぐブロックのため。見出しの
-  ページとして既に渡したページは重複して送らない。
+- 直前 `RECENT_PAGE_COUNT` ページの画像。ページ境界をまたぐブロックのため。
 - 現在のページ画像そのもの。
 - 各ブロックの枠線と `block_id` を描画した現在のページ画像（`BlockRenderer` による。
   [Blocker.ja.md](Blocker.ja.md) 参照）。
 - 現在のページと直前1ページの `ProcessingBlock` の状態を、現在の順序でJSON化したもの。
   ページ境界をまたぐブロックには1ページ分で足り、それ以前は確定済みなので含めない。
 
-## Order一覧
+### Order一覧
 
 | Order | 効果 |
 | --- | --- |
 | `set_block_type` | テキストブロックに `TEXT_BLOCK_TYPES` のいずれかを付与する。 |
-| `set_heading_level` | 見出しにレベルを与え、同時に見出しとして分類する。 |
 | `reorder` | ブロックを別のブロックの直前へ移動する。 |
 | `delete_block` | ブロックを削除し、それを指していたキャプション参照も解除する。 |
-| `edit_block` | 指定されたフィールドのみ変更する（種別・本文・見出しレベル）。 |
+| `edit_block` | 指定されたフィールドのみ変更する（種別・本文）。 |
 | `set_caption` | 図をキャプションのテキストブロックに紐づける。キャプションが無い図にはnullを指定する。どちらの場合も確認済みとして扱う。 |
 | `set_merging_previous_page` | 前ページで途切れたブロックの続きであることを記録する。結合自体はエクスポート時に行う。 |
 
-orderはリスト順に適用され、各orderは直前までの結果に対して働く。見出しとして分類される
-か、レベルを与えられた時点で、テキストブロックは `ProcessingBlockTextHeading` になる。
+orderはリスト順に適用され、各orderは直前までの結果に対して働く。見出しとして分類された
+時点でテキストブロックは `ProcessingBlockTextHeading` になり、レベルは `Leveler` が
+埋めるまで空のまま。
+
+## 見出しレベル
+
+```mermaid
+sequenceDiagram
+    participant Organizer
+    participant Leveler
+    participant Model
+    Organizer->>Leveler: level_headings(all_page_images, processing_blocks)
+    Leveler->>Leveler: ProcessingBlockTextHeading を全て集める
+    alt 見出しが1つも無い
+        Leveler-->>Organizer: 何もしない
+    else
+        Leveler->>Leveler: _build_messages（プロンプト + 見出しを含むページの画像 + 見出しのJSON）
+        loop 全見出しにレベルが付くまで、最大 MAX_ATTEMPT_COUNT 回
+            Leveler->>Model: invoke(messages)
+            Model-->>Leveler: HeadingLevels
+            Leveler->>Leveler: 使えるレベルを各見出しに書き込む
+            opt レベルの付いていない見出しが残った
+                Leveler->>Leveler: 不足分と、使えなかった回答の理由を追加
+            end
+        end
+        Leveler-->>Organizer: processing_blocks をその場で編集
+    end
+```
+
+モデルに渡すのは、見出しを含む全ページの画像（そのページ上の見出しの `block_id` を
+ラベルに記載）と、ドキュメント順に並べた見出しのJSON。見出しを含まないページは送らない。
+階層は見出し自体とその組版から決まるため、本文だけのページは判断材料にならない。
+
+回答はorderではなく「見出し1つにつきレベル1つ」の形式。この段階が変更するのは1つの
+フィールドだけであり、全見出しを一度に答えさせることこそがレベルの一貫性を生むため。
+1未満のレベルや、このドキュメントの見出しではない `block_id` に対する回答は書き込まず、
+レベルの付いていない見出しと併せてモデルに差し戻す。`MAX_ATTEMPT_COUNT` 回の試行後も
+レベルが付かなかった見出しは、推測せずレベル無しのままにする。エクスポート側が既に
+対応しているため。
 
 ## エクスポート
 
-全ページのスキャン後、`export_processing_blocks_to_ocr_result()` が平坦なブロック列を
-`OcrResult` の木に変換する。読み順に走査し、
+全ページのスキャンと見出しのレベル付けが終わると、
+`export_processing_blocks_to_ocr_result()` が平坦なブロック列を `OcrResult` の木に
+変換する。読み順に走査し、
 
 - 見出しはセクションを開く。ネスト先は、より小さいレベルで開いている最も内側の
   セクション。見出し自身はそのセクションの先頭ブロックになる。同レベル以下の見出しは
