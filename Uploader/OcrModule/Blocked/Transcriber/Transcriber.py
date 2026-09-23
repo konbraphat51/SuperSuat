@@ -96,7 +96,7 @@ class Transcriber(ABC):
             # transcribe the block image, as what the block is
             if block.block_type == BlockType.TABLE:
                 text = self._ocr_table_block_image(block_image)
-            else:
+            elif block.block_type in {BlockType.TEXT, BlockType.MATH}:
                 text = self._ocr_text_block_image(block_image)
 
             transcriptions.append(
