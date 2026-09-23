@@ -16,8 +16,8 @@ classDiagram
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
         -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     }
-    class OrganizerAgent {
-        -organizer_model: Runnable
+    class Classifier {
+        -classifier_model: Runnable
         +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
         -_request_orders(messages, page_index, batch_number) OrderBatch
         -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
@@ -53,10 +53,10 @@ classDiagram
     class DataExporter {
         +export_processing_blocks_to_ocr_result(processing_blocks) OcrResult
     }
-    Organizer ..> OrganizerAgent
+    Organizer ..> Classifier
     Organizer ..> DataExporter
     DataExporter ..> OcrResult
-    OrganizerAgent ..> OrderBatch
+    Classifier ..> OrderBatch
     OrderBatch *-- Order
     Order <|-- OrderSetBlockType
     Order <|-- OrderSetHeadingLevel
@@ -68,7 +68,7 @@ classDiagram
     ProcessingBlock <|-- ProcessingBlockText
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
-    OrganizerAgent ..> ProcessingBlock
+    Classifier ..> ProcessingBlock
 ```
 
 The model never edits the blocks itself: it answers with an `OrderBatch`, and
@@ -81,28 +81,28 @@ discriminator, so each order arrives already validated against its own schema.
 ```mermaid
 sequenceDiagram
     participant Organizer
-    participant OrganizerAgent
+    participant Classifier
     participant Model
     participant Executor as execute_orders
-    Organizer->>OrganizerAgent: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
-    OrganizerAgent->>OrganizerAgent: _build_messages (prompt + page images + block state)
+    Organizer->>Classifier: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+    Classifier->>Classifier: _build_messages (prompt + page images + block state)
     loop until is_last_batch, at most MAX_BATCH_COUNT
-        OrganizerAgent->>Model: invoke(messages)
-        Model-->>OrganizerAgent: OrderBatch
-        OrganizerAgent->>OrganizerAgent: deepcopy(processing_blocks)
-        OrganizerAgent->>Executor: execute_orders(order_batch, copy)
+        Classifier->>Model: invoke(messages)
+        Model-->>Classifier: OrderBatch
+        Classifier->>Classifier: deepcopy(processing_blocks)
+        Classifier->>Executor: execute_orders(order_batch, copy)
         alt an order could not be applied
-            Executor-->>OrganizerAgent: ValueError / TypeError
-            OrganizerAgent->>OrganizerAgent: append rejection message, copy discarded
+            Executor-->>Classifier: ValueError / TypeError
+            Classifier->>Classifier: append rejection message, copy discarded
         else applied
-            Executor-->>OrganizerAgent: copy, edited
-            OrganizerAgent->>OrganizerAgent: write the copy back into processing_blocks
+            Executor-->>Classifier: copy, edited
+            Classifier->>Classifier: write the copy back into processing_blocks
             opt not the last batch
-                OrganizerAgent->>OrganizerAgent: append the updated block state
+                Classifier->>Classifier: append the updated block state
             end
         end
     end
-    OrganizerAgent-->>Organizer: processing_blocks, edited in place
+    Classifier-->>Organizer: processing_blocks, edited in place
 ```
 
 A batch is applied to a copy of the blocks, so a batch that fails partway leaves the

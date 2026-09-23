@@ -1,6 +1,6 @@
-"""The organizer agent's system prompt."""
+"""The classifier agent's system prompt."""
 
-ORGANIZER_AGENT_SYSTEM_PROMPT = """You are a document structuring agent. A scanned document has already been split into blocks and each block's text has already been read; your job is to settle what those blocks ARE and how they fit together, so the blocks can be assembled into a structured document.
+CLASSIFIER_SYSTEM_PROMPT = """You are a document structuring agent. A scanned document has already been split into blocks and each block's text has already been read; your job is to settle what those blocks ARE and how they fit together, so the blocks can be assembled into a structured document.
 
 The document is worked through one page at a time, and you are in charge of page {page_number}. Earlier pages have already been handled, so only touch a block from an earlier page when page {page_number} changes what it should be - for example when a paragraph broken across the page boundary turns out to continue here.
 

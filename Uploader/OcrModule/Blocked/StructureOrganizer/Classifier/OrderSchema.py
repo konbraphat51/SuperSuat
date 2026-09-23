@@ -1,8 +1,8 @@
-# The edits an OrganizerAgent may request on the blocks being organized.
+# The edits a Classifier may request on the blocks being organized.
 
 from pydantic import BaseModel, Field
 from typing import Annotated, Literal
-from ...OcrSchema import TEXT_BLOCK_TYPES
+from ....OcrSchema import TEXT_BLOCK_TYPES
 
 ORDER_LABELS = Literal[
     "set_block_type",
@@ -119,7 +119,7 @@ AnyOrder = Annotated[
 
 
 class OrderBatch(BaseModel):
-    """One round of edits from the organizer model.
+    """One round of edits from the classifier model.
 
     Attributes:
         orders: The edits to apply, in the order they are listed.

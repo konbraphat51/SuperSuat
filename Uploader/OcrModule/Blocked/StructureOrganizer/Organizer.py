@@ -14,7 +14,7 @@ from .ProcessingSchema import (
     convert_blocker_result_to_processing_blocks,
 )
 
-from .OrganizerAgent import OrganizerAgent
+from .Classifier.Classifier import Classifier
 from .DataExporter import export_processing_blocks_to_ocr_result
 
 
@@ -23,7 +23,7 @@ class Organizer:
         self,
         organizer_model: BaseChatModel,
     ) -> None:
-        self.organizer_agent = OrganizerAgent(organizer_model=organizer_model)
+        self.classifier = Classifier(classifier_model=organizer_model)
 
     def organize(
         self,
@@ -58,7 +58,7 @@ class Organizer:
         page_image_rendered: Image,
         processing_blocks: list[ProcessingBlock],
     ) -> None:
-        self.organizer_agent.scan_page(
+        self.classifier.scan_page(
             page_index=page_index,
             all_page_images=all_page_images,
             page_image_rendered=page_image_rendered,

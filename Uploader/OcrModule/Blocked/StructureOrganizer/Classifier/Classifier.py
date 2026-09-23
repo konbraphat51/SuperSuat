@@ -8,16 +8,16 @@ from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.messages.content import create_text_block
-from ...LlmHelper import build_image_message, pil_to_base64
-from .ProcessingSchema import (
+from ....LlmHelper import build_image_message, pil_to_base64
+from ..ProcessingSchema import (
     ProcessingBlock,
     ProcessingBlockText,
     ProcessingBlockTextHeading,
     ProcessingBlockFigure,
 )
 from .OrderSchema import OrderBatch
-from .OrganizeExecutor import execute_orders
-from .prompt import ORGANIZER_AGENT_SYSTEM_PROMPT
+from .ClassificationExecutor import execute_orders
+from .prompt import CLASSIFIER_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,8 @@ BLOCK_STATE_FORMER_PAGE_COUNT = 1
 MAX_BATCH_COUNT = 10
 
 
-class OrganizerAgent:
-    """Runs one page through the organizer model, applying the orders it gives
+class Classifier:
+    """Runs one page through the classifier model, applying the orders it gives
     until the model reports the page is done.
 
     The model works in batches rather than one final answer: it may ask to see
@@ -43,13 +43,13 @@ class OrganizerAgent:
 
     def __init__(
         self,
-        organizer_model: BaseChatModel,
+        classifier_model: BaseChatModel,
     ) -> None:
         """
         Args:
-            organizer_model: Multimodal chat model that issues the orders.
+            classifier_model: Multimodal chat model that issues the orders.
         """
-        self.organizer_model = organizer_model.with_structured_output(OrderBatch)
+        self.classifier_model = classifier_model.with_structured_output(OrderBatch)
 
     def scan_page(
         self,
@@ -144,11 +144,11 @@ class OrganizerAgent:
         batch_number: int,
     ) -> OrderBatch:
         """Asks the model for the next batch of orders."""
-        order_batch = self.organizer_model.invoke(messages)
+        order_batch = self.classifier_model.invoke(messages)
 
         if not isinstance(order_batch, OrderBatch):
             raise RuntimeError(
-                f"Page {page_index + 1}: the organizer model returned no order batch."
+                f"Page {page_index + 1}: the classifier model returned no order batch."
             )
 
         logger.info(
@@ -208,7 +208,7 @@ class OrganizerAgent:
 
         return [
             SystemMessage(
-                content=ORGANIZER_AGENT_SYSTEM_PROMPT.format(page_number=page_index + 1)
+                content=CLASSIFIER_SYSTEM_PROMPT.format(page_number=page_index + 1)
             ),
             HumanMessage(content=content),
         ]

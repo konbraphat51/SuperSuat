@@ -16,8 +16,8 @@ classDiagram
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
         -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     }
-    class OrganizerAgent {
-        -organizer_model: Runnable
+    class Classifier {
+        -classifier_model: Runnable
         +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
         -_request_orders(messages, page_index, batch_number) OrderBatch
         -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
@@ -53,10 +53,10 @@ classDiagram
     class DataExporter {
         +export_processing_blocks_to_ocr_result(processing_blocks) OcrResult
     }
-    Organizer ..> OrganizerAgent
+    Organizer ..> Classifier
     Organizer ..> DataExporter
     DataExporter ..> OcrResult
-    OrganizerAgent ..> OrderBatch
+    Classifier ..> OrderBatch
     OrderBatch *-- Order
     Order <|-- OrderSetBlockType
     Order <|-- OrderSetHeadingLevel
@@ -68,7 +68,7 @@ classDiagram
     ProcessingBlock <|-- ProcessingBlockText
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
-    OrganizerAgent ..> ProcessingBlock
+    Classifier ..> ProcessingBlock
 ```
 
 モデル自身はブロックを書き換えない。モデルは `OrderBatch` を返すだけで、
@@ -81,28 +81,28 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant Organizer
-    participant OrganizerAgent
+    participant Classifier
     participant Model
     participant Executor as execute_orders
-    Organizer->>OrganizerAgent: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
-    OrganizerAgent->>OrganizerAgent: _build_messages（プロンプト + ページ画像 + ブロック状態）
+    Organizer->>Classifier: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+    Classifier->>Classifier: _build_messages（プロンプト + ページ画像 + ブロック状態）
     loop is_last_batch まで、最大 MAX_BATCH_COUNT 回
-        OrganizerAgent->>Model: invoke(messages)
-        Model-->>OrganizerAgent: OrderBatch
-        OrganizerAgent->>OrganizerAgent: deepcopy(processing_blocks)
-        OrganizerAgent->>Executor: execute_orders(order_batch, copy)
+        Classifier->>Model: invoke(messages)
+        Model-->>Classifier: OrderBatch
+        Classifier->>Classifier: deepcopy(processing_blocks)
+        Classifier->>Executor: execute_orders(order_batch, copy)
         alt 適用できないorderがあった
-            Executor-->>OrganizerAgent: ValueError / TypeError
-            OrganizerAgent->>OrganizerAgent: 却下メッセージを追加、コピーは破棄
+            Executor-->>Classifier: ValueError / TypeError
+            Classifier->>Classifier: 却下メッセージを追加、コピーは破棄
         else 適用できた
-            Executor-->>OrganizerAgent: 編集済みのコピー
-            OrganizerAgent->>OrganizerAgent: コピーを processing_blocks に書き戻す
+            Executor-->>Classifier: 編集済みのコピー
+            Classifier->>Classifier: コピーを processing_blocks に書き戻す
             opt 最終バッチでない
-                OrganizerAgent->>OrganizerAgent: 更新後のブロック状態を追加
+                Classifier->>Classifier: 更新後のブロック状態を追加
             end
         end
     end
-    OrganizerAgent-->>Organizer: processing_blocks をその場で編集
+    Classifier-->>Organizer: processing_blocks をその場で編集
 ```
 
 バッチはブロックのコピーに適用する。途中で失敗したバッチはブロックを一切変更せず、

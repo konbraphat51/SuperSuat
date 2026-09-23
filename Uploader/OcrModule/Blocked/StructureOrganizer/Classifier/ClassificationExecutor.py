@@ -1,4 +1,4 @@
-# Applies the orders an OrganizerAgent issues to the blocks being organized.
+# Applies the orders a Classifier issues to the blocks being organized.
 
 from dataclasses import fields
 from .OrderSchema import (
@@ -12,7 +12,7 @@ from .OrderSchema import (
     OrderSetCaption,
     OrderSetMergingPreviousPage,
 )
-from .ProcessingSchema import (
+from ..ProcessingSchema import (
     ProcessingBlock,
     ProcessingBlockText,
     ProcessingBlockTextHeading,
