@@ -100,7 +100,21 @@ class OrganizerAgent:
 
             # if the model indicated to finish...
             if order_batch.is_last_batch:
-                # ...finish loop
+                # validate that the page is actually done
+                is_done, message = self._is_able_to_finish(
+                    page_index=page_index,
+                    processing_blocks=processing_blocks,
+                )
+                if not is_done:
+                    logger.warning(
+                        "page %d | batch %d claimed done but is not: %s",
+                        page_index + 1,
+                        batch_number,
+                        message,
+                    )
+                    messages.append(HumanMessage(content=message))
+                    continue
+
                 logger.info("page %d | done", page_index + 1)
                 return
 
