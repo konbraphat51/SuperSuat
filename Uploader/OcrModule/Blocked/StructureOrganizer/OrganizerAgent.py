@@ -147,16 +147,15 @@ class OrganizerAgent:
         shown_page_indices: set[int] = {current_page_index}
 
         # where in the document this page sits: the page of each heading still
-        # open when the previous page ended, outermost heading first
-        for heading in _collect_ancestor_headings(page_number, processing_blocks):
-            if heading.page_number in shown_page_indices:
-                continue
-
-            shown_page_indices.add(heading.page_number)
+        # open when the previous page ended, outermost heading first. Several
+        # of those headings can share a page, which is then sent once.
+        ancestor_headings = _collect_ancestor_headings(page_number, processing_blocks)
+        for heading_page_index, headings in _group_by_page(ancestor_headings):
+            shown_page_indices.add(heading_page_index)
             content += build_image_message(
-                f"Page {heading.page_number + 1}, holding the level {heading.heading_level} "
-                f'heading "{heading.text}" this page is still under:',
-                pil_to_base64(all_page_images[heading.page_number]),
+                f"Page {heading_page_index + 1}, holding {_describe_headings(headings)} "
+                "this page is still under:",
+                pil_to_base64(all_page_images[heading_page_index]),
             )
 
         # the pages just before this one, oldest first, for context only
@@ -234,6 +233,32 @@ def _collect_ancestor_headings(
             break
 
     return list(reversed(ancestors))
+
+
+def _group_by_page(
+    headings: list[ProcessingBlockTextHeading],
+) -> list[tuple[int, list[ProcessingBlockTextHeading]]]:
+    """The headings grouped by the page they are on, each page once, in the
+    order the pages first appear in the list."""
+    grouped: dict[int, list[ProcessingBlockTextHeading]] = {}
+
+    for heading in headings:
+        grouped.setdefault(heading.page_number, []).append(heading)
+
+    return list(grouped.items())
+
+
+def _describe_headings(headings: list[ProcessingBlockTextHeading]) -> str:
+    """The headings named as one phrase, for the label of their page image."""
+    described = [
+        f'the level {heading.heading_level} heading "{heading.text}"'
+        for heading in headings
+    ]
+
+    if len(described) == 1:
+        return described[0]
+
+    return f"{', '.join(described[:-1])} and {described[-1]}"
 
 
 def _block_state_text(

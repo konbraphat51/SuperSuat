@@ -111,7 +111,8 @@ Every page scan resends the whole context, so it is kept to what the page needs:
   innermost heading open when the previous page ended, then the heading above it, up
   to the document's level 1 title. This is what keeps heading levels consistent across
   a long document: if the previous page ended under an H3, the pages of that H3, its
-  H2, and the H1 are shown.
+  H2, and the H1 are shown. Headings that share a page are named together on that one
+  page image, which is sent once.
 - The `RECENT_PAGE_COUNT` pages just before this one, for blocks that continue across
   a page boundary. A page already shown as a heading page is not sent twice.
 - The page itself, as scanned.
