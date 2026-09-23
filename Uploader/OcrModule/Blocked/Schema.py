@@ -15,13 +15,13 @@ class Block:
 
     Attributes:
         block_type: The type of the block.
-        page_number: The page number where the block is located.
+        page_index: The page the block is on, 0-indexed.
         bounding_box: The bounding box of the block in (x, y, width, height) format.
         block_id: A unique identifier for the block within the document.
     """
 
     block_type: BlockType
-    page_number: int
+    page_index: int
     bounding_box: tuple[int, int, int, int]
     block_id: int
 

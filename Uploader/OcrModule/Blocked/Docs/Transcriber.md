@@ -49,7 +49,7 @@ sequenceDiagram
         alt block is not TEXT
             Transcriber->>Transcriber: skip
         else block is TEXT
-            Transcriber->>Transcriber: crop block_image from all_pages[block.page_number]
+            Transcriber->>Transcriber: crop block_image from all_pages[block.page_index]
             Transcriber->>Subclass: _ocr_block_image(block_image)
             Subclass->>OcrModel: recognize
             OcrModel-->>Subclass: text

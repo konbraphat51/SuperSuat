@@ -13,7 +13,7 @@ classDiagram
     class Blocker {
         <<abstract>>
         +block(pages: list[Image]) BlockerResult
-        #_block_page(page: Image, page_number: int) list[Block]
+        #_block_page(page: Image, page_index: int) list[Block]
         #_detect_page(page: Image) list[tuple[BlockType, tuple]]*
     }
     class YomitokuBlocker {
@@ -41,7 +41,7 @@ classDiagram
     class Block {
         +block_id: int
         +block_type: BlockType
-        +page_number: int
+        +page_index: int
         +bounding_box: tuple[int, int, int, int]
     }
     class BlockRenderer {
@@ -87,7 +87,8 @@ sequenceDiagram
 
 全実装に共通し、基底クラスが強制する取り決め。
 
-- `page_number` はOCRモジュール全体と同様に0始まり。
+- `page_index` はOCRモジュールの全ページ変数と同様に0始まり。1始まりのページ番号は
+  表示する箇所にのみ現れる。
 - モデルの出力は `[x1, y1, x2, y2]`、`Block.bounding_box` は `(x, y, width, height)`。
 - 同一ページのブロックは上から下、次に左から右へ並べる。これは安定した順序であり、
   読み順ではない。読み順の推定は第3段階の役割。

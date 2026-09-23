@@ -40,7 +40,7 @@ class BlockRenderer:
         rendered = [page.convert("RGB") for page in pages]
 
         for block in blocker_result.blocks:
-            self._draw_block(rendered[block.page_number], block)
+            self._draw_block(rendered[block.page_index], block)
 
         return rendered
 

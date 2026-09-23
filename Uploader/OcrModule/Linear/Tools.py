@@ -61,7 +61,7 @@ class LinearTools:
         self.all_pages = all_pages
         self.ocr_entire_section = ocr_entire_section
         self.clipper_model = clipper_model
-        self.current_page_number = -1  # 0-indexed
+        self.current_page_index = -1  # 0-indexed
 
     def set_current_page(
         self,
@@ -71,7 +71,7 @@ class LinearTools:
         if page_index < 0 or page_index >= len(self.all_pages):
             return f"ERROR: Invalid page number. The page number must be between 1 and {len(self.all_pages)}"
 
-        self.current_page_number = page_index
+        self.current_page_index = page_index
         return f"Current page set to {page_index + 1}"
 
     def get_page_image(self, page_number: int):
@@ -94,10 +94,10 @@ class LinearTools:
         order: str,
     ) -> str:
         """Clip a region of the current page's image according to `order`, and return its bounding box."""
-        if self.current_page_number == -1:
+        if self.current_page_index == -1:
             return "ERROR: Current page is not set. Please set the current page first."
 
-        current_page = self.all_pages[self.current_page_number]
+        current_page = self.all_pages[self.current_page_index]
 
         # a clipper failure is reported to the agent like any other tool
         # error, rather than escaping and aborting the whole document

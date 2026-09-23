@@ -62,7 +62,7 @@ def _find_section_path(
 
 def _collect_keep_block_indices(
     root_section: OcrResultSection,
-    current_page_number: int,
+    current_page_index: int,
     recent_page_count: int,
 ) -> set[int]:
     """Block indices to keep in full: blocks on one of the most recent
@@ -71,11 +71,11 @@ def _collect_keep_block_indices(
     all that section's ancestors up to the root."""
     recent_pages = set(
         range(
-            max(0, current_page_number - recent_page_count + 1),
-            current_page_number + 1,
+            max(0, current_page_index - recent_page_count + 1),
+            current_page_index + 1,
         )
     )
-    previous_page = current_page_number - 1
+    previous_page = current_page_index - 1
 
     keep_indices: set[int] = set()
 
@@ -186,7 +186,7 @@ def _build_context_node(
 
 def build_ocr_context_string(
     root_section: OcrResultSection,
-    current_page_number: int,
+    current_page_index: int,
     recent_page_count: int = 5,
 ) -> str:
     """The document tree as JSON for the agent's prompt, kept small enough to
@@ -196,7 +196,7 @@ def build_ocr_context_string(
     the sections around what was just read so the structure stays visible.
     Everything else collapses into an ellipsis marker."""
     keep_indices = _collect_keep_block_indices(
-        root_section, current_page_number, recent_page_count
+        root_section, current_page_index, recent_page_count
     )
     # the root never collapses, since it is the document itself
     context_dict = _build_context_node(root_section, keep_indices) or _context_node(

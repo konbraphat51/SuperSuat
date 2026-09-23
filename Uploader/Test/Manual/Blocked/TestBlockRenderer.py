@@ -52,7 +52,7 @@ def fabricated_blocks(page_size: tuple[int, int]) -> BlockerResult:
         Block(
             block_id=block_id,
             block_type=block_type,
-            page_number=0,
+            page_index=0,
             bounding_box=(
                 box_size * block_id,
                 box_size * block_id,

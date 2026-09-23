@@ -132,8 +132,8 @@ def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Image
             len(document) if max_pages is None else min(len(document), max_pages)
         )
 
-        for page_number in range(page_count):
-            pixmap = document[page_number].get_pixmap(dpi=dpi)
+        for page_index in range(page_count):
+            pixmap = document[page_index].get_pixmap(dpi=dpi)
             images.append(
                 Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
             )

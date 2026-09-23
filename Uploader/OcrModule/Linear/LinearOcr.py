@@ -49,12 +49,12 @@ class LinearOcr(Ocr):
         # a page is slow enough (several model calls) that showing which one
         # is in flight is what makes it obvious the process is alive
         page_progress = tqdm(range(len(all_pages)), desc="OCR", unit="page")
-        for page_number in page_progress:
+        for page_index in page_progress:
             page_progress.set_description(
-                f"OCR (page {page_number + 1}/{len(all_pages)})"
+                f"OCR (page {page_index + 1}/{len(all_pages)})"
             )
-            output = ocr_agent.read_page(page_number)
-            editor.apply(output, page_number)
+            output = ocr_agent.read_page(page_index)
+            editor.apply(output, page_index)
 
         return OcrResult(root_section=self.entire_section)
 

@@ -215,7 +215,7 @@ def _collect_ancestor_headings(
 
     # walk backwards from the page before this one
     for block in reversed(processing_blocks):
-        if block.page_number >= page_index:
+        if block.page_index >= page_index:
             continue
 
         if not isinstance(block, ProcessingBlockTextHeading):
@@ -245,7 +245,7 @@ def _group_by_page(
     grouped: dict[int, list[ProcessingBlockTextHeading]] = {}
 
     for heading in headings:
-        grouped.setdefault(heading.page_number, []).append(heading)
+        grouped.setdefault(heading.page_index, []).append(heading)
 
     return list(grouped.items())
 
@@ -288,7 +288,7 @@ def _build_blocks_context_string(
     shown_blocks = [
         _block_to_dict(block)
         for block in processing_blocks
-        if block.page_number in shown_pages
+        if block.page_index in shown_pages
     ]
 
     # compact separators: this is resent with every batch
@@ -296,10 +296,14 @@ def _build_blocks_context_string(
 
 
 def _block_to_dict(block: ProcessingBlock) -> dict:
-    """One block as the model sees it, its page counted from 1."""
-    block_dict = asdict(block)
-    block_dict["page_number"] = block.page_number + 1
-    return block_dict
+    """One block as the model sees it: page_index 0 is page_number 1, since a
+    reader counts pages from 1."""
+    return {
+        ("page_number" if name == "page_index" else name): (
+            value + 1 if name == "page_index" else value
+        )
+        for name, value in asdict(block).items()
+    }
 
 
 def _rejection_message(error: Exception) -> str:

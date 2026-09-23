@@ -21,8 +21,8 @@ class Blocker(ABC):
     def block(self, pages: list[Image]) -> BlockerResult:
         """Detects blocks of text, math, images, and tables in the page images."""
         blocks: list[Block] = []
-        for page_number, page in enumerate(pages):
-            blocks.extend(self._block_page(page, page_number))
+        for page_index, page in enumerate(pages):
+            blocks.extend(self._block_page(page, page_index))
 
         for block_id, block in enumerate(blocks):
             block.block_id = block_id
@@ -35,7 +35,7 @@ class Blocker(ABC):
         )
         return BlockerResult(blocks=blocks)
 
-    def _block_page(self, page: Image, page_number: int) -> list[Block]:
+    def _block_page(self, page: Image, page_index: int) -> list[Block]:
         """Every block of one page, ordered top-to-bottom then left-to-right.
 
         The page number is 0-indexed, as elsewhere in the OCR module."""
@@ -46,7 +46,7 @@ class Blocker(ABC):
                 # Reassigned to a document-wide value once every page is in.
                 block_id=0,
                 block_type=block_type,
-                page_number=page_number,
+                page_index=page_index,
                 bounding_box=bounding_box,
             )
             for block_type, bounding_box in elements

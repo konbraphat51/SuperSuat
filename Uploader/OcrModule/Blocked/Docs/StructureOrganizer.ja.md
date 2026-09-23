@@ -14,13 +14,13 @@ classDiagram
     class Organizer {
         -organizer_model: BaseChatModel
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
-        -_scan_page(page_number, all_page_images, page_image_rendered, processing_blocks)
+        -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     }
     class OrganizerAgent {
         -organizer_model: Runnable
-        +scan_page(page_number, all_page_images, page_image_rendered, processing_blocks)
-        -_request_orders(messages, page_number, batch_number) OrderBatch
-        -_build_messages(page_number, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
+        +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+        -_request_orders(messages, page_index, batch_number) OrderBatch
+        -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
     }
     class OrderBatch {
         +orders: list[AnyOrder]
@@ -31,7 +31,7 @@ classDiagram
     }
     class ProcessingBlock {
         +block_id: int
-        +page_number: int
+        +page_index: int
         +recognized_blocker_type: BlockType
         +new_type: str | None
         +have_been_labeled: bool
@@ -77,7 +77,7 @@ sequenceDiagram
     participant OrganizerAgent
     participant Model
     participant Executor as execute_orders
-    Organizer->>OrganizerAgent: scan_page(page_number, all_page_images, page_image_rendered, processing_blocks)
+    Organizer->>OrganizerAgent: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     OrganizerAgent->>OrganizerAgent: _build_messages（プロンプト + ページ画像 + ブロック状態）
     loop is_last_batch まで、最大 MAX_BATCH_COUNT 回
         OrganizerAgent->>Model: invoke(messages)
@@ -135,8 +135,9 @@ orderはリスト順に適用され、各orderは直前までの結果に対し�
 
 ## 規約
 
-- 変数として保持するページ番号は全て0始まり（`scan_page` の `page_index` も
-  `ProcessingBlock.page_number` も同様）。`+ 1` するのは表示する箇所だけ——プロンプト、
-  画像のラベル、ブロック状態JSON、ログ。読み手は1からページを数えるため。
+- 変数として保持するページは全て0始まりのindexで、名前は `page_index`（`scan_page` の
+  引数も `ProcessingBlock.page_index` も同様）。`+ 1` するのは表示する箇所だけ——プロンプト、
+  画像のラベル、ブロック状態JSON、ログ。読み手は1からページを数えるため。モデルに見せる
+  JSONでフィールド名が `page_number` なのも同じ理由。
 - モデルに見せたJSONに存在するidのみ使用でき、未知のidを指すorderは無視ではなく却下する。
 - プロンプトおよびモデル向けのテキストは全て英語。

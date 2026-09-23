@@ -14,13 +14,13 @@ classDiagram
     class Organizer {
         -organizer_model: BaseChatModel
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
-        -_scan_page(page_number, all_page_images, page_image_rendered, processing_blocks)
+        -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     }
     class OrganizerAgent {
         -organizer_model: Runnable
-        +scan_page(page_number, all_page_images, page_image_rendered, processing_blocks)
-        -_request_orders(messages, page_number, batch_number) OrderBatch
-        -_build_messages(page_number, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
+        +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+        -_request_orders(messages, page_index, batch_number) OrderBatch
+        -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
     }
     class OrderBatch {
         +orders: list[AnyOrder]
@@ -31,7 +31,7 @@ classDiagram
     }
     class ProcessingBlock {
         +block_id: int
-        +page_number: int
+        +page_index: int
         +recognized_blocker_type: BlockType
         +new_type: str | None
         +have_been_labeled: bool
@@ -77,7 +77,7 @@ sequenceDiagram
     participant OrganizerAgent
     participant Model
     participant Executor as execute_orders
-    Organizer->>OrganizerAgent: scan_page(page_number, all_page_images, page_image_rendered, processing_blocks)
+    Organizer->>OrganizerAgent: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
     OrganizerAgent->>OrganizerAgent: _build_messages (prompt + page images + block state)
     loop until is_last_batch, at most MAX_BATCH_COUNT
         OrganizerAgent->>Model: invoke(messages)
@@ -138,10 +138,11 @@ or given a level.
 
 ## Conventions
 
-- Every page number held in a variable is 0-indexed, `scan_page`'s `page_index` and
-  `ProcessingBlock.page_number` alike. The `+ 1` happens only where a page number is
-  shown - the prompt, the image labels, the block state JSON, and the logs - since a
-  reader counts pages from 1.
+- Every page held in a variable is an index counting from 0, named `page_index`:
+  `scan_page`'s argument and `ProcessingBlock.page_index` alike. The `+ 1` happens
+  only where a page number is shown - the prompt, the image labels, the block state
+  JSON, and the logs - since a reader counts pages from 1. That is also why the JSON
+  the model sees calls the field `page_number`.
 - The model is given only ids that exist in the JSON it was shown, and an order
   naming an unknown id is rejected rather than ignored.
 - All prompts and model-facing text are English.

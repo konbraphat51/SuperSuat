@@ -48,7 +48,7 @@ sequenceDiagram
         alt TEXTでない
             Transcriber->>Transcriber: スキップ
         else TEXTである
-            Transcriber->>Transcriber: all_pages[block.page_number]からblock_imageを切り出し
+            Transcriber->>Transcriber: all_pages[block.page_index]からblock_imageを切り出し
             Transcriber->>実装クラス: _ocr_block_image(block_image)
             実装クラス->>OcrModel: 文字認識
             OcrModel-->>実装クラス: text

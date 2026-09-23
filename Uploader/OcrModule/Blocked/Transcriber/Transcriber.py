@@ -26,7 +26,7 @@ class Transcriber(ABC):
         """Transcribes every TEXT block of blocker_result, cropped from all_pages.
 
         Args:
-            all_pages: Every page image, indexed by Block.page_number.
+            all_pages: Every page image, indexed by Block.page_index.
             blocker_result: The blocks detected by a Blocker, to be transcribed.
         """
         transcriptions: list[TranscriptionBlock] = []
@@ -40,7 +40,7 @@ class Transcriber(ABC):
                 continue
 
             # image extraction
-            block_image = self._extract_block_image(all_pages[block.page_number], block)
+            block_image = self._extract_block_image(all_pages[block.page_index], block)
 
             # transcribe the block image
             text = self._ocr_text_block_image(block_image)

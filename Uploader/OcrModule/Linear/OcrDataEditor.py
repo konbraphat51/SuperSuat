@@ -77,30 +77,30 @@ def get_max_block_index(section: OcrResultSection) -> int:
 def mark_existing_page(
     entire_section: OcrResultSection,
     target_index: int,
-    page_number: int,
+    page_index: int,
 ) -> bool:
-    """Records `page_number` on the block with `target_index` and every section above it, returning whether it was found."""
+    """Records `page_index` on the block with `target_index` and every section above it, returning whether it was found."""
     if entire_section.block_index == target_index:
-        if page_number not in entire_section.existing_pages:
-            entire_section.existing_pages.append(page_number)
+        if page_index not in entire_section.existing_pages:
+            entire_section.existing_pages.append(page_index)
         return True
 
     found = False
     for block in entire_section.section_content:
         if block.block_index == target_index:
-            if page_number not in block.existing_pages:
-                block.existing_pages.append(page_number)
+            if page_index not in block.existing_pages:
+                block.existing_pages.append(page_index)
             found = True
             break
 
         if isinstance(block, OcrResultSection) and mark_existing_page(
-            block, target_index, page_number
+            block, target_index, page_index
         ):
             found = True
             break
 
-    if found and page_number not in entire_section.existing_pages:
-        entire_section.existing_pages.append(page_number)
+    if found and page_index not in entire_section.existing_pages:
+        entire_section.existing_pages.append(page_index)
 
     return found
 
@@ -196,7 +196,7 @@ class OcrDataEditor:
     def __init__(self, entire_section: OcrResultSection) -> None:
         self.entire_section = entire_section
 
-    def apply(self, output: OutputSchema, page_number: int) -> None:
+    def apply(self, output: OutputSchema, page_index: int) -> None:
         """Carries out `output.operations` in the order given.
 
         Order is the point: a block is appended as its operation is reached,
@@ -207,16 +207,16 @@ class OcrDataEditor:
         for operation in output.operations:
             if isinstance(operation, AddSectionOperation):
                 new_section_index = self._add_section(
-                    operation, page_number, temporary_ids
+                    operation, page_index, temporary_ids
                 )
                 if new_section_index is not None:
                     temporary_ids[operation.temporary_id.strip()] = new_section_index
             elif isinstance(operation, AddTextBlockOperation):
-                self._add_text_block(operation, page_number, temporary_ids)
+                self._add_text_block(operation, page_index, temporary_ids)
             elif isinstance(operation, AddImageBlockOperation):
-                self._add_image_block(operation, page_number, temporary_ids)
+                self._add_image_block(operation, page_index, temporary_ids)
             elif isinstance(operation, EditBlockOperation):
-                self._edit_block(operation, page_number)
+                self._edit_block(operation, page_index)
 
     def _resolve_section(
         self, reference: str, temporary_ids: dict[str, int]
@@ -238,14 +238,14 @@ class OcrDataEditor:
     def _add_section(
         self,
         operation: AddSectionOperation,
-        page_number: int,
+        page_index: int,
         temporary_ids: dict[str, int],
     ) -> int | None:
         parent_section = self._resolve_section(operation.parent, temporary_ids)
         if parent_section is None:
             logger.warning(
                 "page %d | add_section: parent %r not found, skipping",
-                page_number,
+                page_index,
                 operation.parent,
             )
             return None
@@ -258,17 +258,17 @@ class OcrDataEditor:
             section_content=[],
         )
         parent_section.section_content.append(new_section)
-        mark_existing_page(self.entire_section, new_section_index, page_number)
+        mark_existing_page(self.entire_section, new_section_index, page_index)
 
         return new_section_index
 
-    def _edit_block(self, operation: EditBlockOperation, page_number: int) -> None:
+    def _edit_block(self, operation: EditBlockOperation, page_index: int) -> None:
         try:
             block = find_block_by_index(operation.block_index, self.entire_section)
         except KeyError:
             logger.warning(
                 "page %d | edit_block: block %d not found, skipping",
-                page_number,
+                page_index,
                 operation.block_index,
             )
             return
@@ -276,25 +276,25 @@ class OcrDataEditor:
         if not isinstance(block, OcrResultBlockText):
             logger.warning(
                 "page %d | edit_block: block %d is not a text block, skipping",
-                page_number,
+                page_index,
                 operation.block_index,
             )
             return
 
         block.text = operation.text
-        mark_existing_page(self.entire_section, operation.block_index, page_number)
+        mark_existing_page(self.entire_section, operation.block_index, page_index)
 
     def _add_text_block(
         self,
         operation: AddTextBlockOperation,
-        page_number: int,
+        page_index: int,
         temporary_ids: dict[str, int],
     ) -> None:
         section = self._resolve_section(operation.section, temporary_ids)
         if section is None:
             logger.warning(
                 "page %d | add_text_block: section %r not found, skipping",
-                page_number,
+                page_index,
                 operation.section,
             )
             return
@@ -307,19 +307,19 @@ class OcrDataEditor:
             text=operation.text,
         )
         section.section_content.append(new_block)
-        mark_existing_page(self.entire_section, new_block_index, page_number)
+        mark_existing_page(self.entire_section, new_block_index, page_index)
 
     def _add_image_block(
         self,
         operation: AddImageBlockOperation,
-        page_number: int,
+        page_index: int,
         temporary_ids: dict[str, int],
     ) -> None:
         section = self._resolve_section(operation.section, temporary_ids)
         if section is None:
             logger.warning(
                 "page %d | add_image_block: section %r not found, skipping",
-                page_number,
+                page_index,
                 operation.section,
             )
             return
@@ -329,9 +329,9 @@ class OcrDataEditor:
             block_type="figure",
             existing_pages=[],
             block_index=new_block_index,
-            page_number=page_number,
+            page_index=page_index,
             bounding_box=operation.bounding_box,
             caption=operation.caption,
         )
         section.section_content.append(new_block)
-        mark_existing_page(self.entire_section, new_block_index, page_number)
+        mark_existing_page(self.entire_section, new_block_index, page_index)

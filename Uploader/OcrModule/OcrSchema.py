@@ -39,7 +39,7 @@ class OcrResultBlockText(OcrResultBlock):
 class OcrResultBlockFigure(OcrResultBlock):
     """A photo, diagram, or illustration, as a region of one page image."""
 
-    page_number: int  # the page bounding_box is in the pixel space of
+    page_index: int  # 0-indexed; the page bounding_box is in the pixel space of
     bounding_box: tuple[int, int, int, int]  # (x, y, width, height)
     caption: str
 

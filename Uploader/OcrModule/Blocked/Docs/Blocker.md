@@ -13,7 +13,7 @@ classDiagram
     class Blocker {
         <<abstract>>
         +block(pages: list[Image]) BlockerResult
-        #_block_page(page: Image, page_number: int) list[Block]
+        #_block_page(page: Image, page_index: int) list[Block]
         #_detect_page(page: Image) list[tuple[BlockType, tuple]]*
     }
     class YomitokuBlocker {
@@ -41,7 +41,7 @@ classDiagram
     class Block {
         +block_id: int
         +block_type: BlockType
-        +page_number: int
+        +page_index: int
         +bounding_box: tuple[int, int, int, int]
     }
     class BlockRenderer {
@@ -87,7 +87,8 @@ sequenceDiagram
 
 Shared by every implementation, and enforced by the base class:
 
-- `page_number` is 0-indexed, as everywhere else in the OCR module.
+- `page_index` counts from 0, as every page variable in the OCR module does; a page
+  number counted from 1 appears only where one is shown.
 - The models report boxes as `[x1, y1, x2, y2]`; `Block.bounding_box` is
   `(x, y, width, height)`.
 - Blocks of one page are sorted top-to-bottom, then left-to-right. This is a stable
