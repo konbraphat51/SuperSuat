@@ -119,6 +119,8 @@ class OrganizerAgent:
                     messages.append(HumanMessage(content=message))
                     continue
 
+                # the page is settled, so its blocks have been reviewed
+                _mark_page_checked(page_index, processing_blocks)
                 logger.info("page %d | done", page_index + 1)
                 return
 
@@ -297,6 +299,21 @@ def _unchecked_figure_problem(page_blocks: list[ProcessingBlock]) -> str | None:
 def _list_ids(block_ids: list[int]) -> str:
     """The block ids as one comma-separated list."""
     return ", ".join(str(block_id) for block_id in block_ids)
+
+
+def _mark_page_checked(
+    page_index: int,
+    processing_blocks: list[ProcessingBlock],
+) -> None:
+    """Records that the page has been reviewed, on each of its blocks.
+
+    A block merged into one on another page is gone by now, and a block moved
+    here from another page is marked with this one - the mark says the block
+    was looked at, not which page it started on.
+    """
+    for block in processing_blocks:
+        if block.page_index == page_index:
+            block.have_been_checked = True
 
 
 def _former_page_indices(page_index: int) -> range:
