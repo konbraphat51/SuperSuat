@@ -19,6 +19,7 @@ The document is worked through one page at a time, and you are in charge of page
 - note: a footnote, endnote, sidenote, column note, or similar.
 - code: a block of source code or pseudocode.
 - math: a formula or equation block. Its text is KaTeX.
+- table: a table. Its text is a Markdown table.
 
 # What you are given
 

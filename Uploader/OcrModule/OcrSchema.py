@@ -10,6 +10,7 @@ TEXT_BLOCK_TYPES = Literal[
     "note",  # footnote, endnote, sidenote, column note, etc.
     "code",  # source code or pseudocode
     "math",  # formula or equation, in KaTeX format
+    "table",  # a table, in Markdown format
 ]
 
 

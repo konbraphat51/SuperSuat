@@ -19,6 +19,7 @@ Each text block has a block_type, one of:
 - note: a footnote, endnote, sidenote, or similar.
 - code: a source code or pseudocode block.
 - math: a formula or equation block. Write its content in KaTeX format.
+- table: a table. Write its content as a Markdown table.
 
 You have two tools available:
 - get_page_image: look again at the current page, or check another page (e.g. to see whether a block continues onto or from it). Pages are numbered from 1.

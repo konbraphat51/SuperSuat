@@ -11,6 +11,12 @@ from ..Schema import (
 )
 from ...OcrSchema import TEXT_BLOCK_TYPES
 
+BLOCKER_TYPE_LABELS: dict[BlockType, TEXT_BLOCK_TYPES | Literal["figure"]] = {
+    BlockType.IMAGE: "figure",
+    BlockType.TABLE: "table",
+}
+"""The new_type a block starts with, for the Blocker types that settle it."""
+
 
 @dataclass(kw_only=True)
 class ProcessingBlock:
@@ -94,6 +100,10 @@ def convert_blocker_result_to_processing_blocks(
     processing_blocks: list[ProcessingBlock] = []
 
     for block in blocker_result.blocks:
+        # the Blocker's own type is the answer for an image or a table, so
+        # those start out labeled; the rest is for the organizer to decide.
+        new_type = BLOCKER_TYPE_LABELS.get(block.block_type)
+
         if block.block_type == BlockType.IMAGE:
             processing_blocks.append(
                 ProcessingBlockFigure(
@@ -101,6 +111,8 @@ def convert_blocker_result_to_processing_blocks(
                     page_index=block.page_index,
                     recognized_blocker_type=block.block_type,
                     bounding_box=block.bounding_box,
+                    new_type=new_type,
+                    have_been_labeled=new_type is not None,
                 )
             )
         else:
@@ -112,6 +124,8 @@ def convert_blocker_result_to_processing_blocks(
                     page_index=block.page_index,
                     recognized_blocker_type=block.block_type,
                     text=texts_by_block_id.get(block.block_id, ""),
+                    new_type=new_type,
+                    have_been_labeled=new_type is not None,
                 )
             )
 
