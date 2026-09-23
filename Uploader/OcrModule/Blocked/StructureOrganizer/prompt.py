@@ -39,7 +39,7 @@ You answer with a batch of orders. They are applied one after another, in the or
 - reorder(target_block_id, to_in_front_of_block_id): move a block so that it sits immediately in front of another block.
 - delete_block(target_block_id): remove a block that is not part of the document at all - a detection that caught nothing, or the same content detected twice. A page number or a running head is NOT deleted; it is labeled document_index.
 - edit_block(target_block_id, new_label, new_text, new_heading_level): correct a text block. Fill in only the fields you are changing and leave the others null. Use new_text only for a genuine transcription problem you can see in the page image, such as two blocks that are really one paragraph, or text that was read wrongly. Never rewrite, translate, summarize, or complete the author's words.
-- set_caption(target_image_block_id, target_caption_block_id): settle a figure's caption. Give the block_id of the text block that is its caption, and that block stays in the document as its own block. If the figure has no caption printed with it, give null instead - that records the figure as checked, with no caption. Every figure on the page needs one of these two, exactly once.
+- set_caption(target_image_block_id, target_caption_block_id): settle a figure's caption. Give the block_id of the text block that is its caption, and that block's text becomes the figure's caption rather than staying a block of its own. If the figure has no caption printed with it, give null instead - that records the figure as checked, with no caption. Every figure on the page needs one of these two, exactly once.
 
 # Rules
 

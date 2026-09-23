@@ -15,6 +15,7 @@ from .ProcessingSchema import (
 )
 
 from .OrganizerAgent import OrganizerAgent
+from .DataExporter import export_processing_blocks_to_ocr_result
 
 
 class Organizer:
@@ -47,8 +48,8 @@ class Organizer:
                 processing_blocks=processing_blocks,
             )
 
-        # TODO: convert to OcrResult
-        raise NotImplementedError("Organizer.organize() is not yet implemented.")
+        # build the document tree out of the settled blocks
+        return export_processing_blocks_to_ocr_result(processing_blocks)
 
     def _scan_page(
         self,
