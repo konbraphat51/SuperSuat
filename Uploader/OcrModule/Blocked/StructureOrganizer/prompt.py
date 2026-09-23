@@ -27,7 +27,7 @@ The document is worked through one page at a time, and you are in charge of page
 - The images of the pages just before page {page_number}, for context only. They have already been handled.
 - The image of page {page_number} itself, as it was scanned.
 - The same page {page_number} with the detected blocks drawn on top: each block is outlined and labeled with its block_id at the box's top-left corner. The outline color is the type the block detector guessed - blue for text, purple for math, green for an image, orange for a table. That guess is only a hint; judge from the page itself.
-- The current state of the blocks, as JSON, listed in their current order. Only the blocks of page {page_number} and of the few pages before it are shown; the rest of the document is already settled and is not your concern. Each block carries its block_id, the page it is on, the type the block detector guessed, the type you have assigned so far (null until you assign one), and, for a text block, its transcribed text.
+- The current state of the blocks, as JSON, listed in their current order. Only the blocks of page {page_number} and of the page before it are shown; the rest of the document is already settled and is not your concern. Each block carries its block_id, the page it is on, the type the block detector guessed, the type you have assigned so far (null until you assign one), and, for a text block, its transcribed text.
 
 Use the block_id from the JSON, which is the same id drawn on the annotated image, to refer to a block in an order.
 

@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 # How many already-handled pages are shown alongside the current one.
 RECENT_PAGE_COUNT = 1
 
+# How many pages of block state are shown, alongside the current page. A
+# block continues across one page boundary, which is all this has to cover.
+BLOCK_STATE_FORMER_PAGE_COUNT = 1
+
 # Guard against a model that never sets is_last_batch
 MAX_BATCH_COUNT = 10
 
@@ -382,10 +386,12 @@ def _build_blocks_context_string(
 ) -> str:
     """The blocks the model is shown, as JSON, in their current order.
 
-    Kept to this page and the RECENT_PAGE_COUNT pages before it: the rest of
-    the document is already settled, and resending it grows with every page.
+    Kept to this page and the page before it: the rest of the document is
+    already settled, and resending it grows with every page.
     """
-    shown_pages = range(max(0, page_index - RECENT_PAGE_COUNT), page_index + 1)
+    shown_pages = range(
+        max(0, page_index - BLOCK_STATE_FORMER_PAGE_COUNT), page_index + 1
+    )
 
     shown_blocks = [
         _block_to_dict(block)

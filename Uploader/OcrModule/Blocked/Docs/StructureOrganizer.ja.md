@@ -121,8 +121,8 @@ sequenceDiagram
 - 現在のページ画像そのもの。
 - 各ブロックの枠線と `block_id` を描画した現在のページ画像（`BlockRenderer` による。
   [Blocker.ja.md](Blocker.ja.md) 参照）。
-- 現在のページと直前ページ群の `ProcessingBlock` の状態を、現在の順序でJSON化したもの。
-  それ以前は確定済みなので含めない。
+- 現在のページと直前1ページの `ProcessingBlock` の状態を、現在の順序でJSON化したもの。
+  ページ境界をまたぐブロックには1ページ分で足り、それ以前は確定済みなので含めない。
 
 ## Order一覧
 

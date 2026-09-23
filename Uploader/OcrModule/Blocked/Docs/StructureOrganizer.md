@@ -123,8 +123,9 @@ Every page scan resends the whole context, so it is kept to what the page needs:
 - The page itself, as scanned.
 - The page again, with each block outlined and labeled with its `block_id`, as
   `BlockRenderer` draws it (see [Blocker.md](Blocker.md)).
-- The `ProcessingBlock` state of this page and the pages just before it, as JSON, in
-  current order. Everything earlier is settled and is left out.
+- The `ProcessingBlock` state of this page and the page before it, as JSON, in
+  current order. One page back is all a block spanning a page boundary needs, and
+  everything earlier is settled and is left out.
 
 ## Orders
 
