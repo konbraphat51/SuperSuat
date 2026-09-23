@@ -40,6 +40,7 @@ classDiagram
     class ProcessingBlockText {
         +text: str
         +have_been_edited: bool
+        +merging_previous_page: bool
     }
     class ProcessingBlockTextHeading {
         +heading_level: int | None
@@ -63,7 +64,7 @@ classDiagram
     Order <|-- OrderDeleteBlock
     Order <|-- OrderEditBlock
     Order <|-- OrderSetCaption
-    Order <|-- OrderMergeBlocks
+    Order <|-- OrderSetMergingPreviousPage
     ProcessingBlock <|-- ProcessingBlockText
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
@@ -140,7 +141,7 @@ block_type があるか、見出しにレベルがあるか、図のキャプシ
 | `delete_block` | ブロックを削除し、それを指していたキャプション参照も解除する。 |
 | `edit_block` | 指定されたフィールドのみ変更する（種別・本文・見出しレベル）。 |
 | `set_caption` | 図をキャプションのテキストブロックに紐づける。キャプションが無い図にはnullを指定する。どちらの場合も確認済みとして扱う。 |
-| `merge_blocks` | 2つのテキストブロックを前者に統合し、後者を削除する。間に空白を入れるかは指定する。 |
+| `set_merging_previous_page` | 前ページで途切れたブロックの続きであることを記録する。結合自体はエクスポート時に行う。 |
 
 orderはリスト順に適用され、各orderは直前までの結果に対して働く。見出しとして分類される
 か、レベルを与えられた時点で、テキストブロックは `ProcessingBlockTextHeading` になる。
@@ -158,6 +159,12 @@ orderはリスト順に適用され、各orderは直前までの結果に対し�
   ドキュメント自身であるルートセクションに入る。
 - 図のキャプションブロックは図の `caption` に畳み込まれ、独立したブロックとしては
   出力しない。キャプションのテキストが重複しないようにするため。
+- `merging_previous_page` が立ったブロックは、前ページの同じラベルを持つ最後のブロックに
+  畳み込まれ、そのページ番号は結合先の `existing_pages` に加わる。連鎖も辿るため、3ページに
+  またがる段落も1ブロックになる。テキストの結合は、境界の両側がASCII（＝単語を空白で
+  区切る言語）の場合のみ空白を挟み、それ以外は直接つなぐ。ページが強制した改行は元々
+  テキストの一部ではないため。ハイフンで分割された語はハイフンを残す。著者自身が書いた
+  ハイフンを落とすと復元できないため。
 - 各セクションの `existing_pages` は内容の和集合。`block_index` はドキュメント順に
   採番し、ルートが0。
 

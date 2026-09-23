@@ -39,13 +39,19 @@ def export_processing_blocks_to_ocr_result(
 
     Each heading opens a section nested by its level and holds the blocks that
     follow it, so the tree mirrors the document's own hierarchy. A figure's
-    caption is folded into the figure rather than left as a block of its own.
+    caption is folded into the figure rather than left as a block of its own,
+    and a block marked merging_previous_page is folded into the block it
+    continues.
 
     Args:
         processing_blocks: Every block of the document, in reading order, as
             the organizer left them.
     """
     captions, folded_block_ids = _collect_captions(processing_blocks)
+    continuations = _plan_continuations(processing_blocks, folded_block_ids)
+    folded_block_ids |= {
+        block.block_id for continued in continuations.values() for block in continued
+    }
     block_indices = count(ROOT_BLOCK_INDEX + 1)
 
     root_section = OcrResultSection(
@@ -63,7 +69,7 @@ def export_processing_blocks_to_ocr_result(
     for block in processing_blocks:
         # ...place it in the section it belongs to
 
-        # a caption already lives in its figure
+        # a caption, or a block continued into another, already lives there
         if block.block_id in folded_block_ids:
             continue
 
@@ -86,7 +92,7 @@ def export_processing_blocks_to_ocr_result(
             _open_section(open_sections, heading_level, block_indices)
 
         _current_section(open_sections).section_content.append(
-            _to_text_block(block, block_indices)
+            _to_text_block(block, continuations.get(block.block_id, []), block_indices)
         )
 
     _recompute_existing_pages(root_section)
@@ -146,6 +152,100 @@ def _collect_captions(
     return captions, folded_block_ids
 
 
+def _plan_continuations(
+    processing_blocks: list[ProcessingBlock],
+    folded_block_ids: set[int],
+) -> dict[int, list[ProcessingBlockText]]:
+    """The blocks each block absorbs, keyed by the absorbing block's id.
+
+    A block marked merging_previous_page is the rest of a block the previous
+    page broke off: the last block of the previous page carrying the same
+    label. A block that was itself absorbed passes the continuation on to
+    whatever absorbed it, so a paragraph running over three pages ends up in
+    one block.
+
+    Args:
+        processing_blocks: Every block of the document, in reading order.
+        folded_block_ids: Blocks already spoken for, which neither continue
+            anything nor can be continued.
+    """
+    continuations: dict[int, list[ProcessingBlockText]] = {}
+    absorbed_into: dict[int, int] = {}
+
+    # in reading order, so a chain is resolved before it is followed
+    for block in processing_blocks:
+        if block.block_id in folded_block_ids:
+            continue
+
+        if not isinstance(block, ProcessingBlockText):
+            continue
+
+        if not block.merging_previous_page:
+            continue
+
+        continued_block = _last_block_of_previous_page(
+            processing_blocks, block, folded_block_ids
+        )
+        if continued_block is None:
+            logger.warning(
+                "block %d continues the previous page, which holds no %s block "
+                "for it to continue, so it stays a block of its own",
+                block.block_id,
+                block.new_type,
+            )
+            continue
+
+        # follow the chain to the block that is actually kept
+        absorbing_block_id = continued_block.block_id
+        while absorbing_block_id in absorbed_into:
+            absorbing_block_id = absorbed_into[absorbing_block_id]
+
+        continuations.setdefault(absorbing_block_id, []).append(block)
+        absorbed_into[block.block_id] = absorbing_block_id
+
+    return continuations
+
+
+def _last_block_of_previous_page(
+    processing_blocks: list[ProcessingBlock],
+    block: ProcessingBlockText,
+    folded_block_ids: set[int],
+) -> ProcessingBlockText | None:
+    """The last block of the page before `block`, carrying the same label."""
+    candidates = [
+        candidate
+        for candidate in processing_blocks
+        if isinstance(candidate, ProcessingBlockText)
+        and candidate.page_index == block.page_index - 1
+        and candidate.new_type == block.new_type
+        and candidate.block_id not in folded_block_ids
+    ]
+
+    return candidates[-1] if candidates else None
+
+
+def _join_texts(former: str, latter: str) -> str:
+    """Two halves of one block's text, joined as the script they are in wants.
+
+    The line break the page forced was never part of the text, so it is not
+    kept. A space takes its place only where both sides of the join are ASCII,
+    which is what a script that separates words with spaces looks like;
+    Japanese and Chinese are joined directly. A word the page split across a
+    hyphen is joined directly too, hyphen kept, since dropping a hyphen that
+    was the author's own cannot be undone.
+    """
+    former, latter = former.rstrip(), latter.lstrip()
+
+    if not former or not latter:
+        return f"{former}{latter}"
+
+    needs_space = (
+        former[-1].isascii() and latter[0].isascii() and not former.endswith("-")
+    )
+
+    return f"{former}{' ' if needs_space else ''}{latter}"
+
+
 def _current_section(
     open_sections: list[tuple[int, OcrResultSection]],
 ) -> OcrResultSection:
@@ -196,14 +296,20 @@ def _heading_level(block: ProcessingBlockText) -> int | None:
 
 def _to_text_block(
     block: ProcessingBlockText,
+    continued: list[ProcessingBlockText],
     block_indices: Iterator[int],
 ) -> OcrResultBlockText:
-    """The text block as the document tree holds it."""
+    """The text block as the document tree holds it, with everything that
+    continues it from later pages written into it."""
+    text = block.text
+    for continuation in continued:
+        text = _join_texts(text, continuation.text)
+
     return OcrResultBlockText(
         block_type=_text_block_type(block),
-        existing_pages=[block.page_index],
+        existing_pages=sorted({block.page_index} | {c.page_index for c in continued}),
         block_index=next(block_indices),
-        text=block.text,
+        text=text,
     )
 
 

@@ -11,7 +11,7 @@ ORDER_LABELS = Literal[
     "delete_block",
     "edit_block",
     "set_caption",
-    "merge_blocks",
+    "set_merging_previous_page",
 ]
 
 
@@ -80,18 +80,15 @@ class OrderEditBlock(Order):
     )
 
 
-class OrderMergeBlocks(Order):
-    """Joins a text block split in two back into one block."""
+class OrderSetMergingPreviousPage(Order):
+    """Marks a block as the rest of a block the previous page broke off."""
 
-    order_label: Literal["merge_blocks"] = "merge_blocks"
-    former_block_id: int = Field(
-        description="The block_index of the block whose text comes first. The merged text is kept on this block."
+    order_label: Literal["set_merging_previous_page"] = "set_merging_previous_page"
+    target_block_id: int = Field(
+        description="The block_index of the block that continues from the previous page."
     )
-    latter_block_id: int = Field(
-        description="The block_index of the block whose text follows, which is appended to the former block and then removed."
-    )
-    join_with_space: bool = Field(
-        description="True to put a space between the two texts, as a language that separates words with spaces (English etc.) needs. False to join them directly, as Japanese, Chinese and the like need."
+    merging_previous_page: bool = Field(
+        description="True if this block is the rest of a block the previous page broke off in the middle, so the two are written down as one. False to take that mark back."
     )
 
 
@@ -116,7 +113,7 @@ AnyOrder = Annotated[
     | OrderDeleteBlock
     | OrderEditBlock
     | OrderSetCaption
-    | OrderMergeBlocks,
+    | OrderSetMergingPreviousPage,
     Field(discriminator="order_label"),
 ]
 

@@ -10,7 +10,7 @@ from .OrderSchema import (
     OrderDeleteBlock,
     OrderEditBlock,
     OrderSetCaption,
-    OrderMergeBlocks,
+    OrderSetMergingPreviousPage,
 )
 from .ProcessingSchema import (
     ProcessingBlock,
@@ -60,8 +60,10 @@ def _execute_order(order: Order, processing_data: list[ProcessingBlock]) -> None
             _execute_edit_block(_as(order, OrderEditBlock), processing_data)
         case "set_caption":
             _execute_set_caption(_as(order, OrderSetCaption), processing_data)
-        case "merge_blocks":
-            _execute_merge_blocks(_as(order, OrderMergeBlocks), processing_data)
+        case "set_merging_previous_page":
+            _execute_set_merging_previous_page(
+                _as(order, OrderSetMergingPreviousPage), processing_data
+            )
         case _:
             raise ValueError(f"Unknown order label: {order.order_label}")
 
@@ -171,27 +173,22 @@ def _execute_set_caption(
     figure.have_caption_checked = True
 
 
-def _execute_merge_blocks(
-    order: OrderMergeBlocks, processing_data: list[ProcessingBlock]
+def _execute_set_merging_previous_page(
+    order: OrderSetMergingPreviousPage, processing_data: list[ProcessingBlock]
 ) -> None:
-    """Appends the latter block's text to the former one, and removes it."""
-    if order.former_block_id == order.latter_block_id:
-        raise ValueError(f"Block {order.former_block_id} cannot be merged into itself.")
-
-    former = _require_text(
-        processing_data[_find_index(processing_data, order.former_block_id)],
-        order.former_block_id,
-    )
-    latter = _require_text(
-        processing_data[_find_index(processing_data, order.latter_block_id)],
-        order.latter_block_id,
+    """Marks the target block as continuing a block of the previous page."""
+    block = _require_text(
+        processing_data[_find_index(processing_data, order.target_block_id)],
+        order.target_block_id,
     )
 
-    joiner = " " if order.join_with_space else ""
-    former.text = f"{former.text}{joiner}{latter.text}"
-    former.have_been_edited = True
+    if order.merging_previous_page and block.page_index == 0:
+        raise ValueError(
+            f"Block {order.target_block_id} is on the first page, "
+            "so there is no previous page for it to continue from."
+        )
 
-    _remove_block(processing_data, order.latter_block_id)
+    block.merging_previous_page = order.merging_previous_page
 
 
 def _remove_block(processing_data: list[ProcessingBlock], block_id: int) -> None:

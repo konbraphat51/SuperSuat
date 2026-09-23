@@ -46,10 +46,13 @@ class ProcessingBlockText(ProcessingBlock):
     Attributes:
         text: The transcribed text of the block.
         have_been_edited: Whether text has been manually edited.
+        merging_previous_page: Whether this block is the rest of a block the
+            previous page broke off, to be written down as one block.
     """
 
     text: str
     have_been_edited: bool = False
+    merging_previous_page: bool = False
 
 
 @dataclass(kw_only=True)

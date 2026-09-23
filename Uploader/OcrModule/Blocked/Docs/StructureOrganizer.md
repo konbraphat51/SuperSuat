@@ -40,6 +40,7 @@ classDiagram
     class ProcessingBlockText {
         +text: str
         +have_been_edited: bool
+        +merging_previous_page: bool
     }
     class ProcessingBlockTextHeading {
         +heading_level: int | None
@@ -63,7 +64,7 @@ classDiagram
     Order <|-- OrderDeleteBlock
     Order <|-- OrderEditBlock
     Order <|-- OrderSetCaption
-    Order <|-- OrderMergeBlocks
+    Order <|-- OrderSetMergingPreviousPage
     ProcessingBlock <|-- ProcessingBlockText
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
@@ -143,7 +144,7 @@ Every page scan resends the whole context, so it is kept to what the page needs:
 | `delete_block` | Removes a block, and clears any caption pointing at it. |
 | `edit_block` | Changes only the fields it fills in: label, text, heading level. |
 | `set_caption` | Ties a figure to its caption block, or to null for a figure that has none. Either way the figure counts as checked. |
-| `merge_blocks` | Joins two text blocks into the former one and removes the latter, with or without a space between them. |
+| `set_merging_previous_page` | Marks a block as the rest of a block the previous page broke off. The join itself happens on export. |
 
 Orders apply in list order, each one acting on the state the previous ones left. A
 text block becomes a `ProcessingBlockTextHeading` as soon as it is labeled a heading
@@ -162,6 +163,13 @@ flat list of blocks into the `OcrResult` tree, walking it in reading order:
   heading land in the root section, which is the document itself.
 - A figure's caption block is folded into the figure's `caption` and is not emitted as
   a block of its own, so the caption text appears once.
+- A block marked `merging_previous_page` is folded into the last block of the previous
+  page carrying the same label, and its page joins that block's `existing_pages`. The
+  fold follows a chain, so a paragraph running over three pages ends up as one block.
+  The two texts are joined with a space only where both sides of the join are ASCII -
+  a space-separated script - and directly otherwise, since the line break the page
+  forced was never part of the text. A word the page split across a hyphen keeps its
+  hyphen, because dropping one the author wrote cannot be undone.
 - Each section's `existing_pages` is the union of its contents', and `block_index` is
   handed out in document order, the root taking 0.
 
