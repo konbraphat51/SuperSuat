@@ -156,7 +156,8 @@ def _execute_edit_block(
 def _execute_set_caption(
     order: OrderSetCaption, processing_data: list[ProcessingBlock]
 ) -> None:
-    """Assigns a text block as the caption of a figure block."""
+    """Assigns a text block as the caption of a figure block, or records that
+    the figure has none when target_caption_block_id is None."""
     figure = processing_data[_find_index(processing_data, order.target_image_block_id)]
     if not isinstance(figure, ProcessingBlockFigure):
         raise ValueError(
@@ -164,12 +165,16 @@ def _execute_set_caption(
             "so it cannot take a caption."
         )
 
-    _require_text(
-        processing_data[_find_index(processing_data, order.target_caption_block_id)],
-        order.target_caption_block_id,
-    )
+    if order.target_caption_block_id is not None:
+        _require_text(
+            processing_data[
+                _find_index(processing_data, order.target_caption_block_id)
+            ],
+            order.target_caption_block_id,
+        )
 
     figure.caption_text_block_id = order.target_caption_block_id
+    # the figure is checked either way: having no caption is an answer too
     figure.have_caption_checked = True
 
 

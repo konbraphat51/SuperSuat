@@ -80,14 +80,14 @@ class OrderEditBlock(Order):
 
 
 class OrderSetCaption(Order):
-    """Ties a text block to the figure it is the caption of."""
+    """Records the caption of a figure, or that it has none."""
 
     order_label: Literal["set_caption"] = "set_caption"
     target_image_block_id: int = Field(
         description="The block_index of the image block to set the caption for."
     )
-    target_caption_block_id: int = Field(
-        description="The block_index of the text block to set as the caption for the image block."
+    target_caption_block_id: int | None = Field(
+        description="The block_index of the text block to set as the caption for the image block, or null if the figure has no caption printed with it."
     )
 
 

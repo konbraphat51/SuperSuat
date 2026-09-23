@@ -130,7 +130,7 @@ Every page scan resends the whole context, so it is kept to what the page needs:
 | `reorder` | Moves a block immediately in front of another. |
 | `delete_block` | Removes a block, and clears any caption pointing at it. |
 | `edit_block` | Changes only the fields it fills in: label, text, heading level. |
-| `set_caption` | Ties a figure to the text block that is its caption. |
+| `set_caption` | Ties a figure to its caption block, or to null for a figure that has none. Either way the figure counts as checked. |
 
 Orders apply in list order, each one acting on the state the previous ones left. A
 text block becomes a `ProcessingBlockTextHeading` as soon as it is labeled a heading

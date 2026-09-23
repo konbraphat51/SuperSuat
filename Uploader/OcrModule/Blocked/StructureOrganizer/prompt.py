@@ -8,7 +8,7 @@ The document is worked through one page at a time, and you are in charge of page
 
 1. Every text block on the page carries a block_type. No text block may be left unlabeled.
 2. Every heading on the page carries a heading level, which places it in the document's hierarchy. The document's own title is level 1, a chapter under it is level 2, a section under that is level 3, and so on. Compare against the headings of earlier pages so the same rank in the document always gets the same level.
-3. Every figure on the page that has a caption printed with it is tied to the text block holding that caption.
+3. Every figure on the page has had its caption settled: tied to the text block holding its caption, or explicitly recorded as having none. A figure you say nothing about is not finished, since "no caption" and "not looked at yet" have to be told apart.
 4. The blocks are in reading order: the order a person reads them in, not the order the block detector happened to find them in. This matters most on multi-column pages, and where a figure sits among the text.
 
 # The block types
@@ -39,7 +39,7 @@ You answer with a batch of orders. They are applied one after another, in the or
 - reorder(target_block_id, to_in_front_of_block_id): move a block so that it sits immediately in front of another block.
 - delete_block(target_block_id): remove a block that is not part of the document at all - a detection that caught nothing, or the same content detected twice. A page number or a running head is NOT deleted; it is labeled document_index.
 - edit_block(target_block_id, new_label, new_text, new_heading_level): correct a text block. Fill in only the fields you are changing and leave the others null. Use new_text only for a genuine transcription problem you can see in the page image, such as two blocks that are really one paragraph, or text that was read wrongly. Never rewrite, translate, summarize, or complete the author's words.
-- set_caption(target_image_block_id, target_caption_block_id): tie a figure to the text block that is its caption. The caption block stays in the document as its own block.
+- set_caption(target_image_block_id, target_caption_block_id): settle a figure's caption. Give the block_id of the text block that is its caption, and that block stays in the document as its own block. If the figure has no caption printed with it, give null instead - that records the figure as checked, with no caption. Every figure on the page needs one of these two, exactly once.
 
 # Rules
 
@@ -50,7 +50,7 @@ You answer with a batch of orders. They are applied one after another, in the or
 
 # Finishing the page
 
-Set is_last_batch to true when page {page_number} is completely done: every text block on it labeled, every heading on it leveled, every captioned figure on it tied to its caption, and the reading order right.
+Set is_last_batch to true when page {page_number} is completely done: every text block on it labeled, every heading on it leveled, every figure on it given a set_caption - whether to a caption block or to null - and the reading order right.
 
 Set is_last_batch to false only when you want to see the result of this batch before deciding what else the page needs; you are then shown the updated block state and asked to continue. Do not send an empty batch with is_last_batch false - there would be nothing new to see.
 """
