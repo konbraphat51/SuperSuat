@@ -63,6 +63,7 @@ classDiagram
     Order <|-- OrderDeleteBlock
     Order <|-- OrderEditBlock
     Order <|-- OrderSetCaption
+    Order <|-- OrderMergeBlocks
     ProcessingBlock <|-- ProcessingBlockText
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
@@ -107,6 +108,11 @@ sequenceDiagram
 その旨をモデルに伝えて再試行させる。ページの完了はモデルが `is_last_batch` で宣言し、
 `MAX_BATCH_COUNT` は宣言しないモデルに対する保険でしかない。
 
+ただし宣言すれば完了というわけではない。`_is_able_to_finish()` が、ページ上の全ブロックに
+block_type があるか、見出しにレベルがあるか、図のキャプションが確認済みかを検査し、
+足りなければ該当ブロックを名指しでモデルに差し戻す。通過したページのブロックには
+`have_been_checked` が立つ。
+
 ## モデルに与えるコンテキスト
 
 ページスキャンのたびにコンテキスト全体を送り直すため、そのページに必要なものだけに絞る。
@@ -134,6 +140,7 @@ sequenceDiagram
 | `delete_block` | ブロックを削除し、それを指していたキャプション参照も解除する。 |
 | `edit_block` | 指定されたフィールドのみ変更する（種別・本文・見出しレベル）。 |
 | `set_caption` | 図をキャプションのテキストブロックに紐づける。キャプションが無い図にはnullを指定する。どちらの場合も確認済みとして扱う。 |
+| `merge_blocks` | 2つのテキストブロックを前者に統合し、後者を削除する。間に空白を入れるかは指定する。 |
 
 orderはリスト順に適用され、各orderは直前までの結果に対して働く。見出しとして分類される
 か、レベルを与えられた時点で、テキストブロックは `ProcessingBlockTextHeading` になる。
@@ -161,6 +168,9 @@ orderはリスト順に適用され、各orderは直前までの結果に対し�
 
 ## 規約
 
+- Blockerが画像または表として検出したブロックは、最初から `figure` / `table` として
+  ラベル付けされた状態で始まる。検出結果が答えなので、オーガナイザには実際に判断すべき
+  ブロックだけが残る。
 - 変数として保持するページは全て0始まりのindexで、名前は `page_index`（`scan_page` の
   引数も `ProcessingBlock.page_index` も同様）。`+ 1` するのは表示する箇所だけ——プロンプト、
   画像のラベル、ブロック状態JSON、ログ。読み手は1からページを数えるため。モデルに見せる

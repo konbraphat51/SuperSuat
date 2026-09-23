@@ -10,6 +10,7 @@ from .OrderSchema import (
     OrderDeleteBlock,
     OrderEditBlock,
     OrderSetCaption,
+    OrderMergeBlocks,
 )
 from .ProcessingSchema import (
     ProcessingBlock,
@@ -59,6 +60,8 @@ def _execute_order(order: Order, processing_data: list[ProcessingBlock]) -> None
             _execute_edit_block(_as(order, OrderEditBlock), processing_data)
         case "set_caption":
             _execute_set_caption(_as(order, OrderSetCaption), processing_data)
+        case "merge_blocks":
+            _execute_merge_blocks(_as(order, OrderMergeBlocks), processing_data)
         case _:
             raise ValueError(f"Unknown order label: {order.order_label}")
 
@@ -115,17 +118,7 @@ def _execute_delete_block(
     order: OrderDeleteBlock, processing_data: list[ProcessingBlock]
 ) -> None:
     """Removes the target block, dropping captions pointing at it."""
-    index = _find_index(processing_data, order.target_block_id)
-    processing_data.pop(index)
-
-    # keep figures from referencing a block that is gone
-    for block in processing_data:
-        if (
-            isinstance(block, ProcessingBlockFigure)
-            and block.caption_text_block_id == order.target_block_id
-        ):
-            block.caption_text_block_id = None
-            block.have_caption_checked = False
+    _remove_block(processing_data, order.target_block_id)
 
 
 def _execute_edit_block(
@@ -176,6 +169,43 @@ def _execute_set_caption(
     figure.caption_text_block_id = order.target_caption_block_id
     # the figure is checked either way: having no caption is an answer too
     figure.have_caption_checked = True
+
+
+def _execute_merge_blocks(
+    order: OrderMergeBlocks, processing_data: list[ProcessingBlock]
+) -> None:
+    """Appends the latter block's text to the former one, and removes it."""
+    if order.former_block_id == order.latter_block_id:
+        raise ValueError(f"Block {order.former_block_id} cannot be merged into itself.")
+
+    former = _require_text(
+        processing_data[_find_index(processing_data, order.former_block_id)],
+        order.former_block_id,
+    )
+    latter = _require_text(
+        processing_data[_find_index(processing_data, order.latter_block_id)],
+        order.latter_block_id,
+    )
+
+    joiner = " " if order.join_with_space else ""
+    former.text = f"{former.text}{joiner}{latter.text}"
+    former.have_been_edited = True
+
+    _remove_block(processing_data, order.latter_block_id)
+
+
+def _remove_block(processing_data: list[ProcessingBlock], block_id: int) -> None:
+    """Drops the block from the document, and any caption pointing at it."""
+    processing_data.pop(_find_index(processing_data, block_id))
+
+    # keep figures from referencing a block that is gone
+    for block in processing_data:
+        if (
+            isinstance(block, ProcessingBlockFigure)
+            and block.caption_text_block_id == block_id
+        ):
+            block.caption_text_block_id = None
+            block.have_caption_checked = False
 
 
 def _find_index(processing_data: list[ProcessingBlock], block_id: int) -> int:

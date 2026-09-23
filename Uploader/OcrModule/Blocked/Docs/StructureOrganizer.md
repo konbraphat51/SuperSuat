@@ -63,6 +63,7 @@ classDiagram
     Order <|-- OrderDeleteBlock
     Order <|-- OrderEditBlock
     Order <|-- OrderSetCaption
+    Order <|-- OrderMergeBlocks
     ProcessingBlock <|-- ProcessingBlockText
     ProcessingBlock <|-- ProcessingBlockFigure
     ProcessingBlockText <|-- ProcessingBlockTextHeading
@@ -108,6 +109,11 @@ blocks exactly as they were and the model is told so before it tries again. The 
 sets `is_last_batch` when the page is done; `MAX_BATCH_COUNT` only guards against a
 model that never does.
 
+Saying the page is done does not make it so: `_is_able_to_finish()` checks every block
+on the page for a block_type, a heading for its level, and a figure for its caption
+check, and a page still missing any of them goes back to the model with the blocks at
+fault named. Once the page passes, its blocks are marked `have_been_checked`.
+
 ## Context given to the model
 
 Every page scan resends the whole context, so it is kept to what the page needs:
@@ -137,6 +143,7 @@ Every page scan resends the whole context, so it is kept to what the page needs:
 | `delete_block` | Removes a block, and clears any caption pointing at it. |
 | `edit_block` | Changes only the fields it fills in: label, text, heading level. |
 | `set_caption` | Ties a figure to its caption block, or to null for a figure that has none. Either way the figure counts as checked. |
+| `merge_blocks` | Joins two text blocks into the former one and removes the latter, with or without a space between them. |
 
 Orders apply in list order, each one acting on the state the previous ones left. A
 text block becomes a `ProcessingBlockTextHeading` as soon as it is labeled a heading
@@ -166,6 +173,9 @@ in it.
 
 ## Conventions
 
+- A block the Blocker detected as an image or a table starts out labeled `figure` or
+  `table`: that detection settles the type, so the organizer is left with the blocks
+  it can actually judge.
 - Every page held in a variable is an index counting from 0, named `page_index`:
   `scan_page`'s argument and `ProcessingBlock.page_index` alike. The `+ 1` happens
   only where a page number is shown - the prompt, the image labels, the block state

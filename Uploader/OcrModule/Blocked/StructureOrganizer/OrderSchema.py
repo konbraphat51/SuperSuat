@@ -11,6 +11,7 @@ ORDER_LABELS = Literal[
     "delete_block",
     "edit_block",
     "set_caption",
+    "merge_blocks",
 ]
 
 
@@ -79,6 +80,21 @@ class OrderEditBlock(Order):
     )
 
 
+class OrderMergeBlocks(Order):
+    """Joins a text block split in two back into one block."""
+
+    order_label: Literal["merge_blocks"] = "merge_blocks"
+    former_block_id: int = Field(
+        description="The block_index of the block whose text comes first. The merged text is kept on this block."
+    )
+    latter_block_id: int = Field(
+        description="The block_index of the block whose text follows, which is appended to the former block and then removed."
+    )
+    join_with_space: bool = Field(
+        description="True to put a space between the two texts, as a language that separates words with spaces (English etc.) needs. False to join them directly, as Japanese, Chinese and the like need."
+    )
+
+
 class OrderSetCaption(Order):
     """Records the caption of a figure, or that it has none."""
 
@@ -99,7 +115,8 @@ AnyOrder = Annotated[
     | OrderReorder
     | OrderDeleteBlock
     | OrderEditBlock
-    | OrderSetCaption,
+    | OrderSetCaption
+    | OrderMergeBlocks,
     Field(discriminator="order_label"),
 ]
 
