@@ -29,8 +29,9 @@ def transcribe(
     for block in blocker_result.blocks:
         # ...OCR the block
 
-        # skip if the block is not text
+        # if the block is not text...
         if block.block_type != BlockType.TEXT:
+            # ... skip this page
             continue
 
         # image extraction
