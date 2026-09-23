@@ -12,13 +12,18 @@ from ..Schema import (
     TranscriptionResult,
 )
 
+# What this stage reads. A table is read here too, since it is text on the
+# page; MATH and IMAGE are for later stages.
+TRANSCRIBED_BLOCK_TYPES = frozenset({BlockType.TEXT, BlockType.TABLE})
+
 
 class Transcriber(ABC):
     """Reads the text of each TEXT block found by a Blocker.
 
     Blocks are OCR'd one at a time, in isolation, so each recognition call
-    sees only the text it needs to read. Non-TEXT blocks (MATH, IMAGE, TABLE)
-    are left for later pipeline stages and are not transcribed here.
+    sees only the text it needs to read. A table is read as a whole, into a
+    Markdown table, rather than line by line. MATH and IMAGE blocks are left
+    for later pipeline stages and are not transcribed here.
 
     A page's blocks are read one after another, but several pages are read at
     the same time. A subclass whose model does not take being called from
@@ -38,7 +43,7 @@ class Transcriber(ABC):
             all_pages: Every page image, indexed by Block.page_index.
             blocker_result: The blocks detected by a Blocker, to be transcribed.
         """
-        blocks_by_page = self._group_text_blocks_by_page(blocker_result)
+        blocks_by_page = self._group_blocks_by_page(blocker_result)
 
         pages_transcriptions = map_pages(
             lambda page: self._transcribe_page(all_pages[page[0]], page[1]),
@@ -54,19 +59,19 @@ class Transcriber(ABC):
             ]
         )
 
-    def _group_text_blocks_by_page(
+    def _group_blocks_by_page(
         self,
         blocker_result: BlockerResult,
     ) -> dict[int, list[Block]]:
-        """The TEXT blocks of each page, keyed by page, both in block order.
+        """The blocks to transcribe on each page, keyed by page, in block order.
 
-        Non-TEXT blocks (MATH, IMAGE, TABLE) are left for later pipeline
-        stages, so they are dropped here rather than read.
+        MATH and IMAGE blocks are left for later pipeline stages, so they are
+        dropped here rather than read.
         """
         blocks_by_page: dict[int, list[Block]] = defaultdict(list)
 
         for block in blocker_result.blocks:
-            if block.block_type != BlockType.TEXT:
+            if block.block_type not in TRANSCRIBED_BLOCK_TYPES:
                 continue
 
             blocks_by_page[block.page_index].append(block)
@@ -88,8 +93,12 @@ class Transcriber(ABC):
             # image extraction
             block_image = self._extract_block_image(page, block)
 
-            # transcribe the block image
-            text = self._ocr_text_block_image(block_image)
+            # transcribe the block image, as what the block is
+            if block.block_type == BlockType.TABLE:
+                text = self._ocr_table_block_image(block_image)
+            else:
+                text = self._ocr_text_block_image(block_image)
+
             transcriptions.append(
                 TranscriptionBlock(block_id=block.block_id, text=text)
             )

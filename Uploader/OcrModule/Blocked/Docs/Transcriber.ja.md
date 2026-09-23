@@ -1,7 +1,8 @@
 # Transcriber
 
 ブロック分割OCRパイプラインの第2段階（[Plan.md](Plan.md) 参照）。`Blocker` が検出した
-各 `TEXT` ブロックをページから切り出し、ブロック単位で独立にOCRする。
+各 `TEXT`・`TABLE` ブロックをページから切り出し、ブロック単位で独立にOCRする。テキストは
+テキストとして、表はMarkdownの表として読み取る。
 
 English version: [Transcriber.md](Transcriber.md)
 
@@ -13,13 +14,17 @@ classDiagram
         <<abstract>>
         +transcribe(all_pages: list[Image], blocker_result: BlockerResult) TranscriptionResult
         #_extract_block_image(page: Image, block: Block) Image
-        #_ocr_block_image(block_image: Image) str*
+        #_group_blocks_by_page(blocker_result: BlockerResult) dict[int, list[Block]]
+        #_transcribe_page(page: Image, blocks: list[Block]) list[TranscriptionBlock]
+        #_ocr_text_block_image(block_image: Image) str*
+        #_ocr_table_block_image(block_image: Image) str*
     }
     class YomitokuTranscriber {
         -_device: str
         -_recognizer: TextRecognizer
         +default_device() str
-        #_ocr_block_image(block_image: Image) str
+        #_ocr_text_block_image(block_image: Image) str
+        #_ocr_table_block_image(block_image: Image) str
     }
     class TranscriptionResult {
         +transcriptions: list[TranscriptionBlock]
@@ -34,8 +39,9 @@ classDiagram
 ```
 
 `Transcriber` はテンプレートメソッドとして `transcribe()` を実装している。各実装が行うのは
-切り出し済みの1ブロック画像を読み取るだけ（`_ocr_block_image()`）で、`TEXT` ブロックへの
-絞り込み、ページからの切り出し、`TranscriptionResult` の組み立ては基底クラスの役割。
+切り出し済みの1ブロック画像を読み取ることだけ（テキストは `_ocr_text_block_image()`、
+表は `_ocr_table_block_image()`）。読み取り対象の選別、ページからの切り出し、どちらの
+メソッドに渡すかの振り分け、`TranscriptionResult` の組み立ては基底クラスの役割。
 
 1ページ内のブロックは順に読むが、ページ単位では `MAX_PARALLEL_PAGES` ページを同時に読む。
 どのページから終わってもブロック順で結果が返る。モデルが複数スレッドからの呼び出しに
@@ -48,11 +54,15 @@ sequenceDiagram
     participant 実装クラス
     participant OcrModel
     Caller->>Transcriber: transcribe(all_pages, blocker_result)
-    Transcriber->>Transcriber: TEXTブロックをページ毎にまとめ、それ以外は除外
+    Transcriber->>Transcriber: TEXT・TABLEブロックをページ毎にまとめ、それ以外は除外
     par 最大 MAX_PARALLEL_PAGES ページ同時
         loop ページ内の各ブロック
             Transcriber->>Transcriber: all_pages[block.page_index]からblock_imageを切り出し
-            Transcriber->>実装クラス: _ocr_text_block_image(block_image)
+            alt TABLEである
+                Transcriber->>実装クラス: _ocr_table_block_image(block_image)
+            else
+                Transcriber->>実装クラス: _ocr_text_block_image(block_image)
+            end
             実装クラス->>OcrModel: 文字認識
             OcrModel-->>実装クラス: text
             実装クラス-->>Transcriber: text
@@ -64,8 +74,9 @@ sequenceDiagram
 
 ## 規約
 
-- ここで読み取るのは `TEXT` ブロックのみ。`MATH`・`IMAGE`・`TABLE` ブロックは後続の
-  パイプライン段階に委ねる。
+- ここで読み取るのは `TRANSCRIBED_BLOCK_TYPES`、すなわち `TEXT`・`TABLE` ブロック。
+  `MATH`・`IMAGE` ブロックは後続のパイプライン段階に委ねる。
+- 表は行単位ではなく1つのMarkdownの表として読み取るため、行と列の構造が保たれる。
 - 各ブロックはページ全体ではなく、切り出した画像単体でOCRする。認識時に隣接ブロックが
   見えることはない。
 - `TranscriptionBlock.block_id` は切り出し元の `Block.block_id` と一致する。この値で
