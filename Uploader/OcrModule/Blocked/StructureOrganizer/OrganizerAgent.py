@@ -16,13 +16,10 @@ from .prompt import ORGANIZER_AGENT_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
-# How many already-handled pages are shown alongside the current one. A block
-# splits across a page boundary, and a heading's level depends on the headings
-# above it, so the pages just before matter; the whole document does not fit.
-RECENT_PAGE_COUNT = 3
+# How many already-handled pages are shown alongside the current one. 
+RECENT_PAGE_COUNT = 1
 
-# Guard against a model that never sets is_last_batch, not a budget for a
-# normal page.
+# Guard against a model that never sets is_last_batch
 MAX_BATCH_COUNT = 10
 
 
