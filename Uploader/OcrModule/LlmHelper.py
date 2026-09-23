@@ -108,13 +108,15 @@ def _collect_keep_block_indices(
 
 
 def format_existing_pages(pages: list[int]) -> str:
-    """Collapses a page list into range notation ("0-3,7"). A section near the
-    end of a long document is present on every page seen so far, which costs
-    one entry per page if written out as a list."""
+    """Collapses a page list into range notation ("1-4,8"), counted from 1 as
+    the agent counts pages. A section near the end of a long document is
+    present on every page seen so far, which costs one entry per page if
+    written out as a list."""
     if not pages:
         return ""
 
-    ordered = sorted(set(pages))
+    # pages are stored 0-indexed and shown 1-indexed
+    ordered = sorted({page + 1 for page in pages})
     ranges: list[tuple[int, int]] = []
     start = previous = ordered[0]
 

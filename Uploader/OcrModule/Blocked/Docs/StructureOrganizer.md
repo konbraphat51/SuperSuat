@@ -138,8 +138,10 @@ or given a level.
 
 ## Conventions
 
-- `page_number` is 1-indexed in `scan_page` and in everything shown to the model;
-  `ProcessingBlock.page_number` is 0-indexed, matching `Block.page_number`.
+- Every page number held in a variable is 0-indexed, `scan_page`'s `page_index` and
+  `ProcessingBlock.page_number` alike. The `+ 1` happens only where a page number is
+  shown - the prompt, the image labels, the block state JSON, and the logs - since a
+  reader counts pages from 1.
 - The model is given only ids that exist in the JSON it was shown, and an order
   naming an unknown id is rejected rather than ignored.
 - All prompts and model-facing text are English.

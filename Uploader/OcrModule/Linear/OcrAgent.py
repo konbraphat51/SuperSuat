@@ -82,19 +82,19 @@ class OcrAgent:
 
     def read_page(
         self,
-        page_number: int,
+        page_index: int,
     ) -> OutputSchema:
         """Reads one page and returns every edit it needs, as a single
         OutputSchema that has been checked against the document tree.
         Applying it is the caller's job (see OcrDataEditor) - this class only
         produces it, and hands a response the tree would reject back to the
         model to correct."""
-        self.linear_tools.set_current_page(page_number)
+        self.linear_tools.set_current_page(page_index)
 
-        ocr_data_json = build_ocr_context_string(self.entire_section, page_number)
-        page_image_content = self.linear_tools.get_page_image(page_number)
+        ocr_data_json = build_ocr_context_string(self.entire_section, page_index)
+        page_image_content = self.linear_tools.page_image_message(page_index)
 
-        logger.info("page %d | starting", page_number)
+        logger.info("page %d | starting", page_index + 1)
 
         messages = [
             HumanMessage(
@@ -116,23 +116,23 @@ class OcrAgent:
             )
 
             for message in result["messages"][logged_message_count:]:
-                log_agent_message(f"page {page_number}", message)
+                log_agent_message(f"page {page_index + 1}", message)
             logged_message_count = len(result["messages"])
 
             structured_response = result.get("structured_response")
             if structured_response is None:
                 raise RuntimeError(
-                    f"Page {page_number}: agent finished without a structured response"
+                    f"Page {page_index + 1}: agent finished without a structured response"
                 )
 
             errors = validate_output(structured_response, self.entire_section)
             if not errors:
-                logger.info("page %d | done", page_number)
+                logger.info("page %d | done", page_index + 1)
                 return structured_response
 
             logger.warning(
                 "page %d | attempt %d/%d rejected: %s",
-                page_number,
+                page_index + 1,
                 attempt,
                 MAX_OUTPUT_ATTEMPTS,
                 "; ".join(errors),
@@ -142,6 +142,6 @@ class OcrAgent:
             ]
 
         raise RuntimeError(
-            f"Page {page_number}: the model's response still could not be applied "
+            f"Page {page_index + 1}: the model's response still could not be applied "
             f"after {MAX_OUTPUT_ATTEMPTS} attempts: {'; '.join(errors)}"
         )

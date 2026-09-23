@@ -4,7 +4,7 @@ OCR_AGENT_SYSTEM_PROMPT = """You are an OCR agent that reconstructs a structured
 
 You are given:
 - The OCR data collected so far, as JSON (a tree of sections and blocks). To keep this manageable on long documents, only blocks from the last few pages are included, along with the headings of the sections around them. Everything else is left out and stands in as "... (omitted)", including whole sections with nothing left to show - so a "... (omitted)" may stand for earlier sections as well as earlier blocks. All of it is already recorded, so leave it alone and do not re-add its content; it is simply not shown to you here.
-- Each block's existing_pages lists the pages it appears on, written as ranges ("0-3,7").
+- Each block's existing_pages lists the pages it appears on, written as ranges ("1-4,8"). Pages are numbered from 1, as a reader counts them.
 - The image of the page you are currently processing.
 
 A scanned page wraps its text to fit the column, so where a line ends on the page usually means nothing about the text itself. Transcribe the text as it reads, not as it is laid out:
@@ -21,7 +21,7 @@ Each text block has a block_type, one of:
 - math: a formula or equation block. Write its content in KaTeX format.
 
 You have two tools available:
-- get_page_image: look again at the current page, or check another page (e.g. to see whether a block continues onto or from it).
+- get_page_image: look again at the current page, or check another page (e.g. to see whether a block continues onto or from it). Pages are numbered from 1.
 - clip_image: get the accurate pixel bounding box of a figure, photo, or diagram on the current page. Use this rather than estimating a bounding box by eye.
 
 Once you have everything you need, report every change this page needs as a single structured final response: one `operations` list, carried out in the order you give it. Each operation is one of:

@@ -65,23 +65,28 @@ class LinearTools:
 
     def set_current_page(
         self,
-        page_number: int,
+        page_index: int,
     ) -> str:
-        """Set the page number currently being processed."""
-        if page_number < 0 or page_number >= len(self.all_pages):
-            return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_pages) - 1}"
+        """Set the page currently being processed, 0-indexed."""
+        if page_index < 0 or page_index >= len(self.all_pages):
+            return f"ERROR: Invalid page number. The page number must be between 1 and {len(self.all_pages)}"
 
-        self.current_page_number = page_number
-        return f"Current page set to {page_number}"
+        self.current_page_number = page_index
+        return f"Current page set to {page_index + 1}"
 
     def get_page_image(self, page_number: int):
-        """Get the image of the specified page number."""
-        if page_number < 0 or page_number >= len(self.all_pages):
-            return f"ERROR: Invalid page number. The page number must be between 0 and {len(self.all_pages) - 1}"
+        """Get the image of the specified page number. Pages are numbered from 1."""
+        # the agent counts pages from 1, everything here counts from 0
+        return self.page_image_message(page_number - 1)
+
+    def page_image_message(self, page_index: int):
+        """The image of the page with `page_index`, as message content."""
+        if page_index < 0 or page_index >= len(self.all_pages):
+            return f"ERROR: Invalid page number. The page number must be between 1 and {len(self.all_pages)}"
 
         return build_image_message(
-            f"this is the image of page {page_number}",
-            self.all_pages[page_number].b64,
+            f"this is the image of page {page_index + 1}",
+            self.all_pages[page_index].b64,
         )
 
     def clip_image(

@@ -108,8 +108,8 @@ def run_one_pdf(pdf_path: Path, blocker: Blocker, output_dir: Path, args) -> Pat
     output_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
 
     if not args.no_render:
-        for page_number, page in enumerate(RENDERER.render(images, result)):
-            page.save(output_dir / f"{pdf_path.stem}_p{page_number}.png")
+        for page_index, page in enumerate(RENDERER.render(images, result)):
+            page.save(output_dir / f"{pdf_path.stem}_p{page_index + 1}.png")
 
     counts = {
         block_type.value: sum(

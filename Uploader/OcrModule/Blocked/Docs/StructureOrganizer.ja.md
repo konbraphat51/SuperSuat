@@ -135,7 +135,8 @@ orderはリスト順に適用され、各orderは直前までの結果に対し�
 
 ## 規約
 
-- `page_number` は `scan_page` およびモデルに見せる全ての箇所で1始まり。
-  `ProcessingBlock.page_number` は `Block.page_number` に合わせて0始まり。
+- 変数として保持するページ番号は全て0始まり（`scan_page` の `page_index` も
+  `ProcessingBlock.page_number` も同様）。`+ 1` するのは表示する箇所だけ——プロンプト、
+  画像のラベル、ブロック状態JSON、ログ。読み手は1からページを数えるため。
 - モデルに見せたJSONに存在するidのみ使用でき、未知のidを指すorderは無視ではなく却下する。
 - プロンプトおよびモデル向けのテキストは全て英語。
