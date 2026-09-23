@@ -13,7 +13,7 @@ classDiagram
     class Blocker {
         <<abstract>>
         +block(pages: list[Image]) BlockerResult
-        #_block_page(page: Image, page_index: int) list[Block]
+        #_block_page(page_index: int, page: Image) list[Block]
         #_detect_page(page: Image) list[tuple[BlockType, tuple]]*
     }
     class YomitokuBlocker {
@@ -64,6 +64,11 @@ pairs, in any order. The base class turns those into `Block`s, sorts each page
 top-to-bottom, and assigns every block in the document a unique, sequential
 `block_id`, so none of that has to be repeated per implementation.
 
+Pages are independent, so `MAX_PARALLEL_PAGES` of them are detected at once. The
+results are put back in page order before the ids are handed out, so a document's
+`block_id`s never depend on which page finished first. A subclass whose model does
+not take being called from several threads at once lowers that number.
+
 ```mermaid
 sequenceDiagram
     participant Caller
@@ -71,7 +76,7 @@ sequenceDiagram
     participant Subclass
     participant LayoutModel
     Caller->>Blocker: block(pages)
-    loop each page
+    par up to MAX_PARALLEL_PAGES pages at once
         Blocker->>Subclass: _detect_page(page)
         Subclass->>Subclass: convert the PIL image to what the model wants
         Subclass->>LayoutModel: detect regions

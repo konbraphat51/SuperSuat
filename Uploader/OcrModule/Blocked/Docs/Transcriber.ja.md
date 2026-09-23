@@ -37,6 +37,10 @@ classDiagram
 切り出し済みの1ブロック画像を読み取るだけ（`_ocr_block_image()`）で、`TEXT` ブロックへの
 絞り込み、ページからの切り出し、`TranscriptionResult` の組み立ては基底クラスの役割。
 
+1ページ内のブロックは順に読むが、ページ単位では `MAX_PARALLEL_PAGES` ページを同時に読む。
+どのページから終わってもブロック順で結果が返る。モデルが複数スレッドからの呼び出しに
+耐えない実装は、この値を下げる。
+
 ```mermaid
 sequenceDiagram
     participant Caller
@@ -44,16 +48,15 @@ sequenceDiagram
     participant 実装クラス
     participant OcrModel
     Caller->>Transcriber: transcribe(all_pages, blocker_result)
-    loop 各ブロック
-        alt TEXTでない
-            Transcriber->>Transcriber: スキップ
-        else TEXTである
+    Transcriber->>Transcriber: TEXTブロックをページ毎にまとめ、それ以外は除外
+    par 最大 MAX_PARALLEL_PAGES ページ同時
+        loop ページ内の各ブロック
             Transcriber->>Transcriber: all_pages[block.page_index]からblock_imageを切り出し
-            Transcriber->>実装クラス: _ocr_block_image(block_image)
+            Transcriber->>実装クラス: _ocr_text_block_image(block_image)
             実装クラス->>OcrModel: 文字認識
             OcrModel-->>実装クラス: text
             実装クラス-->>Transcriber: text
-            Transcriber->>Transcriber: TranscriptionBlock(block, text)を追加
+            Transcriber->>Transcriber: TranscriptionBlock(block.block_id, text)を追加
         end
     end
     Transcriber-->>Caller: TranscriptionResult

@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 
 from PIL.Image import Image
 
+from ..PageParallel import DEFAULT_MAX_PARALLEL_PAGES, map_pages
 from ..Schema import Block, BlockerResult, BlockType
 
 logger = logging.getLogger(__name__)
@@ -16,14 +17,27 @@ class Blocker(ABC):
     A subclass only detects the regions of a single page; turning that into a
     document-wide, uniquely-identified, stably-ordered `BlockerResult` is the
     same for every implementation, so it lives here instead of being repeated
-    in each one."""
+    in each one.
+
+    Pages are detected several at a time. A subclass whose model does not take
+    being called from several threads at once, or does not fit several pages
+    in memory, lowers MAX_PARALLEL_PAGES."""
+
+    # Pages detected at once. Lower it in a subclass whose model cannot take it.
+    MAX_PARALLEL_PAGES = DEFAULT_MAX_PARALLEL_PAGES
 
     def block(self, pages: list[Image]) -> BlockerResult:
         """Detects blocks of text, math, images, and tables in the page images."""
-        blocks: list[Block] = []
-        for page_index, page in enumerate(pages):
-            blocks.extend(self._block_page(page, page_index))
+        pages_blocks = map_pages(
+            lambda numbered_page: self._block_page(*numbered_page),
+            list(enumerate(pages)),
+            self.MAX_PARALLEL_PAGES,
+        )
 
+        blocks = [block for page_blocks in pages_blocks for block in page_blocks]
+
+        # ids are handed out once every page is in, so they do not depend on
+        # the order the pages happened to finish in
         for block_id, block in enumerate(blocks):
             block.block_id = block_id
 
@@ -35,7 +49,7 @@ class Blocker(ABC):
         )
         return BlockerResult(blocks=blocks)
 
-    def _block_page(self, page: Image, page_index: int) -> list[Block]:
+    def _block_page(self, page_index: int, page: Image) -> list[Block]:
         """Every block of one page, ordered top-to-bottom then left-to-right.
 
         The page number is 0-indexed, as elsewhere in the OCR module."""

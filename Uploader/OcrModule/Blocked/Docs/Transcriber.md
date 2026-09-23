@@ -38,6 +38,11 @@ the text of one already-cropped block image — `_ocr_block_image()` — while t
 class handles filtering to `TEXT` blocks, cropping each one out of its page, and
 assembling the `TranscriptionResult`.
 
+A page's blocks are read one after another, but `MAX_PARALLEL_PAGES` pages are read
+at once. The transcriptions come back in block order whatever order the pages
+finished in. A subclass whose model does not take being called from several threads
+at once lowers that number.
+
 ```mermaid
 sequenceDiagram
     participant Caller
@@ -45,16 +50,15 @@ sequenceDiagram
     participant Subclass
     participant OcrModel
     Caller->>Transcriber: transcribe(all_pages, blocker_result)
-    loop each block
-        alt block is not TEXT
-            Transcriber->>Transcriber: skip
-        else block is TEXT
+    Transcriber->>Transcriber: group the TEXT blocks by page, dropping the rest
+    par up to MAX_PARALLEL_PAGES pages at once
+        loop each block of the page
             Transcriber->>Transcriber: crop block_image from all_pages[block.page_index]
-            Transcriber->>Subclass: _ocr_block_image(block_image)
+            Transcriber->>Subclass: _ocr_text_block_image(block_image)
             Subclass->>OcrModel: recognize
             OcrModel-->>Subclass: text
             Subclass-->>Transcriber: text
-            Transcriber->>Transcriber: append TranscriptionBlock(block, text)
+            Transcriber->>Transcriber: append TranscriptionBlock(block.block_id, text)
         end
     end
     Transcriber-->>Caller: TranscriptionResult

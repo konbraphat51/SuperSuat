@@ -13,7 +13,7 @@ classDiagram
     class Blocker {
         <<abstract>>
         +block(pages: list[Image]) BlockerResult
-        #_block_page(page: Image, page_index: int) list[Block]
+        #_block_page(page_index: int, page: Image) list[Block]
         #_detect_page(page: Image) list[tuple[BlockType, tuple]]*
     }
     class YomitokuBlocker {
@@ -64,6 +64,10 @@ classDiagram
 全体で一意な連番の `block_id` を振るのは基底クラスの役割であり、実装ごとに繰り返す
 必要はない。
 
+ページ同士は独立しているため、`MAX_PARALLEL_PAGES` ページを同時に処理する。idを振る前に
+ページ順へ戻すので、`block_id` がどのページから終わったかに左右されることはない。モデルが
+複数スレッドからの呼び出しに耐えない実装は、この値を下げる。
+
 ```mermaid
 sequenceDiagram
     participant Caller
@@ -71,7 +75,7 @@ sequenceDiagram
     participant 実装クラス
     participant LayoutModel
     Caller->>Blocker: block(pages)
-    loop 各ページ
+    par 最大 MAX_PARALLEL_PAGES ページ同時
         Blocker->>実装クラス: _detect_page(page)
         実装クラス->>実装クラス: PIL画像をモデルが要求する形式へ変換
         実装クラス->>LayoutModel: 領域を検出
