@@ -150,9 +150,7 @@ class OrganizerAgent:
         content: list[dict] = []
         shown_page_indices: set[int] = {page_index}
 
-        # where in the document this page sits: the page of each heading still
-        # open when the previous page ended, outermost heading first. Several
-        # of those headings can share a page, which is then sent once.
+        # Ancestor headings
         ancestor_headings = _collect_ancestor_headings(page_index, processing_blocks)
         for heading_page_index, headings in _group_by_page(ancestor_headings):
             shown_page_indices.add(heading_page_index)
@@ -173,6 +171,7 @@ class OrganizerAgent:
                 pil_to_base64(all_page_images[former_page_index]),
             )
 
+        # this page
         content += build_image_message(
             f"Page {page_index + 1}, the page you are in charge of:",
             pil_to_base64(all_page_images[page_index]),
