@@ -30,7 +30,8 @@ def execute_orders(
 
     Args:
         order_batch: The orders to apply, in the order they are listed.
-        processing_data: The blocks being organized, in document order.
+        processing_data: The blocks of the page being classified, in reading
+            order. An order reaches these and no other block of the document.
 
     Raises:
         ValueError: An order targets a block_id absent from processing_data,
@@ -187,7 +188,9 @@ def _find_index(processing_data: list[ProcessingBlock], block_id: int) -> int:
         if block.block_id == block_id:
             return index
 
-    raise ValueError(f"No block with block_id {block_id} in processing_data.")
+    raise ValueError(
+        f"No block with block_id {block_id} on the page you are in charge of."
+    )
 
 
 def _require_text(block: ProcessingBlock, block_id: int) -> ProcessingBlockText:

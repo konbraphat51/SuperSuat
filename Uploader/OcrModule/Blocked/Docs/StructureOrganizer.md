@@ -13,7 +13,8 @@ The work splits by what a decision needs to see:
 
 - **`Classifier/`** settles one page at a time: what each block is, which blocks
   belong to which figure, what order they are read in. Everything it decides can be
-  decided from the page in front of it.
+  decided from the page in front of it, so the pages are classified in parallel,
+  `MAX_PARALLEL_PAGES` at a time.
 - **`Leveler/`** ranks the headings. A heading's level means nothing except against
   the rest of the document, so this runs once, after every page has been classified,
   and sees every page that holds a heading at the same time.
@@ -25,17 +26,18 @@ The work splits by what a decision needs to see:
 ```mermaid
 classDiagram
     class Organizer {
+        +MAX_PARALLEL_PAGES: int
         -classifier: Classifier
         -leveler: Leveler
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
-        -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+        -_scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks) list[ProcessingBlock]
     }
     class Classifier {
         -classifier_model: Runnable
-        +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+        +scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks) list[ProcessingBlock]
         -_request_orders(messages, page_index, batch_number) OrderBatch
-        -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
-        -_is_able_to_finish(page_index, processing_blocks) tuple[bool, str]
+        -_build_messages(page_index, all_page_images, page_image_rendered, page_blocks, former_page_blocks) list[BaseMessage]
+        -_is_able_to_finish(page_blocks) tuple[bool, str]
     }
     class Leveler {
         -leveler_model: Runnable
@@ -109,31 +111,41 @@ discriminator, so each order arrives already validated against its own schema.
 
 ## Page scan
 
+Each page is settled in a list of its own: `Organizer` splits the blocks by page,
+freezes a copy of that split as the context the pages read of each other, and hands
+each page its own list. A page's orders reach that list and nothing else, so the
+pages share no state and run through `map_pages()` (see [Blocker.md](Blocker.md))
+`MAX_PARALLEL_PAGES` at a time, coming back in page order.
+
 ```mermaid
 sequenceDiagram
     participant Organizer
     participant Classifier
     participant Model
     participant Executor as execute_orders
-    Organizer->>Classifier: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+    Organizer->>Organizer: split the blocks by page, freeze a copy as context
+    par MAX_PARALLEL_PAGES pages at once
+    Organizer->>Classifier: scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks)
     Classifier->>Classifier: _build_messages (prompt + page images + block state)
     loop until is_last_batch, at most MAX_BATCH_COUNT
         Classifier->>Model: invoke(messages)
         Model-->>Classifier: OrderBatch
-        Classifier->>Classifier: deepcopy(processing_blocks)
+        Classifier->>Classifier: deepcopy(page_blocks)
         Classifier->>Executor: execute_orders(order_batch, copy)
         alt an order could not be applied
             Executor-->>Classifier: ValueError / TypeError
             Classifier->>Classifier: append rejection message, copy discarded
         else applied
             Executor-->>Classifier: copy, edited
-            Classifier->>Classifier: write the copy back into processing_blocks
+            Classifier->>Classifier: write the copy back into page_blocks
             opt not the last batch
                 Classifier->>Classifier: append the updated block state
             end
         end
     end
-    Classifier-->>Organizer: processing_blocks, edited in place
+    Classifier-->>Organizer: page_blocks, settled
+    end
+    Organizer->>Organizer: join the pages back together, in page order
 ```
 
 A batch is applied to a copy of the blocks, so a batch that fails partway leaves the
@@ -157,8 +169,10 @@ Every page scan resends the whole context, so it is kept to what the page needs:
 - The page again, with each block outlined and labeled with its `block_id`, as
   `BlockRenderer` draws it (see [Blocker.md](Blocker.md)).
 - The `ProcessingBlock` state of this page and the page before it, as JSON, in
-  current order. One page back is all a block spanning a page boundary needs, and
-  everything earlier is settled and is left out.
+  current order. One page back is all a block spanning a page boundary needs. The
+  page before is shown as the Blocker left it - still unlabeled, since it is being
+  settled at the same time - and the model is told so, and told that it is not
+  something an order can name.
 
 ### Orders
 
@@ -253,5 +267,6 @@ in it.
   JSON, and the logs - since a reader counts pages from 1. That is also why the JSON
   the model sees calls the field `page_number`.
 - The model is given only ids that exist in the JSON it was shown, and an order
-  naming an unknown id is rejected rather than ignored.
+  naming an unknown id - including a block of another page - is rejected rather than
+  ignored.
 - All prompts and model-facing text are English.

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from ...OcrSchema import OcrResult
@@ -6,6 +7,7 @@ from ..Schema import (
     Block,
     TranscriptionResult,
 )
+from ..PageParallel import DEFAULT_MAX_PARALLEL_PAGES, map_pages
 from .ProcessingSchema import (
     ProcessingBlock,
     ProcessingBlockText,
@@ -20,6 +22,14 @@ from .DataExporter import export_processing_blocks_to_ocr_result
 
 
 class Organizer:
+    """Settles the detected blocks into a document structure.
+
+    Attributes:
+        MAX_PARALLEL_PAGES: How many pages are classified at once.
+    """
+
+    MAX_PARALLEL_PAGES = DEFAULT_MAX_PARALLEL_PAGES
+
     def __init__(
         self,
         organizer_model: BaseChatModel,
@@ -40,15 +50,25 @@ class Organizer:
             transcription_result=transcription_result,
         )
 
-        # for all pages...
-        for page_index in range(len(all_page_images)):
-            # ... scan this page
-            self._scan_page(
+        page_blocks = _group_blocks_by_page(processing_blocks, len(all_page_images))
+        # what the pages read of each other, frozen before any of them is
+        # settled, so no page ever sees another one half-classified
+        context_page_blocks = deepcopy(page_blocks)
+
+        # settle each page, several pages at once
+        settled_pages = map_pages(
+            lambda page_index: self._scan_page(
                 page_index=page_index,
                 all_page_images=all_page_images,
                 page_image_rendered=all_page_images_rendered[page_index],
-                processing_blocks=processing_blocks,
-            )
+                page_blocks=page_blocks[page_index],
+                context_page_blocks=context_page_blocks,
+            ),
+            range(len(all_page_images)),
+            self.MAX_PARALLEL_PAGES,
+        )
+
+        processing_blocks = [block for page in settled_pages for block in page]
 
         # rank the headings of every page against each other
         self.leveler.level_headings(
@@ -64,11 +84,30 @@ class Organizer:
         page_index: int,
         all_page_images: list[Image],
         page_image_rendered: Image,
-        processing_blocks: list[ProcessingBlock],
-    ) -> None:
-        self.classifier.scan_page(
+        page_blocks: list[ProcessingBlock],
+        context_page_blocks: list[list[ProcessingBlock]],
+    ) -> list[ProcessingBlock]:
+        return self.classifier.scan_page(
             page_index=page_index,
             all_page_images=all_page_images,
             page_image_rendered=page_image_rendered,
-            processing_blocks=processing_blocks,
+            page_blocks=page_blocks,
+            context_page_blocks=context_page_blocks,
         )
+
+
+def _group_blocks_by_page(
+    processing_blocks: list[ProcessingBlock],
+    page_count: int,
+) -> list[list[ProcessingBlock]]:
+    """The blocks split into one list per page, in reading order.
+
+    A page the Blocker found nothing on gets an empty list, so every page has
+    a list of its own to be settled in.
+    """
+    grouped: list[list[ProcessingBlock]] = [[] for _ in range(page_count)]
+
+    for block in processing_blocks:
+        grouped[block.page_index].append(block)
+
+    return grouped

@@ -12,7 +12,8 @@ English version: [StructureOrganizer.md](StructureOrganizer.md)
 判断に何が見えている必要があるかで、処理を分割している。
 
 - **`Classifier/`** はページ単位で確定する。各ブロックが何か、どの図にどのキャプションが
-  付くか、どの順に読むか——いずれも目の前のページだけで判断できる事柄。
+  付くか、どの順に読むか——いずれも目の前のページだけで判断できる事柄。そのため
+  `MAX_PARALLEL_PAGES` ページずつ並列に処理する。
 - **`Leveler/`** は見出しのレベルを決める。見出しのレベルはドキュメント全体との関係で
   しか意味を持たないため、全ページの分類が終わった後に1回だけ実行し、見出しを含む
   ページ群を一度にまとめて見る。
@@ -24,17 +25,18 @@ English version: [StructureOrganizer.md](StructureOrganizer.md)
 ```mermaid
 classDiagram
     class Organizer {
+        +MAX_PARALLEL_PAGES: int
         -classifier: Classifier
         -leveler: Leveler
         +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
-        -_scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+        -_scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks) list[ProcessingBlock]
     }
     class Classifier {
         -classifier_model: Runnable
-        +scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+        +scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks) list[ProcessingBlock]
         -_request_orders(messages, page_index, batch_number) OrderBatch
-        -_build_messages(page_index, all_page_images, page_image_rendered, processing_blocks) list[BaseMessage]
-        -_is_able_to_finish(page_index, processing_blocks) tuple[bool, str]
+        -_build_messages(page_index, all_page_images, page_image_rendered, page_blocks, former_page_blocks) list[BaseMessage]
+        -_is_able_to_finish(page_blocks) tuple[bool, str]
     }
     class Leveler {
         -leveler_model: Runnable
@@ -108,31 +110,41 @@ classDiagram
 
 ## ページスキャン
 
+各ページはそれぞれ専用のリスト上で確定する。`Organizer` がブロックをページごとに分割し、
+その時点のコピーを「ページ同士が読み合うコンテキスト」として凍結した上で、各ページに
+自分のリストを渡す。orderが届くのはそのリストだけで、ページ間で状態を共有しないため、
+`map_pages()`（[Blocker.ja.md](Blocker.ja.md) 参照）で `MAX_PARALLEL_PAGES` ページずつ
+並列実行し、結果はページ順で戻る。
+
 ```mermaid
 sequenceDiagram
     participant Organizer
     participant Classifier
     participant Model
     participant Executor as execute_orders
-    Organizer->>Classifier: scan_page(page_index, all_page_images, page_image_rendered, processing_blocks)
+    Organizer->>Organizer: ブロックをページごとに分割し、コピーをコンテキストとして凍結
+    par 最大 MAX_PARALLEL_PAGES ページ同時
+    Organizer->>Classifier: scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks)
     Classifier->>Classifier: _build_messages（プロンプト + ページ画像 + ブロック状態）
     loop is_last_batch まで、最大 MAX_BATCH_COUNT 回
         Classifier->>Model: invoke(messages)
         Model-->>Classifier: OrderBatch
-        Classifier->>Classifier: deepcopy(processing_blocks)
+        Classifier->>Classifier: deepcopy(page_blocks)
         Classifier->>Executor: execute_orders(order_batch, copy)
         alt 適用できないorderがあった
             Executor-->>Classifier: ValueError / TypeError
             Classifier->>Classifier: 却下メッセージを追加、コピーは破棄
         else 適用できた
             Executor-->>Classifier: 編集済みのコピー
-            Classifier->>Classifier: コピーを processing_blocks に書き戻す
+            Classifier->>Classifier: コピーを page_blocks に書き戻す
             opt 最終バッチでない
                 Classifier->>Classifier: 更新後のブロック状態を追加
             end
         end
     end
-    Classifier-->>Organizer: processing_blocks をその場で編集
+    Classifier-->>Organizer: 確定した page_blocks
+    end
+    Organizer->>Organizer: ページ順に連結し直す
 ```
 
 バッチはブロックのコピーに適用する。途中で失敗したバッチはブロックを一切変更せず、
@@ -153,7 +165,9 @@ block_type があるか、図のキャプションが確認済みかを検査し
 - 各ブロックの枠線と `block_id` を描画した現在のページ画像（`BlockRenderer` による。
   [Blocker.ja.md](Blocker.ja.md) 参照）。
 - 現在のページと直前1ページの `ProcessingBlock` の状態を、現在の順序でJSON化したもの。
-  ページ境界をまたぐブロックには1ページ分で足り、それ以前は確定済みなので含めない。
+  ページ境界をまたぐブロックには1ページ分で足りる。直前ページは同時に処理中のため、
+  Blockerが出力したままの未分類の状態で渡し、その旨と、orderの対象にはできないことを
+  モデルに伝える。
 
 ### Order一覧
 
@@ -243,5 +257,6 @@ sequenceDiagram
   引数も `ProcessingBlock.page_index` も同様）。`+ 1` するのは表示する箇所だけ——プロンプト、
   画像のラベル、ブロック状態JSON、ログ。読み手は1からページを数えるため。モデルに見せる
   JSONでフィールド名が `page_number` なのも同じ理由。
-- モデルに見せたJSONに存在するidのみ使用でき、未知のidを指すorderは無視ではなく却下する。
+- モデルに見せたJSONに存在するidのみ使用でき、未知のid——他ページのブロックを含む——を
+  指すorderは無視ではなく却下する。
 - プロンプトおよびモデル向けのテキストは全て英語。
