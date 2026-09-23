@@ -14,13 +14,14 @@ from .ProcessingSchema import (
     convert_blocker_result_to_processing_blocks,
 )
 
+from .OrganizerAgent import OrganizerAgent
 
 class Organizer:
     def __init__(
         self,
         organizer_model: BaseChatModel,
     ) -> None:
-        self.organizer_model = organizer_model
+        self.organizer_agent = OrganizerAgent(organizer_model=organizer_model)
 
     def organize(
         self,
@@ -38,7 +39,12 @@ class Organizer:
         # for all pages...
         for page_index in range(len(all_page_images)):
             # ... scan this page
-            raise NotImplementedError("Organizer.organize() is not yet implemented.")
+            self._scan_page(
+                page_index=page_index,
+                all_page_images=all_page_images,
+                page_image_rendered=all_page_images_rendered[page_index],
+                processing_blocks=processing_blocks,
+            )
 
         # TODO: convert to OcrResult
         raise NotImplementedError("Organizer.organize() is not yet implemented.")
@@ -50,4 +56,9 @@ class Organizer:
         page_image_rendered: Image,
         processing_blocks: list[ProcessingBlock],
     ) -> None:
-        pass
+        self.organizer_agent.scan_page(
+            page_index=page_index,
+            all_page_images=all_page_images,
+            page_image_rendered=page_image_rendered,
+            processing_blocks=processing_blocks,
+        )
