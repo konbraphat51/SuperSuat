@@ -2,3 +2,4 @@
 .env
 Test/Manual/Ocr/Output/
 Test/Manual/Blocked/Output/
+Test/Manual/LinearMD/Output/
