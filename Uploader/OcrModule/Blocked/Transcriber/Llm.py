@@ -7,6 +7,7 @@ from ...LlmHelper import (
     build_image_message,
     pil_to_base64,
     stringify_message_content,
+    strip_code_fence,
 )
 from .Transcriber import Transcriber
 
@@ -80,22 +81,4 @@ class LlmTranscriber(Transcriber):
         """Image -> transcription"""
         message = HumanMessage(content=build_image_message(prompt, image_base64))
         result = self.ocr_model.invoke([message])
-        return _strip_code_fence(stringify_message_content(result.content).strip())
-
-
-def _strip_code_fence(text: str) -> str:
-    """The transcription without the code fence a model wrapped it in.
-
-    The prompt asks for none, and a model that adds one anyway would otherwise
-    put its fence into the document. A fence the page itself shows is kept:
-    only a fence around the whole answer is taken off.
-    """
-    if not text.startswith("```") or not text.endswith("```"):
-        return text
-
-    lines = text.splitlines()
-    if len(lines) < 2:
-        return text
-
-    # the opening fence may carry a language tag, which is not part of the text
-    return "\n".join(lines[1:-1]).strip()
+        return strip_code_fence(stringify_message_content(result.content).strip())

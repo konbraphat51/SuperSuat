@@ -68,6 +68,24 @@ def build_image_message(text: str | None, img_b64: str) -> list[dict]:
     return blocks
 
 
+def strip_code_fence(text: str) -> str:
+    """The transcription without the code fence a model wrapped it in.
+
+    The prompt asks for none, and a model that adds one anyway would otherwise
+    put its fence into the document. A fence the page itself shows is kept:
+    only a fence around the whole answer is taken off.
+    """
+    if not text.startswith("```") or not text.endswith("```"):
+        return text
+
+    lines = text.splitlines()
+    if len(lines) < 2:
+        return text
+
+    # the opening fence may carry a language tag, which is not part of the text
+    return "\n".join(lines[1:-1]).strip()
+
+
 OMITTED_MARKER = "... (omitted)"
 
 

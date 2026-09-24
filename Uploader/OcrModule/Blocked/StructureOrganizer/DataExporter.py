@@ -13,6 +13,7 @@ from ...OcrSchema import (
     OcrResultBlockText,
     OcrResultSection,
 )
+from ...TextJoin import join_texts
 from .ProcessingSchema import (
     ProcessingBlock,
     ProcessingBlockText,
@@ -224,28 +225,6 @@ def _last_block_of_previous_page(
     return candidates[-1] if candidates else None
 
 
-def _join_texts(former: str, latter: str) -> str:
-    """Two halves of one block's text, joined as the script they are in wants.
-
-    The line break the page forced was never part of the text, so it is not
-    kept. A space takes its place only where both sides of the join are ASCII,
-    which is what a script that separates words with spaces looks like;
-    Japanese and Chinese are joined directly. A word the page split across a
-    hyphen is joined directly too, hyphen kept, since dropping a hyphen that
-    was the author's own cannot be undone.
-    """
-    former, latter = former.rstrip(), latter.lstrip()
-
-    if not former or not latter:
-        return f"{former}{latter}"
-
-    needs_space = (
-        former[-1].isascii() and latter[0].isascii() and not former.endswith("-")
-    )
-
-    return f"{former}{' ' if needs_space else ''}{latter}"
-
-
 def _current_section(
     open_sections: list[tuple[int, OcrResultSection]],
 ) -> OcrResultSection:
@@ -303,7 +282,7 @@ def _to_text_block(
     continues it from later pages written into it."""
     text = block.text
     for continuation in continued:
-        text = _join_texts(text, continuation.text)
+        text = join_texts(text, continuation.text)
 
     return OcrResultBlockText(
         block_type=_text_block_type(block),
