@@ -4,12 +4,17 @@ Only the names asked for are imported: each implementation pulls in a heavy
 framework of its own, and a pipeline uses one of them.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .FigureDetector import FigureDetector
 
+if TYPE_CHECKING:
+    from .DocLayoutYolo import DocLayoutYoloFigureDetector
+
 # The module each implementation lives in, imported on first use.
-_LAZY_MODULES: dict[str, str] = {}
+_LAZY_MODULES = {
+    "DocLayoutYoloFigureDetector": ".DocLayoutYolo",
+}
 
 __all__ = ["FigureDetector", *_LAZY_MODULES]
 
