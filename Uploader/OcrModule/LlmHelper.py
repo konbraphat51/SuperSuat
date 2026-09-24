@@ -22,11 +22,39 @@ class ImageBase64:
     size: tuple[int, int]  # (width, height)
 
 
+# Longest side a page is sent at. Every provider resizes a larger image down
+# to about this before the model sees it, so sending more costs upload time
+# and buys nothing.
+MODEL_IMAGE_MAX_EDGE = 1568
+
+
 def pil_to_base64(img: Image, format: str = "PNG") -> str:
     """The image as a base64 string, as message content carries it."""
     buffered = BytesIO()
     img.save(buffered, format=format)
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
+def page_to_base64(img: Image, max_edge: int = MODEL_IMAGE_MAX_EDGE) -> str:
+    """A page as a base64 string, shrunk to the size a model actually reads.
+
+    A 200 DPI A4 page is around 1 MB of base64, and a page scan resends every
+    image it was given with each round-trip, so this is what keeps a request
+    from growing into the tens of megabytes.
+    """
+    return pil_to_base64(_downscaled(img, max_edge))
+
+
+def _downscaled(img: Image, max_edge: int) -> Image:
+    """The image with its longest side at most max_edge, or as it is if it
+    already fits."""
+    longest = max(img.size)
+
+    if longest <= max_edge:
+        return img
+
+    scale = max_edge / longest
+    return img.resize((round(img.width * scale), round(img.height * scale)))
 
 
 def build_image_message(text: str | None, img_b64: str) -> list[dict]:
