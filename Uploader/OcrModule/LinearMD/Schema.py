@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from PIL.Image import Image
+
 # How a batch is transcribed: all of its pages, or only the gap between two others.
 BatchKind = Literal["write", "fill"]
 
@@ -52,3 +54,18 @@ class PageBatch:
     def pages(self) -> range:
         """Every page sent with this batch, in order."""
         return range(self.first_page, self.last_page + 1)
+
+
+@dataclass
+class MarkdownDraft:
+    """A document written out as Markdown, before it is read into the tree.
+
+    Attributes:
+        markdown: The whole document, the batches stitched together.
+        figures: Every figure detected in the document.
+        rendered_pages: Every page as the model saw it, figures drawn on.
+    """
+
+    markdown: str
+    figures: list[DetectedFigure]
+    rendered_pages: list[Image]
