@@ -29,7 +29,7 @@ class OcrResultBlockText(OcrResultBlock):
 
     text: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.block_type not in get_args(TEXT_BLOCK_TYPES):
             raise ValueError(
                 f"Invalid block_type for OcrResultBlockText: {self.block_type}"
@@ -44,7 +44,7 @@ class OcrResultBlockFigure(OcrResultBlock):
     bounding_box: tuple[int, int, int, int]  # (x, y, width, height)
     caption: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.block_type = "figure"
 
 
@@ -54,7 +54,7 @@ class OcrResultSection(OcrResultBlock):
 
     section_content: list[OcrResultBlock]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.block_type = "section"
 
 
