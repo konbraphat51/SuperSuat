@@ -22,8 +22,9 @@ MARKDOWN_RULES = """Markdown rules:
   :::column
   column text, in the Markdown above
   :::
+- A sidenote or column that runs over a page turn stays one block, with the next page's marker inside it. Your output must be complete Markdown on its own: close every block you open with a ::: line before your output ends, even when the box carries on past your last page, and when your first page starts in the middle of a box, open its block again at the start. Never nest one block inside another.
 - Never put a figure, footnote, sidenote, or column inside a paragraph: when one is printed in the middle of a paragraph (a page turn included), write the whole paragraph first and the block after it.
-- Do not write page numbers, running heads, or running footers.
+- Do not write page numbers, running heads, or running footers: the chapter or section title repeated at the top or bottom of every page is a running head, not a heading.
 """
 
 # Common to both passes: what to write, and what not to.
@@ -50,6 +51,7 @@ You are given:
 Your output is inserted verbatim between the two parts, so that the previous part, your output, and the next part read as one continuous document: nothing repeated, nothing missing.
 - If the previous part ends in the middle of a paragraph that carries on onto your first page, start your output with <!--continues-previous-->, followed straight away by your first page marker and the rest of that paragraph. Do not repeat anything the previous part already wrote.
 - If your last paragraph carries on onto the first page of the next part, end your output with <!--continued-by-next-->, right after the text of your last page. Do not write anything the next part already has.
+- This holds inside a sidenote or column too. When the paragraph that carries on is inside a box, open the same block again right after your first page marker (for example <!--continues-previous--><!--page:N-->, then a :::column line, then the rest of the paragraph); and when your last paragraph carries on into a box the next part opens, close your block with ::: as usual, before <!--continued-by-next-->. The two halves of the box are joined into one.
 - Otherwise, do not write either marker.
 - Never rewrite or correct the previous or next parts: write only your own pages.
 

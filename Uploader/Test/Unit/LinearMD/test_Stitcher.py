@@ -53,3 +53,34 @@ def test_cjk_paragraphs_continued_across_parts_are_joined_directly():
 
 def test_a_single_part_is_the_document():
     assert stitch([(E0, "  <!--page:0-->a  ")]) == "<!--page:0-->a"
+
+
+def test_a_box_closed_and_reopened_at_a_continued_join_is_one_box():
+    document = stitch(
+        [
+            (E0, "<!--page:0-->:::column\n箱の中の\n:::"),
+            (
+                F1,
+                "<!--continues-previous--><!--page:3-->\n:::column\n続き\n:::\n"
+                "<!--continued-by-next-->",
+            ),
+            (E2, "<!--page:4-->\n:::column\nさらに続く\n:::"),
+        ]
+    )
+
+    assert document == (
+        "<!--page:0-->:::column\n箱の中の<!--page:3-->続き<!--page:4-->さらに続く\n:::"
+    )
+
+
+def test_boxes_of_different_kinds_are_not_merged():
+    document = stitch(
+        [
+            (E0, "<!--page:0-->:::column\na\n:::"),
+            (F1, "<!--continues-previous--><!--page:3-->\n:::sidenote\nb\n:::"),
+        ]
+    )
+
+    assert document == (
+        "<!--page:0-->:::column\na\n:::\n\n<!--page:3-->\n:::sidenote\nb\n:::"
+    )

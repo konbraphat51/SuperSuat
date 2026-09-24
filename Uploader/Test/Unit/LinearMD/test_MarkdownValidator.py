@@ -74,3 +74,11 @@ def test_a_continuation_marker_in_the_middle_is_reported():
     )
 
     assert any("very first thing" in p for p in problems)
+
+
+def test_an_unclosed_box_is_reported():
+    problems = validate_batch_output(
+        "<!--page:0-->:::column\na<!--page:1--><!--page:2-->", WRITE, [], has_next=False
+    )
+
+    assert any("never closed" in p for p in problems)

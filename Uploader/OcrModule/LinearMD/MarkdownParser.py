@@ -20,6 +20,7 @@ from ..OcrSchema import (
     OcrResultBlockText,
     OcrResultSection,
 )
+from .Containers import NOTE_CONTAINERS
 from .Markers import PageMark, strip_page_markers
 from .Schema import DetectedFigure
 
@@ -33,9 +34,6 @@ FIGURE_SOURCE_PATTERN = re.compile(r"^figure:(\d+)$")
 
 # A footnote's definition, `[^n]: note text`, opening a paragraph.
 FOOTNOTE_DEFINITION_PATTERN = re.compile(r"^\[\^[^\]\s]+\]:")
-
-# The block containers the model writes notes in (see Docs/MarkdownSyntax.md).
-NOTE_CONTAINERS = ("sidenote", "column")
 
 # What each top-level Markdown block is written down as, when it is not
 # anything more particular; blocks missing here are left out.

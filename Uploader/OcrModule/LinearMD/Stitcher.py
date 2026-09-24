@@ -3,6 +3,12 @@
 from collections.abc import Sequence
 
 from ..TextJoin import join_separator
+from .Containers import (
+    closing_container,
+    drop_closing_fence,
+    drop_opening_fence,
+    opening_container,
+)
 from .Markers import (
     split_continuation,
     split_leading_page_markers,
@@ -19,7 +25,8 @@ def stitch(parts: Sequence[tuple[PageBatch, str]]) -> str:
 
     A fill batch says where its paragraphs continue a neighbour's, with its
     continuation markers; there, the two halves are joined into one
-    paragraph. Everywhere else, parts are separated by a blank line.
+    paragraph, and a note block both parts hold it in into one block.
+    Everywhere else, parts are separated by a blank line.
 
     Args:
         parts: Every batch with the Markdown it returned, in document order.
@@ -53,6 +60,17 @@ def _append(document: str, part: str, continues_paragraph: bool) -> str:
     # the part opens with its page marker, so the text after it decides the join
     markers, rest = split_leading_page_markers(part)
     former = document.rstrip()
+
+    closed = closing_container(without_page_markers(former))
+    opened = opening_container(rest)
+
+    # a note block each part closed and reopened at the join is one block
+    if closed is not None and closed == opened:
+        former, rest = drop_closing_fence(former), drop_opening_fence(rest)
+    # a paragraph cannot run across a fence, so the join is a break after all
+    elif closed is not None or opened is not None:
+        return f"{former}{PARAGRAPH_BREAK}{part}"
+
     separator = join_separator(without_page_markers(former), rest)
 
     return f"{former}{separator}{markers}{rest.lstrip()}"

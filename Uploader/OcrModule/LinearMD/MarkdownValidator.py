@@ -3,6 +3,7 @@
 from collections import Counter
 from collections.abc import Collection
 
+from .Containers import fence_problems
 from .Markers import (
     CONTINUED_BY_NEXT_MARKER,
     CONTINUED_BY_NEXT_PATTERN,
@@ -12,6 +13,7 @@ from .Markers import (
     find_page_markers,
     page_marker,
     split_continuation,
+    without_page_markers,
 )
 from .Schema import PageBatch
 
@@ -37,6 +39,7 @@ def validate_batch_output(
 
     problems += _page_marker_problems(body, batch)
     problems += _figure_problems(body, figure_ids)
+    problems += fence_problems(without_page_markers(body))
 
     return problems
 
