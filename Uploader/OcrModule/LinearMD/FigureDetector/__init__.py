@@ -10,10 +10,12 @@ from .FigureDetector import FigureDetector
 
 if TYPE_CHECKING:
     from .DocLayoutYolo import DocLayoutYoloFigureDetector
+    from .Yomitoku import YomitokuFigureDetector
 
 # The module each implementation lives in, imported on first use.
 _LAZY_MODULES = {
     "DocLayoutYoloFigureDetector": ".DocLayoutYolo",
+    "YomitokuFigureDetector": ".Yomitoku",
 }
 
 __all__ = ["FigureDetector", *_LAZY_MODULES]
