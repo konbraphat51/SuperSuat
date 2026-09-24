@@ -221,13 +221,17 @@ sequenceDiagram
     alt the document holds no heading
         Leveler-->>Organizer: nothing to do
     else
-        Leveler->>Leveler: _build_messages (prompt + one image per heading page + the headings as JSON)
-        loop until every heading has a level, at most MAX_ATTEMPT_COUNT
-            Leveler->>Model: invoke(messages)
-            Model-->>Leveler: HeadingLevels
-            Leveler->>Leveler: write each usable level onto its heading
-            opt a heading is still unleveled
-                Leveler->>Leveler: append what is missing, and why an answer was unusable
+        Leveler->>Leveler: group the headings by page, split into parts of MAX_PAGES_PER_REQUEST pages
+        loop each part, in document order
+            Leveler->>Leveler: pick one example page per level settled so far
+            Leveler->>Leveler: _build_messages (prompt + example pages + settled levels + this part's pages + its headings as JSON)
+            loop until every heading of the part has a level, at most MAX_ATTEMPT_COUNT
+                Leveler->>Model: invoke(messages)
+                Model-->>Leveler: HeadingLevels
+                Leveler->>Leveler: write each usable level onto its heading
+                opt a heading is still unleveled
+                    Leveler->>Leveler: append what is missing, and why an answer was unusable
+                end
             end
         end
         Leveler-->>Organizer: processing_blocks, edited in place
@@ -244,12 +248,27 @@ all there is to judge from: numbering, type size and weight, indentation. That i
 also why the hierarchy is settled by looking at pages rather than at a list of
 strings.
 
-It answers with one level per heading rather than with orders: this stage changes one
-field, and an answer that covers every heading at once is what makes the levels
-consistent. A level below 1, or one for a `block_id` that is not a heading of this
-document, is not written down and comes back to the model along with the headings
-still unleveled. A heading still without a level after `MAX_ATTEMPT_COUNT` attempts
-ends the run rather than leaving the document's hierarchy half guessed.
+### Parts, and the example pages that hold them together
+
+Every heading page is an image, so a document with headings on a hundred pages cannot
+be one request. The heading pages are taken `MAX_PAGES_PER_REQUEST` at a time, in
+document order.
+
+Split naively, each part would rank its own headings from scratch and the parts would
+not agree — the same size of heading would come out a level 2 in one part and a level
+3 in the next. So every part after the first also carries **one page per level
+already settled**, labeled with which of its blocks is the example of that level,
+plus the levels settled so far as JSON. The model is not asked to remember what a
+level 2 looked like; it is shown one, and told those pages are examples to judge
+against rather than work to answer for. One page often carries examples of two
+levels, and is then sent once.
+
+The answer is one level per heading rather than a batch of orders: this stage changes
+one field, and an answer that covers a whole part at once is what makes the levels
+within it consistent. A level below 1, or one for a `block_id` that was not asked
+about, is not written down and comes back to the model along with the headings still
+unleveled. A heading still without a level after `MAX_ATTEMPT_COUNT` attempts ends
+the run rather than leaving the document's hierarchy half guessed.
 
 ## Export
 
