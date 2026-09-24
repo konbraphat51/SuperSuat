@@ -3,19 +3,19 @@
 import json
 import logging
 from copy import deepcopy
-from dataclasses import asdict
+
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.messages.content import create_text_block
-from ....LlmHelper import build_image_message, pil_to_base64
+
+from ....LlmHelper import build_image_message, page_to_base64
 from ..ProcessingSchema import (
     ProcessingBlock,
-    ProcessingBlockText,
     ProcessingBlockFigure,
 )
-from .OrderSchema import OrderBatch
 from .ClassificationExecutor import execute_orders
+from .OrderSchema import OrderBatch
 from .prompt import CLASSIFIER_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,10 @@ MAX_BATCH_COUNT = 10
 class Classifier:
     """Runs one page through the classifier model, applying the orders it gives
     until the model reports the page is done.
+
+    Nothing has been read at this point: the model judges from the page image
+    alone, which is what makes its answer worth having - it says what each
+    block is, and only then is each block read as the kind of thing it is.
 
     The model works in batches rather than one final answer: it may ask to see
     what its orders did before deciding what else the page needs. A batch that
@@ -77,6 +81,11 @@ class Classifier:
 
         Returns:
             page_blocks, settled - the same list that was passed in.
+
+        Raises:
+            RuntimeError: The model gave no usable answer, or never reported
+                the page done. The run stops there rather than writing down a
+                page nobody settled.
         """
         former_page_blocks = _former_page_blocks(page_index, context_page_blocks)
 
@@ -139,13 +148,9 @@ class Classifier:
                 )
             )
 
-        logger.warning(
-            "page %d | gave up after %d batches without is_last_batch",
-            page_index + 1,
-            MAX_BATCH_COUNT,
+        raise RuntimeError(
+            f"Page {page_index + 1} was not settled in {MAX_BATCH_COUNT} batches."
         )
-
-        return page_blocks
 
     def _request_orders(
         self,
@@ -186,17 +191,17 @@ class Classifier:
         for former_page_index in _former_page_indices(page_index):
             content += build_image_message(
                 f"Page {former_page_index + 1}, for context only:",
-                pil_to_base64(all_page_images[former_page_index]),
+                page_to_base64(all_page_images[former_page_index]),
             )
 
         # this page
         content += build_image_message(
             f"Page {page_index + 1}, the page you are in charge of:",
-            pil_to_base64(all_page_images[page_index]),
+            page_to_base64(all_page_images[page_index]),
         )
         content += build_image_message(
             f"Page {page_index + 1} again, with each detected block outlined and labeled with its block_id:",
-            pil_to_base64(page_image_rendered),
+            page_to_base64(page_image_rendered),
         )
         content.append(
             create_text_block(_block_state_text(page_blocks, former_page_blocks))
@@ -225,7 +230,7 @@ class Classifier:
         problems = [
             problem
             for problem in (
-                _unlabeled_text_problem(page_blocks),
+                _unlabeled_block_problem(page_blocks),
                 _unchecked_figure_problem(page_blocks),
             )
             if problem is not None
@@ -234,19 +239,15 @@ class Classifier:
         return not problems, "\n".join(problems)
 
 
-def _unlabeled_text_problem(page_blocks: list[ProcessingBlock]) -> str | None:
-    """The text blocks of the page still carrying no block_type, if any."""
-    block_ids = [
-        block.block_id
-        for block in page_blocks
-        if isinstance(block, ProcessingBlockText) and not block.have_been_labeled
-    ]
+def _unlabeled_block_problem(page_blocks: list[ProcessingBlock]) -> str | None:
+    """The blocks of the page still carrying no block_type, if any."""
+    block_ids = [block.block_id for block in page_blocks if not block.have_been_labeled]
 
     if not block_ids:
         return None
 
     return (
-        f"These text blocks still have no block_type: {_list_ids(block_ids)}. "
+        f"These blocks still have no block_type: {_list_ids(block_ids)}. "
         "Label each one."
     )
 
@@ -323,14 +324,24 @@ def _build_blocks_context_string(
 
 
 def _block_to_dict(block: ProcessingBlock) -> dict:
-    """One block as the model sees it: page_index 0 is page_number 1, since a
-    reader counts pages from 1."""
-    return {
-        ("page_number" if name == "page_index" else name): (
-            value + 1 if name == "page_index" else value
-        )
-        for name, value in asdict(block).items()
+    """One block as the model sees it.
+
+    There is no text to show - nothing has been read yet - so a block is where
+    it is on the page and what it has been called so far. page_index 0 is
+    page_number 1, since a reader counts pages from 1.
+    """
+    shown = {
+        "block_id": block.block_id,
+        "page_number": block.page_index + 1,
+        "bounding_box": list(block.bounding_box),
+        "block_type": block.new_type,
     }
+
+    if isinstance(block, ProcessingBlockFigure):
+        shown["caption_block_id"] = block.caption_text_block_id
+        shown["caption_checked"] = block.have_caption_checked
+
+    return shown
 
 
 def _rejection_message(error: Exception) -> str:

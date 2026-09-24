@@ -23,6 +23,10 @@ class YomitokuTranscriber(Transcriber):
     already an isolated crop, so no text detection is needed before
     recognition runs on it."""
 
+    # One block at a time: the models hold GPU state that one call at a time
+    # is what they were written for.
+    MAX_PARALLEL_BLOCKS = 1
+
     def __init__(
         self,
         device: str | None = None,

@@ -1,14 +1,15 @@
 # The edits a Classifier may request on the blocks being organized.
 
-from pydantic import BaseModel, Field
 from typing import Annotated, Literal
-from ....OcrSchema import TEXT_BLOCK_TYPES
+
+from pydantic import BaseModel, Field
+
+from ..ProcessingSchema import BLOCK_LABELS
 
 ORDER_LABELS = Literal[
     "set_block_type",
     "reorder",
     "delete_block",
-    "edit_block",
     "set_caption",
     "set_merging_previous_page",
 ]
@@ -25,13 +26,13 @@ class Order(BaseModel):
 
 
 class OrderSetBlockType(Order):
-    """Labels a text block with the type it turned out to be."""
+    """Labels a block with what it turned out to be."""
 
     order_label: Literal["set_block_type"] = "set_block_type"
     target_block_id: int = Field(
-        description="The block_index of the block to set the label for."
+        description="The block_id of the block to set the label for."
     )
-    new_label: TEXT_BLOCK_TYPES = Field(
+    new_label: BLOCK_LABELS = Field(
         description="The new block_type to set for the block."
     )
 
@@ -40,9 +41,9 @@ class OrderReorder(Order):
     """Moves a block to its place in the document's reading order."""
 
     order_label: Literal["reorder"] = "reorder"
-    target_block_id: int = Field(description="The block_index of the block to reorder.")
+    target_block_id: int = Field(description="The block_id of the block to reorder.")
     to_in_front_of_block_id: int = Field(
-        description="The block_index of the block to place the target block in front of."
+        description="The block_id of the block to place the target block in front of."
     )
 
 
@@ -50,20 +51,7 @@ class OrderDeleteBlock(Order):
     """Drops a block that does not belong in the document."""
 
     order_label: Literal["delete_block"] = "delete_block"
-    target_block_id: int = Field(description="The block_index of the block to delete.")
-
-
-class OrderEditBlock(Order):
-    """Corrects a text block, changing only the fields that are filled in."""
-
-    order_label: Literal["edit_block"] = "edit_block"
-    target_block_id: int = Field(description="The block_index of the block to edit.")
-    new_label: TEXT_BLOCK_TYPES | None = Field(
-        description="The new block_type to set for the block, if changing."
-    )
-    new_text: str | None = Field(
-        description="The new text to set for the block, if changing."
-    )
+    target_block_id: int = Field(description="The block_id of the block to delete.")
 
 
 class OrderSetMergingPreviousPage(Order):
@@ -71,7 +59,7 @@ class OrderSetMergingPreviousPage(Order):
 
     order_label: Literal["set_merging_previous_page"] = "set_merging_previous_page"
     target_block_id: int = Field(
-        description="The block_index of the block that continues from the previous page."
+        description="The block_id of the block that continues from the previous page."
     )
     merging_previous_page: bool = Field(
         description="True if this block is the rest of a block the previous page broke off in the middle, so the two are written down as one. False to take that mark back."
@@ -83,10 +71,10 @@ class OrderSetCaption(Order):
 
     order_label: Literal["set_caption"] = "set_caption"
     target_image_block_id: int = Field(
-        description="The block_index of the image block to set the caption for."
+        description="The block_id of the figure block to set the caption for."
     )
     target_caption_block_id: int | None = Field(
-        description="The block_index of the text block to set as the caption for the image block, or null if the figure has no caption printed with it."
+        description="The block_id of the text block to set as the caption for the figure block, or null if the figure has no caption printed with it."
     )
 
 
@@ -96,7 +84,6 @@ AnyOrder = Annotated[
     OrderSetBlockType
     | OrderReorder
     | OrderDeleteBlock
-    | OrderEditBlock
     | OrderSetCaption
     | OrderSetMergingPreviousPage,
     Field(discriminator="order_label"),

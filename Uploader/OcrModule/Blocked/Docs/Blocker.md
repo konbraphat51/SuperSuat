@@ -1,8 +1,10 @@
 # Blocker
 
 Step 1 of the blocked OCR pipeline (see [Plan.md](Plan.md)): a page image goes in,
-the regions worth reading come out. Nothing is recognized here — the text of each
-block is read in step 2, so that every block can be OCR'd in isolation.
+the regions worth reading come out. Nothing else is decided here — a box is all a
+layout model is asked for. What each block *is* is settled by the
+[Classifier](StructureOrganizer.md), and its text is read last, by the
+[Transcriber](Transcriber.md), once its kind is known.
 
 日本語版: [Blocker.ja.md](Blocker.ja.md)
 
@@ -12,57 +14,65 @@ block is read in step 2, so that every block can be OCR'd in isolation.
 classDiagram
     class Blocker {
         <<abstract>>
+        +MAX_PARALLEL_PAGES: int
         +block(pages: list[Image]) BlockerResult
         #_block_page(page_index: int, page: Image) list[Block]
-        #_detect_page(page: Image) list[tuple[BlockType, tuple]]*
+        #_detect_page(page: Image) list[tuple]*
     }
     class YomitokuBlocker {
         -_device: str
         -_analyzer: LayoutAnalyzer
         +default_device() str
-        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
+        #_detect_page(page: Image) list[tuple]
     }
     class DocLayoutYoloBlocker {
         -_device: str
         -_model: YOLOv10
         +default_device() str
         +default_weight_path() str
-        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
+        #_detect_page(page: Image) list[tuple]
     }
     class PpStructureBlocker {
         -_device: str
         -_detector: LayoutDetection
         +default_device() str
-        #_detect_page(page: Image) list[tuple[BlockType, tuple]]
+        #_detect_page(page: Image) list[tuple]
     }
     class BlockerResult {
         +blocks: list[Block]
     }
     class Block {
         +block_id: int
-        +block_type: BlockType
         +page_index: int
         +bounding_box: tuple[int, int, int, int]
     }
     class BlockRenderer {
         +render(pages: list[Image], blocker_result: BlockerResult) list[Image]
+        +render_page(page: Image, blocks: Sequence[Block]) Image
     }
     Blocker <|-- YomitokuBlocker
     Blocker <|-- DocLayoutYoloBlocker
     Blocker <|-- PpStructureBlocker
     Blocker ..> BlockerResult
     BlockerResult *-- Block
-    BlockRenderer ..> BlockerResult
+    BlockRenderer ..> Block
 ```
 
 `Blocker` is the only thing the pipeline depends on, so the implementations are
-interchangeable: swapping one for another never touches the later steps.
+interchangeable: swapping one for another never touches the later steps. Each one
+pulls in a heavy framework of its own, so `Blocker/__init__.py` imports an
+implementation only when it is named — importing the package itself costs nothing.
 
 `Blocker` itself implements `block()` as a template method: a subclass only detects
-the regions of a single page — `_detect_page()` returns `(BlockType, bounding_box)`
-pairs, in any order. The base class turns those into `Block`s, sorts each page
-top-to-bottom, and assigns every block in the document a unique, sequential
-`block_id`, so none of that has to be repeated per implementation.
+the regions of a single page — `_detect_page()` returns bounding boxes, in any order.
+The base class turns those into `Block`s, sorts each page top-to-bottom, and assigns
+every block in the document a unique, sequential `block_id`, so none of that has to
+be repeated per implementation.
+
+Every layout model here also reports what it thinks each region is, and that guess is
+deliberately thrown away. The categories differ from model to model, none of them
+matches the document tree's own types, and the Classifier reads the page anyway — so
+a guess kept here would only be a second opinion to argue with later.
 
 Pages are independent, so `MAX_PARALLEL_PAGES` of them are detected at once. The
 results are put back in page order before the ids are handed out, so a document's
@@ -80,13 +90,22 @@ sequenceDiagram
         Blocker->>Subclass: _detect_page(page)
         Subclass->>Subclass: convert the PIL image to what the model wants
         Subclass->>LayoutModel: detect regions
-        LayoutModel-->>Subclass: boxes with their classes
-        Subclass-->>Blocker: (BlockType, bounding_box) pairs
+        LayoutModel-->>Subclass: boxes, with classes that are dropped
+        Subclass-->>Blocker: bounding boxes
         Blocker->>Blocker: map to Block, sort top-to-bottom
     end
     Blocker->>Blocker: assign a unique block_id to every block
     Blocker-->>Caller: BlockerResult
 ```
+
+## Running pages at once
+
+`run_parallel()` in `PageParallel.py` is what every stage of this pipeline uses to
+work on several pages at the same time. It keeps the results in input order whatever
+order the work finished in, shows a progress bar for the stage, and ends the whole
+run on the first failure: what has not started is cancelled and the error is raised
+to the caller. A document read half-way is not a result worth keeping, and stopping
+at once says which page went wrong while the rest has not yet been paid for.
 
 ## Conventions
 
@@ -97,11 +116,11 @@ Shared by every implementation, and enforced by the base class:
 - The models report boxes as `[x1, y1, x2, y2]`; `Block.bounding_box` is
   `(x, y, width, height)`.
 - Blocks of one page are sorted top-to-bottom, then left-to-right. This is a stable
-  order, not a reading order — reading order is step 3's job.
+  order, not a reading order — reading order is the Classifier's job.
 - `block_id` is unique across the whole document (0-indexed, in the sorted order
   above), not just within a page.
-- Captions, running heads, footers, and page numbers are prose, so they come out as
-  `TEXT`; step 3 decides what to do with them.
+- A region is reported whatever it holds: prose, a caption, a running head, a page
+  number, a formula, a figure, a table. Sorting that out comes later.
 - Model weights are downloaded on first use and cached, so the first run of each
   implementation needs a network connection.
 
@@ -111,69 +130,47 @@ Shared by every implementation, and enforced by the base class:
 | --- | --- | --- | --- |
 | Model | yomitoku `LayoutAnalyzer` (RT-DETRv2) | DocLayout-YOLO (YOLOv10, DocStructBench) | PP-DocLayout_plus-L (PP-StructureV3's layout stage) |
 | Framework | torch | torch | paddle |
-| Classes | 4 paragraph roles + figures + tables | 10 | 20 |
-| Formula class | no (with the default model) | yes, isolated formulas only | yes |
 | Trained mainly on | Japanese documents | mixed real-world documents | mixed, Chinese and English documents |
 | Speed on an RTX 4070, A4 at 200 DPI | ~0.2–0.5 s/page | ~0.1–0.3 s/page | ~0.1–0.4 s/page |
 
-All three are local: nothing is billed and nothing leaves the machine.
+All three are local: nothing is billed and nothing leaves the machine. What separates
+them now is only where they find a box and where they miss one.
 
 ## YomitokuBlocker
 
 Uses [yomitoku](https://github.com/kotaro-kinoshita/yomitoku)'s `LayoutAnalyzer`,
-which combines layout parsing with table structure recognition.
-
-| yomitoku element | `BlockType` |
-| --- | --- |
-| `paragraphs` with the `inline_formula` or `display_formula` role | `MATH` |
-| any other `paragraphs` (including the `section_headings`, `page_header`, `page_footer` roles) | `TEXT` |
-| `figures` | `IMAGE` |
-| `tables` | `TABLE` |
-
-The default layout model (`rtdetrv2v2`) has no formula category, so in practice every
-formula comes out as `TEXT` and step 3's LLM tells the two apart. `MATH` appears only
-with a model that emits the formula roles, configured through `configs=`.
+which combines layout parsing with table structure recognition. Its `paragraphs`,
+`figures`, and `tables` all come out as plain boxes.
 
 ## DocLayoutYoloBlocker
 
 Uses [DocLayout-YOLO](https://github.com/opendatalab/DocLayout-YOLO) with the released
 DocStructBench checkpoint, fetched from Hugging Face Hub
 (`juliozhao/DocLayout-YOLO-DocStructBench`). One forward pass per page gives every
-region and its class, so it is a single model rather than a pipeline.
-
-| DocStructBench class | `BlockType` |
-| --- | --- |
-| `isolate_formula` | `MATH` |
-| `figure` | `IMAGE` |
-| `table` | `TABLE` |
-| `title`, `plain text`, `abandon`, `figure_caption`, `table_caption`, `table_footnote`, `formula_caption` | `TEXT` |
-
-`abandon` is the class for running heads, footers, and page numbers. Detection
-parameters (`image_size`, `confidence`, `iou`) are constructor arguments; the defaults
-are the ones the model's own demo uses.
+region, so it is a single model rather than a pipeline. Detection parameters
+(`image_size`, `confidence`, `iou`) are constructor arguments; the defaults are the
+ones the model's own demo uses.
 
 ## PpStructureBlocker
 
 Uses the layout detection model of
 [PP-StructureV3](https://github.com/PaddlePaddle/PaddleOCR), `PP-DocLayout_plus-L`,
 through PaddleOCR's `LayoutDetection`. The rest of PP-StructureV3 (its OCR, table, and
-formula recognizers) is deliberately left out: it would read the text that step 2 reads
-anyway, block by block. Pass `model_name=` to run a lighter variant such as
+formula recognizers) is deliberately left out: it would read the text the Transcriber
+reads anyway, block by block. Pass `model_name=` to run a lighter variant such as
 `PP-DocLayout-L`, `-M`, or `-S`.
-
-| PP-DocLayout label | `BlockType` |
-| --- | --- |
-| `formula` | `MATH` |
-| `image`, `chart`, `seal` | `IMAGE` |
-| `table` | `TABLE` |
-| `text`, `paragraph_title`, `doc_title`, `abstract`, `content`, `figure_title`, `number`, `reference`, `reference_content`, `footnote`, `header`, `footer`, `algorithm`, `formula_number`, `aside_text` | `TEXT` |
 
 ## BlockRenderer
 
-A debugging helper, not part of the pipeline itself: draws every block's box and
-`block_id` onto a copy of its page, colored by `BlockType` (see `BLOCK_TYPE_COLORS`).
-Useful for eyeballing a `Blocker`'s output; `TestBlocker.py` and
-`TestBlockRenderer.py` (see `Test/Manual/Blocked/`) both use it to write PNGs.
+Draws every block's box and `block_id` onto a copy of its page, in one color — the
+Blocker no longer guesses what a block is, so there is nothing for a color to say.
+
+This is not only a debugging helper: the annotated page is what the Classifier is
+shown, and is how the model can tell which box on the page a `block_id` names.
+`render_page()` draws one page, which is how the Classifier gets it, one page at a
+time, rather than holding an annotated copy of the whole document in memory;
+`render()` draws them all, which is what `TestBlocker.py` and `TestBlockRenderer.py`
+(see `Test/Manual/Blocked/`) use to write PNGs.
 
 ## Device
 

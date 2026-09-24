@@ -16,36 +16,31 @@ classDiagram
     }
     class BlockedOcr {
         -blocker: Blocker
-        -transcriber: Transcriber
         -organizer: Organizer
-        -block_renderer: BlockRenderer
+        -transcriber: Transcriber
         +ocr(all_page_images: list[Image]) OcrResult
     }
     class Blocker {
         <<abstract>>
         +block(pages) BlockerResult
     }
+    class Organizer {
+        +organize(all_page_images, blocker_result) list[ProcessingBlock]
+        +export(processing_blocks, transcription_result) OcrResult
+    }
     class Transcriber {
         <<abstract>>
-        +transcribe(all_pages, blocker_result) TranscriptionResult
-    }
-    class BlockRenderer {
-        +render(pages, blocker_result) list[Image]
-    }
-    class Organizer {
-        +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
+        +transcribe(all_pages, targets) TranscriptionResult
     }
     Ocr <|-- BlockedOcr
     BlockedOcr o-- Blocker
-    BlockedOcr o-- Transcriber
     BlockedOcr o-- Organizer
-    BlockedOcr *-- BlockRenderer
+    BlockedOcr o-- Transcriber
 ```
 
 Each stage is handed in already built, so which model does the work is the caller's
 choice: a local layout model with a remote chat model, or a cheaper mix, is the same
-pipeline. `BlockRenderer` is the exception and is built here - it has no model and no
-choice to make.
+pipeline.
 
 ## Run
 
@@ -54,32 +49,36 @@ sequenceDiagram
     participant Caller
     participant BlockedOcr
     participant Blocker
-    participant Transcriber
-    participant BlockRenderer
     participant Organizer
+    participant Transcriber
     Caller->>BlockedOcr: ocr(all_page_images)
     BlockedOcr->>Blocker: block(all_page_images)
-    Blocker-->>BlockedOcr: BlockerResult
-    BlockedOcr->>Transcriber: transcribe(all_page_images, blocker_result)
+    Blocker-->>BlockedOcr: BlockerResult (boxes)
+    BlockedOcr->>Organizer: organize(all_page_images, blocker_result)
+    Organizer-->>BlockedOcr: blocks, labeled and in reading order, text still empty
+    BlockedOcr->>BlockedOcr: build_transcription_targets(blocks)
+    BlockedOcr->>Transcriber: transcribe(all_page_images, targets)
     Transcriber-->>BlockedOcr: TranscriptionResult
-    BlockedOcr->>BlockRenderer: render(all_page_images, blocker_result)
-    BlockRenderer-->>BlockedOcr: one annotated page per page
-    BlockedOcr->>Organizer: organize(images, rendered images, blocks, transcriptions)
+    BlockedOcr->>Organizer: export(blocks, transcription_result)
     Organizer-->>BlockedOcr: OcrResult
     BlockedOcr-->>Caller: OcrResult
 ```
 
-The stages run one after another, each one over the whole document: every stage needs
-all of the previous one's output. Pages are worked on several at a time *inside*
-`Blocker`, `Transcriber` and the organizer's `Classifier`, which is where the
-parallelism of this pipeline lives (see [Blocker.md](Blocker.md)).
+Reading last is what the order is for. The Blocker is asked for boxes and nothing
+else, the Organizer reads the page to settle what each box is, and only then is each
+block read — as the kind of thing it turned out to be. A table is read as a table, a
+formula as KaTeX, and a figure is not read at all, since what a figure says is in the
+picture. Asking a layout detector to categorize, then correcting it later, was the
+alternative; this way nothing has to be corrected.
 
-The annotated pages are rendered here rather than in the organizer: they exist so the
-organizer's model can tell which block on the page a `block_id` names, and rendering
-them once for the whole document is cheaper than once per page scan.
+The stages run one after another, each one over the whole document: every stage needs
+all of the previous one's output. Pages and blocks are worked on several at a time
+*inside* `Blocker`, the organizer's `Classifier`, and `Transcriber`, which is where
+the parallelism of this pipeline lives (see [Blocker.md](Blocker.md)).
 
 ## Conventions
 
-- The page images are never modified: `BlockRenderer` draws on copies, and every stage
-  reads `all_page_images` as given.
+- The page images are never modified: annotated copies are drawn where they are
+  needed, and every stage reads `all_page_images` as given.
 - Every page held in a variable is 0-indexed, as everywhere else in the OCR module.
+- A failure in any stage ends the whole run, with the error raised to the caller.

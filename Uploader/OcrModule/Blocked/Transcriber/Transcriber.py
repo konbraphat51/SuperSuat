@@ -1,118 +1,96 @@
 """Abstract base for the transcription stage of the OCR pipeline."""
 
 from abc import ABC, abstractmethod
-from collections import defaultdict
+
 from PIL.Image import Image
-from ..PageParallel import DEFAULT_MAX_PARALLEL_PAGES, map_pages
+
+from ..PageParallel import DEFAULT_MAX_PARALLEL_PAGES, run_parallel
 from ..Schema import (
-    BlockType,
-    BlockerResult,
-    Block,
     TranscriptionBlock,
     TranscriptionResult,
+    TranscriptionTarget,
+    TranscriptionType,
 )
 
-# What this stage reads. A table is read here too, since it is text on the
-# page; MATH and IMAGE are for later stages.
-TRANSCRIBED_BLOCK_TYPES = frozenset({BlockType.TEXT, BlockType.TABLE})
+# Pixels added on every side of a block before it is cropped. A box that sits
+# a hair inside the ink cuts the top off a line, and a few pixels of the page
+# around a block cost the recognizer nothing.
+BLOCK_CROP_PADDING = 4
 
 
 class Transcriber(ABC):
-    """Reads the text of each TEXT block found by a Blocker.
+    """Reads the text of each block the Classifier said holds text.
 
     Blocks are OCR'd one at a time, in isolation, so each recognition call
-    sees only the text it needs to read. A table is read as a whole, into a
-    Markdown table, rather than line by line. MATH and IMAGE blocks are left
-    for later pipeline stages and are not transcribed here.
+    sees only the text it needs to read - and, since this runs after the
+    Classifier, it knows what kind of thing it is reading: a table is read as
+    a whole, into a Markdown table, and everything else as running text. A
+    figure is not read at all; what a figure says is in the picture.
 
-    A page's blocks are read one after another, but several pages are read at
-    the same time. A subclass whose model does not take being called from
-    several threads at once lowers MAX_PARALLEL_PAGES."""
+    Blocks are independent, so MAX_PARALLEL_BLOCKS of them are read at once. A
+    subclass whose model does not take being called from several threads at
+    once lowers that to 1."""
 
-    # Pages read at once. Lower it in a subclass whose model cannot take it.
-    MAX_PARALLEL_PAGES = DEFAULT_MAX_PARALLEL_PAGES
+    # Blocks read at once. Lower it in a subclass whose model cannot take it.
+    MAX_PARALLEL_BLOCKS = DEFAULT_MAX_PARALLEL_PAGES
 
     def transcribe(
         self,
         all_pages: list[Image],
-        blocker_result: BlockerResult,
+        targets: list[TranscriptionTarget],
     ) -> TranscriptionResult:
-        """Transcribes every TEXT block of blocker_result, cropped from all_pages.
+        """Reads every target block, cropped from the page it is on.
 
         Args:
-            all_pages: Every page image, indexed by Block.page_index.
-            blocker_result: The blocks detected by a Blocker, to be transcribed.
+            all_pages: Every page image, indexed by TranscriptionTarget.page_index.
+            targets: The blocks to read, as the Classifier settled them.
         """
-        blocks_by_page = self._group_blocks_by_page(blocker_result)
-
-        pages_transcriptions = map_pages(
-            lambda page: self._transcribe_page(all_pages[page[0]], page[1]),
-            list(blocks_by_page.items()),
-            self.MAX_PARALLEL_PAGES,
+        transcriptions = run_parallel(
+            lambda target: self._transcribe_target(
+                all_pages[target.page_index], target
+            ),
+            targets,
+            self.MAX_PARALLEL_BLOCKS,
+            progress_label="transcribing",
+            progress_unit="block",
         )
 
-        return TranscriptionResult(
-            [
-                transcription
-                for page_transcriptions in pages_transcriptions
-                for transcription in page_transcriptions
-            ]
-        )
+        return TranscriptionResult(transcriptions)
 
-    def _group_blocks_by_page(
-        self,
-        blocker_result: BlockerResult,
-    ) -> dict[int, list[Block]]:
-        """The blocks to transcribe on each page, keyed by page, in block order.
-
-        MATH and IMAGE blocks are left for later pipeline stages, so they are
-        dropped here rather than read.
-        """
-        blocks_by_page: dict[int, list[Block]] = defaultdict(list)
-
-        for block in blocker_result.blocks:
-            if block.block_type not in TRANSCRIBED_BLOCK_TYPES:
-                continue
-
-            blocks_by_page[block.page_index].append(block)
-
-        return blocks_by_page
-
-    def _transcribe_page(
+    def _transcribe_target(
         self,
         page: Image,
-        blocks: list[Block],
-    ) -> list[TranscriptionBlock]:
-        """Transcribes one page's blocks, one after another, in block order."""
-        transcriptions: list[TranscriptionBlock] = []
+        target: TranscriptionTarget,
+    ) -> TranscriptionBlock:
+        """Reads one block, as the kind of text the Classifier said it is."""
+        block_image = self._extract_block_image(page, target)
 
-        # for each block...
-        for block in blocks:
-            # ...OCR the block
+        if target.transcription_type is TranscriptionType.TABLE:
+            text = self._ocr_table_block_image(block_image)
+        else:
+            text = self._ocr_text_block_image(block_image)
 
-            # image extraction
-            block_image = self._extract_block_image(page, block)
-
-            # transcribe the block image, as what the block is
-            if block.block_type == BlockType.TABLE:
-                text = self._ocr_table_block_image(block_image)
-            elif block.block_type in {BlockType.TEXT, BlockType.MATH}:
-                text = self._ocr_text_block_image(block_image)
-
-            transcriptions.append(
-                TranscriptionBlock(block_id=block.block_id, text=text)
-            )
-
-        return transcriptions
+        return TranscriptionBlock(block_id=target.block_id, text=text)
 
     def _extract_block_image(
         self,
         page: Image,
-        block: Block,
+        target: TranscriptionTarget,
     ) -> Image:
-        """Returns a cropped copy of the page image, containing only the block."""
-        x, y, width, height = block.bounding_box
-        return page.crop((x, y, x + width, y + height))
+        """Returns a cropped copy of the page image, containing only the block.
+
+        The crop is padded by BLOCK_CROP_PADDING and kept inside the page.
+        """
+        x, y, width, height = target.bounding_box
+
+        return page.crop(
+            (
+                max(0, x - BLOCK_CROP_PADDING),
+                max(0, y - BLOCK_CROP_PADDING),
+                min(page.width, x + width + BLOCK_CROP_PADDING),
+                min(page.height, y + height + BLOCK_CROP_PADDING),
+            )
+        )
 
     @abstractmethod
     def _ocr_text_block_image(

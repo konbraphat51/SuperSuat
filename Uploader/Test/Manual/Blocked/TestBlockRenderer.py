@@ -23,7 +23,7 @@ UPLOADER_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(UPLOADER_ROOT))
 
 from OcrModule.Blocked.Blocker.BlockRenderer import BlockRenderer  # noqa: E402
-from OcrModule.Blocked.Schema import Block, BlockerResult, BlockType  # noqa: E402
+from OcrModule.Blocked.Schema import Block, BlockerResult  # noqa: E402
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "Ocr" / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output" / "render"
@@ -40,10 +40,10 @@ def load_first_page(pdf_path: Path, dpi: int) -> Image.Image:
 
 
 def fabricated_blocks(page_size: tuple[int, int]) -> BlockerResult:
-    """One block of each BlockType, laid out as a diagonal staircase.
+    """A handful of blocks laid out as a diagonal staircase.
 
     Fabricated rather than detected, so this test exercises only the
-    renderer: box outlines, per-type colors, and ID legibility.
+    renderer: box outlines and ID legibility.
     """
     width, height = page_size
     box_size = min(width, height) // 6
@@ -51,7 +51,6 @@ def fabricated_blocks(page_size: tuple[int, int]) -> BlockerResult:
     blocks = [
         Block(
             block_id=block_id,
-            block_type=block_type,
             page_index=0,
             bounding_box=(
                 box_size * block_id,
@@ -60,7 +59,7 @@ def fabricated_blocks(page_size: tuple[int, int]) -> BlockerResult:
                 box_size,
             ),
         )
-        for block_id, block_type in enumerate(BlockType)
+        for block_id in range(4)
     ]
     return BlockerResult(blocks=blocks)
 

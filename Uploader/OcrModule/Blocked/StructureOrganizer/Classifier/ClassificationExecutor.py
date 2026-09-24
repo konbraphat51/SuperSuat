@@ -1,22 +1,31 @@
 # Applies the orders a Classifier issues to the blocks being organized.
 
-from dataclasses import fields
 from .OrderSchema import (
     Order,
     OrderBatch,
-    OrderSetBlockType,
-    OrderReorder,
     OrderDeleteBlock,
-    OrderEditBlock,
+    OrderReorder,
+    OrderSetBlockType,
     OrderSetCaption,
     OrderSetMergingPreviousPage,
 )
 from ..ProcessingSchema import (
+    FIGURE_LABEL,
+    HEADING_LABEL,
+    BLOCK_LABELS,
     ProcessingBlock,
+    ProcessingBlockFigure,
     ProcessingBlockText,
     ProcessingBlockTextHeading,
-    ProcessingBlockFigure,
+    rebuild_block_as,
 )
+
+# What a block turns into when it is labeled. Everything else is a text block:
+# the label says what kind of text, which the block itself does not care about.
+LABEL_BLOCK_KINDS: dict[str, type[ProcessingBlock]] = {
+    FIGURE_LABEL: ProcessingBlockFigure,
+    HEADING_LABEL: ProcessingBlockTextHeading,
+}
 
 
 def execute_orders(
@@ -52,8 +61,6 @@ def _execute_order(order: Order, processing_data: list[ProcessingBlock]) -> None
             _execute_reorder(_as(order, OrderReorder), processing_data)
         case "delete_block":
             _execute_delete_block(_as(order, OrderDeleteBlock), processing_data)
-        case "edit_block":
-            _execute_edit_block(_as(order, OrderEditBlock), processing_data)
         case "set_caption":
             _execute_set_caption(_as(order, OrderSetCaption), processing_data)
         case "set_merging_previous_page":
@@ -67,17 +74,28 @@ def _execute_order(order: Order, processing_data: list[ProcessingBlock]) -> None
 def _execute_set_block_type(
     order: OrderSetBlockType, processing_data: list[ProcessingBlock]
 ) -> None:
-    """Labels the target block with the given text block type."""
+    """Labels the target block, turning it into the kind of block it now is."""
     index = _find_index(processing_data, order.target_block_id)
-    block = _require_text(processing_data[index], order.target_block_id)
 
-    # a heading needs the richer block so a level can be attached later
-    if order.new_label == "heading":
-        block = _promote_to_heading(block)
-        processing_data[index] = block
-
+    block = _labeled_block_kind(processing_data[index], order.new_label)
     block.new_type = order.new_label
     block.have_been_labeled = True
+    processing_data[index] = block
+
+
+def _labeled_block_kind(
+    block: ProcessingBlock, new_label: BLOCK_LABELS
+) -> ProcessingBlock:
+    """The block as the kind its new label calls for.
+
+    A label is also a change of kind: a heading carries a level, a figure
+    carries a caption and no text of its own, and a block that stops being
+    either goes back to a plain text block rather than keeping what it was
+    given as something it no longer is.
+    """
+    return rebuild_block_as(
+        block, LABEL_BLOCK_KINDS.get(new_label, ProcessingBlockText)
+    )
 
 
 def _execute_reorder(
@@ -102,27 +120,6 @@ def _execute_delete_block(
 ) -> None:
     """Removes the target block, dropping captions pointing at it."""
     _remove_block(processing_data, order.target_block_id)
-
-
-def _execute_edit_block(
-    order: OrderEditBlock, processing_data: list[ProcessingBlock]
-) -> None:
-    """Applies every field the order fills in to the target text block."""
-    index = _find_index(processing_data, order.target_block_id)
-    block = _require_text(processing_data[index], order.target_block_id)
-
-    # a heading needs the richer block so a level can be attached later
-    if order.new_label == "heading":
-        block = _promote_to_heading(block)
-        processing_data[index] = block
-
-    if order.new_label is not None:
-        block.new_type = order.new_label
-        block.have_been_labeled = True
-
-    if order.new_text is not None:
-        block.text = order.new_text
-        block.have_been_edited = True
 
 
 def _execute_set_caption(
@@ -196,19 +193,12 @@ def _find_index(processing_data: list[ProcessingBlock], block_id: int) -> int:
 def _require_text(block: ProcessingBlock, block_id: int) -> ProcessingBlockText:
     """Returns block as a text block, rejecting any other kind."""
     if not isinstance(block, ProcessingBlockText):
-        raise ValueError(f"Block {block_id} is not a text block.")
+        raise ValueError(
+            f"Block {block_id} is not a text block. Label it as text before "
+            "giving it a job only a text block can do."
+        )
 
     return block
-
-
-def _promote_to_heading(block: ProcessingBlockText) -> ProcessingBlockTextHeading:
-    """Returns block as a heading block, reusing it if it already is one."""
-    if isinstance(block, ProcessingBlockTextHeading):
-        return block
-
-    return ProcessingBlockTextHeading(
-        **{field.name: getattr(block, field.name) for field in fields(block)}
-    )
 
 
 def _as[T: Order](order: Order, order_type: type[T]) -> T:

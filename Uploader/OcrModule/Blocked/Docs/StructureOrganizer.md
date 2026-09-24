@@ -1,9 +1,14 @@
 # StructureOrganizer
 
-Step 3 of the blocked OCR pipeline (see [Plan.md](Plan.md)): the blocks a `Blocker`
-found and a `Transcriber` read are settled into a document structure — each text
-block's type, each heading's level in the hierarchy, each figure's caption, and the
-reading order — by a multimodal model.
+Step 2 of the blocked OCR pipeline (see [Plan.md](Plan.md)): the boxes a `Blocker`
+found are settled into a document structure — what each block is, each heading's
+level in the hierarchy, each figure's caption, and the reading order — by a
+multimodal model reading the page.
+
+Nothing has been transcribed at this point. That is the point: what a block is, is
+read off the page, and what this stage decides is what tells the
+[Transcriber](Transcriber.md) how to read each block afterwards. The document tree is
+built here too, once the text is back.
 
 日本語版: [StructureOrganizer.ja.md](StructureOrganizer.ja.md)
 
@@ -19,7 +24,8 @@ The work splits by what a decision needs to see:
   the rest of the document, so this runs once, after every page has been classified,
   and sees every page that holds a heading at the same time.
 
-`Organizer` runs the two in that order and hands the result to `DataExporter`.
+`Organizer` runs the two in that order, and later — once the Transcriber has read the
+blocks — hands the finished blocks to `DataExporter`.
 
 ## Structure
 
@@ -29,8 +35,10 @@ classDiagram
         +MAX_PARALLEL_PAGES: int
         -classifier: Classifier
         -leveler: Leveler
-        +organize(all_page_images, all_page_images_rendered, blocker_result, transcription_result) OcrResult
-        -_scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks) list[ProcessingBlock]
+        -block_renderer: BlockRenderer
+        +organize(all_page_images, blocker_result) list[ProcessingBlock]
+        +export(processing_blocks, transcription_result) OcrResult
+        -_scan_page(page_index, all_page_images, page_blocks, context_page_blocks) list[ProcessingBlock]
     }
     class Classifier {
         -classifier_model: Runnable
@@ -62,21 +70,19 @@ classDiagram
     class ProcessingBlock {
         +block_id: int
         +page_index: int
-        +recognized_blocker_type: BlockType
-        +new_type: str | None
+        +bounding_box: tuple
+        +new_type: BLOCK_LABELS | None
         +have_been_labeled: bool
         +have_been_checked: bool
     }
     class ProcessingBlockText {
         +text: str
-        +have_been_edited: bool
         +merging_previous_page: bool
     }
     class ProcessingBlockTextHeading {
         +heading_level: int | None
     }
     class ProcessingBlockFigure {
-        +bounding_box: tuple
         +have_caption_checked: bool
         +caption_text_block_id: int | None
     }
@@ -94,7 +100,6 @@ classDiagram
     Order <|-- OrderSetBlockType
     Order <|-- OrderReorder
     Order <|-- OrderDeleteBlock
-    Order <|-- OrderEditBlock
     Order <|-- OrderSetCaption
     Order <|-- OrderSetMergingPreviousPage
     ProcessingBlock <|-- ProcessingBlockText
@@ -109,12 +114,19 @@ The model never edits the blocks itself: it answers with an `OrderBatch`, and
 piece of JSON is, is decided by its `order_label`, which pydantic uses as the union
 discriminator, so each order arrives already validated against its own schema.
 
+A block starts as a bare `ProcessingBlock` — an id and a box, nothing else — and
+labeling it is what decides which kind of block it becomes: a heading carries a
+level, a figure carries a caption and no text of its own, anything else is a plain
+text block. Labeling it again rebuilds it as the kind the new label calls for, so a
+heading called a paragraph stops being a heading rather than keeping a level nothing
+will use.
+
 ## Page scan
 
 Each page is settled in a list of its own: `Organizer` splits the blocks by page,
 freezes a copy of that split as the context the pages read of each other, and hands
 each page its own list. A page's orders reach that list and nothing else, so the
-pages share no state and run through `map_pages()` (see [Blocker.md](Blocker.md))
+pages share no state and run through `run_parallel()` (see [Blocker.md](Blocker.md))
 `MAX_PARALLEL_PAGES` at a time, coming back in page order.
 
 ```mermaid
@@ -125,6 +137,7 @@ sequenceDiagram
     participant Executor as execute_orders
     Organizer->>Organizer: split the blocks by page, freeze a copy as context
     par MAX_PARALLEL_PAGES pages at once
+    Organizer->>Organizer: draw this page's blocks onto a copy of the page
     Organizer->>Classifier: scan_page(page_index, all_page_images, page_image_rendered, page_blocks, context_page_blocks)
     Classifier->>Classifier: _build_messages (prompt + page images + block state)
     loop until is_last_batch, at most MAX_BATCH_COUNT
@@ -150,14 +163,18 @@ sequenceDiagram
 
 A batch is applied to a copy of the blocks, so a batch that fails partway leaves the
 blocks exactly as they were and the model is told so before it tries again. The model
-sets `is_last_batch` when the page is done; `MAX_BATCH_COUNT` only guards against a
-model that never does.
+sets `is_last_batch` when the page is done; a page still unsettled after
+`MAX_BATCH_COUNT` batches ends the run, since there is nothing to write down for it.
 
 Saying the page is done does not make it so: `_is_able_to_finish()` checks every block
 on the page for a block_type and every figure for its caption check, and a page still
 missing either goes back to the model with the blocks at fault named. Heading levels
 are not checked here — no page can answer for them. Once the page passes, its blocks
 are marked `have_been_checked`.
+
+The annotated page is drawn inside the page's own work rather than for the whole
+document up front: a document's worth of annotated copies is the same memory again as
+the document itself, and only the pages being worked on need one.
 
 ### Context given to the model
 
@@ -169,25 +186,28 @@ Every page scan resends the whole context, so it is kept to what the page needs:
 - The page again, with each block outlined and labeled with its `block_id`, as
   `BlockRenderer` draws it (see [Blocker.md](Blocker.md)).
 - The `ProcessingBlock` state of this page and the page before it, as JSON, in
-  current order. One page back is all a block spanning a page boundary needs. The
-  page before is shown as the Blocker left it - still unlabeled, since it is being
-  settled at the same time - and the model is told so, and told that it is not
-  something an order can name.
+  current order: each block's id, page, bounding box, and the label it carries so
+  far. There is no text to show — nothing has been read yet. The page before is shown
+  as the Blocker left it, still unlabeled, since it is being settled at the same
+  time, and the model is told so, and told that it is not something an order can name.
+
+Every image is sent at `MODEL_IMAGE_MAX_EDGE` on its longest side. Providers resize
+anything larger down to about that anyway, and a page scan resends its images with
+every round-trip, so the full-resolution page would be paid for again and again for
+nothing.
 
 ### Orders
 
 | Order | Effect |
 | --- | --- |
-| `set_block_type` | Labels a text block with one of the `TEXT_BLOCK_TYPES`. |
+| `set_block_type` | Labels a block with one of the `TEXT_BLOCK_TYPES`, or `figure`. |
 | `reorder` | Moves a block immediately in front of another. |
 | `delete_block` | Removes a block, and clears any caption pointing at it. |
-| `edit_block` | Changes only the fields it fills in: label, text. |
 | `set_caption` | Ties a figure to its caption block, or to null for a figure that has none. Either way the figure counts as checked. |
 | `set_merging_previous_page` | Marks a block as the rest of a block the previous page broke off. The join itself happens on export. |
 
-Orders apply in list order, each one acting on the state the previous ones left. A
-text block becomes a `ProcessingBlockTextHeading` as soon as it is labeled a heading,
-with its level still empty for the `Leveler` to fill in.
+Orders apply in list order, each one acting on the state the previous ones left. There
+is no order for correcting text: at this point there is none to correct.
 
 ## Heading levels
 
@@ -219,18 +239,23 @@ The model is given the image of every page that holds a heading — labeled with
 order. Pages holding no heading are not sent: the hierarchy is decided from the
 headings and how they are printed, so a page of body text adds nothing.
 
+The headings arrive here with no text — they are read later — so the page image is
+all there is to judge from: numbering, type size and weight, indentation. That is
+also why the hierarchy is settled by looking at pages rather than at a list of
+strings.
+
 It answers with one level per heading rather than with orders: this stage changes one
 field, and an answer that covers every heading at once is what makes the levels
 consistent. A level below 1, or one for a `block_id` that is not a heading of this
 document, is not written down and comes back to the model along with the headings
-still unleveled. A heading that is still unleveled after `MAX_ATTEMPT_COUNT` attempts
-is left without a level rather than guessed at — the export already handles one.
+still unleveled. A heading still without a level after `MAX_ATTEMPT_COUNT` attempts
+ends the run rather than leaving the document's hierarchy half guessed.
 
 ## Export
 
-Once every page has been scanned and the headings are leveled,
-`export_processing_blocks_to_ocr_result()` turns the flat list of blocks into the
-`OcrResult` tree, walking it in reading order:
+Once the Transcriber has read the blocks, `Organizer.export()` writes each
+transcription onto its block and `export_processing_blocks_to_ocr_result()` turns the
+flat list into the `OcrResult` tree, walking it in reading order:
 
 - A heading opens a section, nested under the innermost open section of a lower level,
   and the heading itself becomes that section's first block. A heading of the same or
@@ -258,9 +283,6 @@ in it.
 
 ## Conventions
 
-- A block the Blocker detected as an image or a table starts out labeled `figure` or
-  `table`: that detection settles the type, so the organizer is left with the blocks
-  it can actually judge.
 - Every page held in a variable is an index counting from 0, named `page_index`:
   `scan_page`'s argument and `ProcessingBlock.page_index` alike. The `+ 1` happens
   only where a page number is shown - the prompts, the image labels, the block state
@@ -269,4 +291,6 @@ in it.
 - The model is given only ids that exist in the JSON it was shown, and an order
   naming an unknown id - including a block of another page - is rejected rather than
   ignored.
+- A model answer that cannot be used ends the run: a half-settled document is not a
+  result worth keeping, and it is cheaper to stop than to pay for the pages after it.
 - All prompts and model-facing text are English.

@@ -31,7 +31,6 @@ sys.path.insert(0, str(UPLOADER_ROOT))
 
 from OcrModule.Blocked.Blocker.Blocker import Blocker  # noqa: E402
 from OcrModule.Blocked.Blocker.BlockRenderer import BlockRenderer  # noqa: E402
-from OcrModule.Blocked.Schema import BlockType  # noqa: E402
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "Ocr" / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
@@ -111,13 +110,11 @@ def run_one_pdf(pdf_path: Path, blocker: Blocker, output_dir: Path, args) -> Pat
         for page_index, page in enumerate(RENDERER.render(images, result)):
             page.save(output_dir / f"{pdf_path.stem}_p{page_index + 1}.png")
 
-    counts = {
-        block_type.value: sum(
-            1 for block in result.blocks if block.block_type is block_type
-        )
-        for block_type in BlockType
-    }
-    print(f"{len(result.blocks)} block(s) {counts} in {elapsed:.1f}s", flush=True)
+    pages_found = len({block.page_index for block in result.blocks})
+    print(
+        f"{len(result.blocks)} block(s) over {pages_found} page(s) in {elapsed:.1f}s",
+        flush=True,
+    )
     print(f"-> {output_path}", flush=True)
     return output_path
 

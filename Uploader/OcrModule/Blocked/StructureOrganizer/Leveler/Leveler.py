@@ -6,7 +6,7 @@ from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.messages.content import create_text_block
-from ....LlmHelper import build_image_message, pil_to_base64
+from ....LlmHelper import build_image_message, page_to_base64
 from ..ProcessingSchema import ProcessingBlock, ProcessingBlockTextHeading
 from .LevelerSchema import HeadingLevels
 from .prompt import LEVELER_SYSTEM_PROMPT
@@ -46,14 +46,16 @@ class Leveler:
     ) -> None:
         """Sets heading_level on every heading, editing the blocks in place.
 
-        A heading the model never answers for is left without a level rather
-        than guessed at, since the export already handles one.
-
         Args:
             all_page_images: Every page of the document, as scanned, 0-indexed.
                 Only the pages holding a heading are shown to the model.
             processing_blocks: Every block of the document, in current order,
                 as the Classifier left them.
+
+        Raises:
+            RuntimeError: A heading was still left without a level after
+                MAX_ATTEMPT_COUNT attempts. The run stops there rather than
+                writing down a document whose hierarchy is half guessed.
         """
         headings = _collect_headings(processing_blocks)
 
@@ -83,10 +85,9 @@ class Leveler:
             )
             messages.append(HumanMessage(content=_retry_message(problems, unleveled)))
 
-        logger.warning(
-            "leveler | gave up after %d attempts; %d heading(s) have no level",
-            MAX_ATTEMPT_COUNT,
-            len([heading for heading in headings if heading.heading_level is None]),
+        raise RuntimeError(
+            f"{len([h for h in headings if h.heading_level is None])} heading(s) "
+            f"were left without a level after {MAX_ATTEMPT_COUNT} attempts."
         )
 
     def _request_levels(
@@ -119,7 +120,7 @@ class Leveler:
             named = "heading block" if len(page_headings) == 1 else "heading blocks"
             content += build_image_message(
                 f"Page {page_index + 1}, holding {named} {_list_ids(page_headings)}:",
-                pil_to_base64(all_page_images[page_index]),
+                page_to_base64(all_page_images[page_index]),
             )
 
         content.append(create_text_block(_headings_text(headings)))

@@ -9,16 +9,8 @@ from PIL.Image import Image
 from yomitoku import LayoutAnalyzer
 
 from .Blocker import Blocker
-from ..Schema import BlockType
 
 logger = logging.getLogger(__name__)
-
-# Paragraph roles that mean the block is a formula rather than prose. Only the
-# layout models trained with a formula category emit these.
-FORMULA_ROLES = {
-    "inline_formula": BlockType.MATH,
-    "display_formula": BlockType.MATH,
-}
 
 
 class YomitokuBlocker(Blocker):
@@ -54,29 +46,19 @@ class YomitokuBlocker(Blocker):
         """ "cuda" whenever this machine can run the models on the GPU."""
         return "cuda" if torch.cuda.is_available() else "cpu"
 
-    def _detect_page(
-        self, page: Image
-    ) -> list[tuple[BlockType, tuple[int, int, int, int]]]:
-        """The (block type, bounding box) pairs yomitoku detects in the page."""
+    def _detect_page(self, page: Image) -> list[tuple[int, int, int, int]]:
+        """The bounding boxes yomitoku detects in the page."""
         layout, _ = self._analyzer(self._to_bgr_array(page))
 
-        elements: list[tuple[Sequence[int], BlockType]] = [
-            *(
-                (paragraph.box, self._paragraph_block_type(paragraph.role))
-                for paragraph in layout.paragraphs
-            ),
-            *((figure.box, BlockType.IMAGE) for figure in layout.figures),
-            *((table.box, BlockType.TABLE) for table in layout.tables),
+        # the element kind is dropped: the Classifier reads what the block is
+        # off the page, from categories this analyzer does not have
+        boxes: list[Sequence[int]] = [
+            *(paragraph.box for paragraph in layout.paragraphs),
+            *(figure.box for figure in layout.figures),
+            *(table.box for table in layout.tables),
         ]
 
-        return [
-            (block_type, self._to_bounding_box(box)) for box, block_type in elements
-        ]
-
-    @staticmethod
-    def _paragraph_block_type(role: str | None) -> BlockType:
-        """MATH for a paragraph the layout model marked as a formula, else TEXT."""
-        return FORMULA_ROLES.get(role, BlockType.TEXT)
+        return [self._to_bounding_box(box) for box in boxes]
 
     @staticmethod
     def _to_bgr_array(page: Image) -> np.ndarray:

@@ -10,7 +10,6 @@ from huggingface_hub import hf_hub_download
 from PIL.Image import Image
 
 from .Blocker import Blocker
-from ..Schema import BlockType
 
 logger = logging.getLogger(__name__)
 
@@ -27,22 +26,6 @@ DEFAULT_CONFIDENCE = 0.2
 
 # IoU threshold of the non-maximum suppression applied to the raw detections.
 DEFAULT_IOU = 0.45
-
-# The ten DocStructBench classes, keyed by the name the checkpoint carries.
-# Captions and `abandon` (running heads, footers, page numbers) are prose, so
-# they stay TEXT and step 3 decides what to do with them.
-CLASS_BLOCK_TYPES = {
-    "title": BlockType.TEXT,
-    "plain text": BlockType.TEXT,
-    "abandon": BlockType.TEXT,
-    "figure": BlockType.IMAGE,
-    "figure_caption": BlockType.TEXT,
-    "table": BlockType.TABLE,
-    "table_caption": BlockType.TEXT,
-    "table_footnote": BlockType.TEXT,
-    "isolate_formula": BlockType.MATH,
-    "formula_caption": BlockType.TEXT,
-}
 
 
 class DocLayoutYoloBlocker(Blocker):
@@ -86,10 +69,8 @@ class DocLayoutYoloBlocker(Blocker):
         """The released DocStructBench checkpoint, downloaded once and cached."""
         return hf_hub_download(DEFAULT_REPOSITORY, DEFAULT_WEIGHT_FILE)
 
-    def _detect_page(
-        self, page: Image
-    ) -> list[tuple[BlockType, tuple[int, int, int, int]]]:
-        """The (block type, bounding box) pairs DocLayout-YOLO detects in the page."""
+    def _detect_page(self, page: Image) -> list[tuple[int, int, int, int]]:
+        """The bounding boxes DocLayout-YOLO detects in the page."""
         prediction = self._model.predict(
             page.convert("RGB"),
             imgsz=self._image_size,
@@ -99,19 +80,11 @@ class DocLayoutYoloBlocker(Blocker):
             verbose=False,
         )[0]
 
-        names = prediction.names
-        boxes = prediction.boxes.xyxy.cpu().numpy()
-        classes = prediction.boxes.cls.cpu().numpy().astype(int)
-
+        # the detected class is dropped: the Classifier reads what the block
+        # is off the page, from categories this detector does not have
         return [
-            (self._class_block_type(names[class_id]), self._to_bounding_box(box))
-            for box, class_id in zip(boxes, classes)
+            self._to_bounding_box(box) for box in prediction.boxes.xyxy.cpu().numpy()
         ]
-
-    @staticmethod
-    def _class_block_type(class_name: str) -> BlockType:
-        """The BlockType a DocStructBench class maps to, defaulting to TEXT."""
-        return CLASS_BLOCK_TYPES.get(class_name, BlockType.TEXT)
 
     @staticmethod
     def _to_bounding_box(

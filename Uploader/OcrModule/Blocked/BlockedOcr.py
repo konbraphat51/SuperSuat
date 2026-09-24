@@ -1,4 +1,4 @@
-"""The blocked OCR pipeline: blocks a page, reads each block, then settles the structure."""
+"""The blocked OCR pipeline: find the blocks, settle what they are, then read them."""
 
 import logging
 
@@ -7,8 +7,8 @@ from PIL.Image import Image
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResult
 from .Blocker.Blocker import Blocker
-from .Blocker.BlockRenderer import BlockRenderer
 from .StructureOrganizer.Organizer import Organizer
+from .StructureOrganizer.ProcessingSchema import build_transcription_targets
 from .Transcriber.Transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
@@ -17,9 +17,15 @@ logger = logging.getLogger(__name__)
 class BlockedOcr(Ocr):
     """Reads a document in three stages, each one over the whole document.
 
-    A `Blocker` finds the blocks of every page, a `Transcriber` reads the text
-    of each of them, and an `Organizer` settles what the blocks are and how
-    they nest into the document tree (see Docs/Plan.md).
+    A `Blocker` finds where the blocks of every page are, an `Organizer`
+    settles what each of them is and how they nest into the document tree, and
+    a `Transcriber` reads the text of each block last of all (see
+    Docs/Plan.md).
+
+    Reading last is the point of the order: by then every block has been
+    called a paragraph, a table, a formula or a figure, so each one is read as
+    the kind of thing it is - and a figure, whose content is the picture, is
+    not read at all.
 
     Which model each stage runs on is the caller's choice: a stage is handed in
     already built, so a local layout model and a remote chat model - or a
@@ -28,19 +34,18 @@ class BlockedOcr(Ocr):
     def __init__(
         self,
         blocker: Blocker,
-        transcriber: Transcriber,
         organizer: Organizer,
+        transcriber: Transcriber,
     ) -> None:
         """
         Args:
-            blocker: Finds the blocks of each page.
-            transcriber: Reads the text of the blocks the blocker found.
-            organizer: Settles the blocks into the document structure.
+            blocker: Finds where the blocks of each page are.
+            organizer: Settles what the blocks are and how they nest.
+            transcriber: Reads the text of the blocks that hold text.
         """
         self.blocker = blocker
-        self.transcriber = transcriber
         self.organizer = organizer
-        self.block_renderer = BlockRenderer()
+        self.transcriber = transcriber
 
     def ocr(
         self,
@@ -51,21 +56,17 @@ class BlockedOcr(Ocr):
 
         blocker_result = self.blocker.block(all_page_images)
 
+        processing_blocks = self.organizer.organize(
+            all_page_images=all_page_images,
+            blocker_result=blocker_result,
+        )
+
         transcription_result = self.transcriber.transcribe(
             all_pages=all_page_images,
-            blocker_result=blocker_result,
+            targets=build_transcription_targets(processing_blocks),
         )
 
-        # the organizer's model is shown the blocks outlined on the page, so it
-        # can tell which block on the page a block_id names
-        all_page_images_rendered = self.block_renderer.render(
-            pages=all_page_images,
-            blocker_result=blocker_result,
-        )
-
-        return self.organizer.organize(
-            all_page_images=all_page_images,
-            all_page_images_rendered=all_page_images_rendered,
-            blocker_result=blocker_result,
+        return self.organizer.export(
+            processing_blocks=processing_blocks,
             transcription_result=transcription_result,
         )

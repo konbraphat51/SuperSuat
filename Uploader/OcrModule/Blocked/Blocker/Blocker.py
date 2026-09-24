@@ -5,14 +5,19 @@ from abc import ABC, abstractmethod
 
 from PIL.Image import Image
 
-from ..PageParallel import DEFAULT_MAX_PARALLEL_PAGES, map_pages
-from ..Schema import Block, BlockerResult, BlockType
+from ..PageParallel import DEFAULT_MAX_PARALLEL_PAGES, run_parallel
+from ..Schema import Block, BlockerResult
 
 logger = logging.getLogger(__name__)
 
 
 class Blocker(ABC):
     """Splits page images into the regions worth reading.
+
+    A blocker answers where the blocks of a page are, and nothing else: what
+    each one is, is read off the page by the Classifier, which sees the whole
+    page at once and is not limited to the categories a layout model happens
+    to have been trained on.
 
     A subclass only detects the regions of a single page; turning that into a
     document-wide, uniquely-identified, stably-ordered `BlockerResult` is the
@@ -27,11 +32,12 @@ class Blocker(ABC):
     MAX_PARALLEL_PAGES = DEFAULT_MAX_PARALLEL_PAGES
 
     def block(self, pages: list[Image]) -> BlockerResult:
-        """Detects blocks of text, math, images, and tables in the page images."""
-        pages_blocks = map_pages(
+        """Detects the blocks of every page image, in page order."""
+        pages_blocks = run_parallel(
             lambda numbered_page: self._block_page(*numbered_page),
             list(enumerate(pages)),
             self.MAX_PARALLEL_PAGES,
+            progress_label="blocking",
         )
 
         blocks = [block for page_blocks in pages_blocks for block in page_blocks]
@@ -53,27 +59,22 @@ class Blocker(ABC):
         """Every block of one page, ordered top-to-bottom then left-to-right.
 
         The page number is 0-indexed, as elsewhere in the OCR module."""
-        elements = self._detect_page(page)
-
         blocks = [
             Block(
                 # Reassigned to a document-wide value once every page is in.
                 block_id=0,
-                block_type=block_type,
                 page_index=page_index,
                 bounding_box=bounding_box,
             )
-            for block_type, bounding_box in elements
+            for bounding_box in self._detect_page(page)
         ]
         blocks.sort(key=lambda block: (block.bounding_box[1], block.bounding_box[0]))
         return blocks
 
     @abstractmethod
-    def _detect_page(
-        self, page: Image
-    ) -> list[tuple[BlockType, tuple[int, int, int, int]]]:
-        """The (block type, bounding box) pairs this model detects in one page.
+    def _detect_page(self, page: Image) -> list[tuple[int, int, int, int]]:
+        """The bounding boxes this model detects in one page.
 
-        Bounding boxes are `(x, y, width, height)`. Order does not matter:
-        `block()` sorts them into a stable, top-to-bottom order itself."""
+        Boxes are `(x, y, width, height)`. Order does not matter: `block()`
+        sorts them into a stable, top-to-bottom order itself."""
         raise NotImplementedError

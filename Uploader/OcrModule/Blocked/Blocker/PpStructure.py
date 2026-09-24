@@ -13,38 +13,12 @@ from paddleocr import LayoutDetection
 from PIL.Image import Image
 
 from .Blocker import Blocker
-from ..Schema import BlockType
 
 logger = logging.getLogger(__name__)
 
 # The layout model PP-StructureV3 uses by default. Lighter variants
 # (PP-DocLayout-L / -M / -S) can be passed as `model_name`.
 DEFAULT_MODEL_NAME = "PP-DocLayout_plus-L"
-
-# The twenty labels the PP-DocLayout models emit. Everything that is read as
-# prose stays TEXT, including captions, headers, footers, and page numbers.
-LABEL_BLOCK_TYPES = {
-    "paragraph_title": BlockType.TEXT,
-    "image": BlockType.IMAGE,
-    "text": BlockType.TEXT,
-    "number": BlockType.TEXT,
-    "abstract": BlockType.TEXT,
-    "content": BlockType.TEXT,
-    "figure_title": BlockType.TEXT,
-    "formula": BlockType.MATH,
-    "table": BlockType.TABLE,
-    "reference": BlockType.TEXT,
-    "doc_title": BlockType.TEXT,
-    "footnote": BlockType.TEXT,
-    "header": BlockType.TEXT,
-    "algorithm": BlockType.TEXT,
-    "footer": BlockType.TEXT,
-    "seal": BlockType.IMAGE,
-    "chart": BlockType.IMAGE,
-    "formula_number": BlockType.TEXT,
-    "aside_text": BlockType.TEXT,
-    "reference_content": BlockType.TEXT,
-}
 
 
 class PpStructureBlocker(Blocker):
@@ -87,24 +61,13 @@ class PpStructureBlocker(Blocker):
         """ "gpu" whenever this machine can run the model on the GPU."""
         return "gpu" if paddle.device.cuda.device_count() > 0 else "cpu"
 
-    def _detect_page(
-        self, page: Image
-    ) -> list[tuple[BlockType, tuple[int, int, int, int]]]:
-        """The (block type, bounding box) pairs PP-DocLayout detects in the page."""
+    def _detect_page(self, page: Image) -> list[tuple[int, int, int, int]]:
+        """The bounding boxes PP-DocLayout detects in the page."""
         detection = self._detector.predict(self._to_bgr_array(page))[0]
 
-        return [
-            (
-                self._label_block_type(box["label"]),
-                self._to_bounding_box(box["coordinate"]),
-            )
-            for box in detection["boxes"]
-        ]
-
-    @staticmethod
-    def _label_block_type(label: str) -> BlockType:
-        """The BlockType a PP-DocLayout label maps to, defaulting to TEXT."""
-        return LABEL_BLOCK_TYPES.get(label, BlockType.TEXT)
+        # the detected label is dropped: the Classifier reads what the block
+        # is off the page, from categories this detector does not have
+        return [self._to_bounding_box(box["coordinate"]) for box in detection["boxes"]]
 
     @staticmethod
     def _to_bgr_array(page: Image) -> np.ndarray:
