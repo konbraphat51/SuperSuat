@@ -76,6 +76,19 @@ all of the previous one's output. Pages and blocks are worked on several at a ti
 *inside* `Blocker`, the organizer's `Classifier`, and `Transcriber`, which is where
 the parallelism of this pipeline lives (see [Blocker.md](Blocker.md)).
 
+## Tests
+
+The parts of this pipeline that decide something without a model - applying an order
+to the blocks, building the tree out of them, running a stage over its pages - are
+covered by unit tests in `Test/Unit/Blocked/`, which need no model and no GPU:
+
+```
+uv run pytest
+```
+
+The manual scripts under `Test/Manual/Blocked/` are the other half: they run real
+models over the sample PDFs and write out what came back, for eyeballing.
+
 ## Conventions
 
 - The page images are never modified: annotated copies are drawn where they are

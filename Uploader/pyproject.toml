@@ -46,3 +46,13 @@ explicit = true
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 paddlepaddle-gpu = { index = "paddle-cu129" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+# Unit tests import the OCR module as a top-level package, as the app does.
+[tool.pytest.ini_options]
+testpaths = ["Test/Unit"]
+pythonpath = ["."]
