@@ -28,6 +28,8 @@ dependencies = [
     "torchvision>=0.29.0",
     "tqdm>=4.70.1",
     "yomitoku>=0.15.0",
+    "markdown-it-py>=4.2.0",
+    "mdit-py-plugins>=0.6.1",
 ]
 
 # Torch comes from the CUDA 13.0 wheel index: the layout models run on the GPU.
