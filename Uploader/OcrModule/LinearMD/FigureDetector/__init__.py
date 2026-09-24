@@ -10,11 +10,13 @@ from .FigureDetector import FigureDetector
 
 if TYPE_CHECKING:
     from .DocLayoutYolo import DocLayoutYoloFigureDetector
+    from .PpStructure import PpStructureFigureDetector
     from .Yomitoku import YomitokuFigureDetector
 
 # The module each implementation lives in, imported on first use.
 _LAZY_MODULES = {
     "DocLayoutYoloFigureDetector": ".DocLayoutYolo",
+    "PpStructureFigureDetector": ".PpStructure",
     "YomitokuFigureDetector": ".Yomitoku",
 }
 
