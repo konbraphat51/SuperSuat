@@ -96,7 +96,7 @@ def export_processing_blocks_to_ocr_result(
             _to_text_block(block, continuations.get(block.block_id, []), block_indices)
         )
 
-    _recompute_existing_pages(root_section)
+    root_section.recompute_existing_pages()
 
     return OcrResult(root_section=root_section)
 
@@ -322,19 +322,3 @@ def _to_figure_block(
         bounding_box=block.bounding_box,
         caption=caption,
     )
-
-
-def _recompute_existing_pages(section: OcrResultSection) -> list[int]:
-    """Sets every section's existing_pages to the pages of its contents, and
-    returns this section's."""
-    pages: set[int] = set()
-
-    for block in section.section_content:
-        if isinstance(block, OcrResultSection):
-            pages.update(_recompute_existing_pages(block))
-        else:
-            pages.update(block.existing_pages)
-
-    section.existing_pages = sorted(pages)
-
-    return section.existing_pages

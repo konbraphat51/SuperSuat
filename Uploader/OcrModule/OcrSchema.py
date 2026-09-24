@@ -57,6 +57,21 @@ class OcrResultSection(OcrResultBlock):
     def __post_init__(self) -> None:
         self.block_type = "section"
 
+    def recompute_existing_pages(self) -> list[int]:
+        """Sets this section's existing_pages, and every nested section's, to
+        the pages of its contents, and returns this section's."""
+        pages: set[int] = set()
+
+        for block in self.section_content:
+            if isinstance(block, OcrResultSection):
+                pages.update(block.recompute_existing_pages())
+            else:
+                pages.update(block.existing_pages)
+
+        self.existing_pages = sorted(pages)
+
+        return self.existing_pages
+
 
 @dataclass
 class OcrResult:
