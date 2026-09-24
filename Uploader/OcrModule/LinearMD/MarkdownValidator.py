@@ -17,6 +17,13 @@ from .Markers import (
 )
 from .Schema import PageBatch
 
+# Shortest paragraph a repeat of is taken as a page transcribed twice, not a
+# phrase the document itself repeats.
+MIN_REPEATED_PARAGRAPH_LENGTH = 40
+
+# How much of a repeated paragraph is quoted back to the model.
+QUOTED_LENGTH = 40
+
 
 def validate_batch_output(
     markdown: str,
@@ -40,6 +47,7 @@ def validate_batch_output(
     problems += _page_marker_problems(body, batch)
     problems += _figure_problems(body, figure_ids)
     problems += fence_problems(without_page_markers(body))
+    problems += _repetition_problems(body)
 
     return problems
 
@@ -139,6 +147,25 @@ def _figure_problems(body: str, figure_ids: Collection[int]) -> list[str]:
         )
 
     return problems
+
+
+def _repetition_problems(body: str) -> list[str]:
+    """Long paragraphs written more than once, the sign of a page read twice."""
+    paragraphs = [
+        paragraph.strip() for paragraph in without_page_markers(body).split("\n\n")
+    ]
+    counts = Counter(
+        paragraph
+        for paragraph in paragraphs
+        if len(paragraph) >= MIN_REPEATED_PARAGRAPH_LENGTH
+    )
+
+    return [
+        f'This paragraph is written {count} times: "{paragraph[:QUOTED_LENGTH]}...". '
+        "Transcribe each page once, from its own image, under its own page marker."
+        for paragraph, count in counts.items()
+        if count > 1
+    ]
 
 
 def _list(ids: list[int]) -> str:

@@ -82,3 +82,19 @@ def test_an_unclosed_box_is_reported():
     )
 
     assert any("never closed" in p for p in problems)
+
+
+def test_a_page_written_twice_is_reported():
+    paragraph = "A paragraph long enough that repeating it is no accident at all."
+    markdown = f"<!--page:0-->{paragraph}\n\n<!--page:1-->{paragraph}\n\n<!--page:2-->"
+
+    problems = validate_batch_output(markdown, WRITE, [], has_next=False)
+
+    assert len(problems) == 1
+    assert "written 2 times" in problems[0]
+
+
+def test_a_short_line_the_document_repeats_is_not_reported():
+    markdown = "<!--page:0-->Answer:\n\n<!--page:1-->Answer:\n\n<!--page:2-->"
+
+    assert validate_batch_output(markdown, WRITE, [], has_next=False) == []
