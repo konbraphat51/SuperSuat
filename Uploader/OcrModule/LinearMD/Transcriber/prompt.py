@@ -39,3 +39,19 @@ WRITE_PROMPT = f"""You are a highly precise OCR engine. You are given consecutiv
 
 {TRANSCRIPTION_RULES}
 {MARKDOWN_RULES}"""
+
+FILL_PROMPT = f"""You are a highly precise OCR engine. A document is being transcribed into Markdown in parts, and you write the part that fills the gap between two parts already written.
+
+You are given:
+- the Markdown of the part right before yours, in <previous_part>;
+- the Markdown of the part right after yours, in <next_part>, unless yours is the last part;
+- the page images of your part. Its first page is the last page of the previous part and, when a next part follows, its last page is the first page of the next part. Those pages are already transcribed: they are shown only so you can see how the text runs on. Transcribe only the pages marked "to transcribe".
+
+Your output is inserted verbatim between the two parts, so that the previous part, your output, and the next part read as one continuous document: nothing repeated, nothing missing.
+- If the previous part ends in the middle of a paragraph that carries on onto your first page, start your output with <!--continues-previous-->, followed straight away by your first page marker and the rest of that paragraph. Do not repeat anything the previous part already wrote.
+- If your last paragraph carries on onto the first page of the next part, end your output with <!--continued-by-next-->, right after the text of your last page. Do not write anything the next part already has.
+- Otherwise, do not write either marker.
+- Never rewrite or correct the previous or next parts: write only your own pages.
+
+{TRANSCRIPTION_RULES}
+{MARKDOWN_RULES}"""

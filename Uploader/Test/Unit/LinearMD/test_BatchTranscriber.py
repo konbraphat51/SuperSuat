@@ -70,3 +70,37 @@ def test_a_batch_that_never_checks_out_stops_the_run():
         BatchTranscriber(model, max_attempt_count=3).write(WRITE, PAGES, FIGURES)
 
     assert len(model.requests) == 3
+
+
+FILL = PageBatch(index=1, first_page=2, last_page=4, written_pages=(3,))
+
+
+def test_a_fill_batch_is_given_both_neighbours_and_its_boundary_pages():
+    reply = "<!--continues-previous--><!--page:3-->rest<!--continued-by-next-->"
+    model = RecordingFakeModel.replying(reply)
+
+    markdown = BatchTranscriber(model).fill(
+        FILL, PAGES, FIGURES, "<!--page:0-->before", "<!--page:4-->after"
+    )
+
+    assert markdown == reply
+    request = model.requests[0][1]
+    assert isinstance(request, HumanMessage)
+    sent = texts(request)
+    assert images(request) == 3
+    assert sent[0] == "<previous_part>\n<!--page:0-->before\n</previous_part>"
+    assert "Page 2 (no figures), already transcribed, context only:" in sent
+    assert "Page 3 (no figures), to transcribe:" in sent
+    assert "<next_part>\n<!--page:4-->after\n</next_part>" in sent
+
+
+def test_the_last_fill_batch_may_not_continue_into_a_next_part():
+    last = PageBatch(index=1, first_page=2, last_page=3, written_pages=(3,))
+    model = RecordingFakeModel.replying(
+        "<!--page:3-->a<!--continued-by-next-->", "<!--page:3-->a"
+    )
+
+    markdown = BatchTranscriber(model).fill(last, PAGES, FIGURES, "before", None)
+
+    assert markdown == "<!--page:3-->a"
+    assert all("<next_part>" not in t for t in texts(model.requests[0][1]))

@@ -17,7 +17,7 @@ from ...LlmHelper import (
 from ..Markers import page_marker
 from ..MarkdownValidator import validate_batch_output
 from ..Schema import DetectedFigure, PageBatch
-from .prompt import WRITE_PROMPT
+from .prompt import FILL_PROMPT, WRITE_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class BatchTranscriber:
 
         for page_index in batch.pages:
             content += build_image_message(
-                _page_label(page_index, figures),
+                f"{_page_label(page_index, figures)}:",
                 page_to_base64(rendered_pages[page_index]),
             )
 
@@ -84,6 +84,61 @@ class BatchTranscriber:
             [SystemMessage(content=WRITE_PROMPT), HumanMessage(content=content)],
             figures,
             has_next=False,
+        )
+
+    def fill(
+        self,
+        batch: PageBatch,
+        rendered_pages: Sequence[Image],
+        figures: Sequence[DetectedFigure],
+        previous_markdown: str,
+        next_markdown: str | None,
+    ) -> str:
+        """The Markdown of the inner pages of a fill batch, written to join
+        the parts either side of it into one text.
+
+        Args:
+            batch: The batch to fill.
+            rendered_pages: Every page of the document, its figures drawn on.
+            figures: Every figure of the document.
+            previous_markdown: What the write batch before this one returned.
+            next_markdown: What the write batch after this one returned, or
+                None if this batch ends the document.
+
+        Raises:
+            RuntimeError: No answer checked out in max_attempt_count attempts.
+        """
+        written = ", ".join(str(page) for page in batch.written_pages)
+        content: Content = [
+            _text_block(f"<previous_part>\n{previous_markdown}\n</previous_part>"),
+            _text_block(
+                f"Your part: pages {batch.first_page} to {batch.last_page}. "
+                f"Transcribe pages {written} only. Each page image is preceded "
+                "by its page number."
+            ),
+        ]
+
+        for page_index in batch.pages:
+            role = (
+                "to transcribe"
+                if page_index in batch.written_pages
+                else "already transcribed, context only"
+            )
+            content += build_image_message(
+                f"{_page_label(page_index, figures)}, {role}:",
+                page_to_base64(rendered_pages[page_index]),
+            )
+
+        if next_markdown is not None:
+            content.append(_text_block(f"<next_part>\n{next_markdown}\n</next_part>"))
+
+        content.append(_text_block(_markers_reminder(batch)))
+
+        return self._transcribe(
+            batch,
+            [SystemMessage(content=FILL_PROMPT), HumanMessage(content=content)],
+            figures,
+            has_next=next_markdown is not None,
         )
 
     def _transcribe(
@@ -139,13 +194,13 @@ def _figure_ids(
 
 
 def _page_label(page_index: int, figures: Sequence[DetectedFigure]) -> str:
-    """The text sent before a page image: its number and its figures."""
+    """What a page image is introduced with: its number and its figures."""
     ids = _figure_ids([page_index], figures)
 
     if not ids:
-        return f"Page {page_index} (no figures):"
+        return f"Page {page_index} (no figures)"
 
-    return f"Page {page_index} (figures {', '.join(str(i) for i in ids)}):"
+    return f"Page {page_index} (figures {', '.join(str(i) for i in ids)})"
 
 
 def _markers_reminder(batch: PageBatch) -> str:
