@@ -49,6 +49,7 @@ paddlepaddle-gpu = { index = "paddle-cu129" }
 
 [dependency-groups]
 dev = [
+    "mypy>=2.3.1",
     "pytest>=9.1.1",
 ]
 
@@ -56,3 +57,19 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["Test/Unit"]
 pythonpath = ["."]
+
+# Strict typing covers the code written under it; the older pipelines are
+# followed for their types but not reported on.
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["OcrModule/LinearMD", "OcrModule/TextJoin.py"]
+
+[[tool.mypy.overrides]]
+module = ["OcrModule.Blocked.*", "OcrModule.Linear.*", "OcrModule.LlmHelper"]
+ignore_errors = true
+
+# Layout frameworks that ship no type information.
+[[tool.mypy.overrides]]
+module = ["doclayout_yolo.*", "yomitoku.*", "paddleocr.*", "paddle.*", "fitz.*"]
+ignore_missing_imports = true
