@@ -1,7 +1,7 @@
 """Manual test for MdWriterOcr against the sample PDFs.
 
 Runs the MdWriter pipeline over the PDFs in `Test/Manual/Ocr/Sample/` and
-writes, per PDF, into `Output/<detector>/<model>/`:
+writes, per PDF, into `Output/<detector>/<run name>/` (the model id by default):
 
 - `<stem>.md`: the stitched Markdown, as the model wrote it
 - `<stem>.json`: the document tree parsed from it
@@ -43,11 +43,12 @@ from dotenv import load_dotenv  # noqa: E402
 
 from OcrModule.MdWriter.FigureDetector import FigureDetector  # noqa: E402
 from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr  # noqa: E402
+from OcrModule.MdWriter.PageJoin import JoinJudge  # noqa: E402
 from OcrModule.MdWriter.MarkdownParser import parse_markdown  # noqa: E402
 from OcrModule.MdWriter.Transcriber.PageTranscriber import (  # noqa: E402
     PageTranscriber,
 )
-from UsageCost import PRICING, UsageRecorder, format_report  # noqa: E402
+from UsageCost import UsageRecorder, format_report  # noqa: E402
 
 SAMPLE_DIR = UPLOADER_ROOT / "Test" / "Manual" / "Ocr" / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
@@ -70,23 +71,23 @@ DEFAULT_MAX_TOKENS = 16000
 DEFAULT_MAX_PARALLEL = 8
 
 
-def build_model(args: argparse.Namespace, recorder: UsageRecorder) -> Any:
-    """The chat model the pages are written with, reporting its usage to
-    `recorder`. Imported lazily so that `--help` works without the provider's
-    package."""
+def build_model(
+    args: argparse.Namespace,
+    recorder: UsageRecorder,
+    model_id: str,
+    reasoning_effort: str | None,
+) -> Any:
+    """A chat model of the chosen provider, reporting its usage to `recorder`.
+    Imported lazily so that `--help` works without the provider's package."""
     if args.provider == "openai":
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(
-            model=args.model,
+            model=model_id,
             use_responses_api=True,
             max_tokens=args.max_tokens,
             callbacks=[recorder],
-            **(
-                {"reasoning_effort": args.reasoning_effort}
-                if args.reasoning_effort
-                else {}
-            ),
+            **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
         )
 
     from langchain_aws import ChatBedrockConverse
@@ -100,7 +101,7 @@ def build_model(args: argparse.Namespace, recorder: UsageRecorder) -> Any:
         os.environ.pop("AWS_PROFILE", None)
 
     return ChatBedrockConverse(
-        model=args.model,
+        model=model_id,
         region_name=args.region,
         max_tokens=args.max_tokens,
         temperature=0,
@@ -138,8 +139,8 @@ def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Any]:
 
 
 def output_dir_of(args: argparse.Namespace) -> Path:
-    """Where the results of this detector and model go."""
-    return OUTPUT_DIR / args.detector / args.model
+    """Where the results of this detector and run go."""
+    return OUTPUT_DIR / args.detector / (args.run_name or args.model)
 
 
 def run_one_pdf(
@@ -171,7 +172,7 @@ def run_one_pdf(
     for page_index, page in enumerate(draft.rendered_pages):
         page.save(pages_dir / f"page_{page_index}.png")
 
-    report = format_report(recorder.pages, PRICING.get(args.model))
+    report = format_report(recorder.pages)
     (output_dir / f"{pdf_path.stem}.usage.txt").write_text(
         f"{pdf_path.name}: {len(images)} page(s) in {elapsed:.1f}s\n{report}\n",
         encoding="utf-8",
@@ -232,6 +233,17 @@ def parse_args() -> argparse.Namespace:
         "--reasoning-effort", default=os.getenv("OPENAI_REASONING_EFFORT")
     )
     parser.add_argument(
+        "--join-model",
+        default=None,
+        help="Model settling the page turns two pages disagree on. Defaults to --model.",
+    )
+    parser.add_argument("--join-reasoning-effort", default=None)
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Output folder under Output/<detector>/, to keep variants apart. Defaults to the model id.",
+    )
+    parser.add_argument(
         "--log-level",
         default=os.getenv("LOG_LEVEL", "INFO"),
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -243,6 +255,7 @@ def parse_args() -> argparse.Namespace:
     args.model = (
         args.model or os.getenv("OCR_MODEL_ID") or DEFAULT_MODEL_IDS[args.provider]
     )
+    args.join_model = args.join_model or args.model
     return args
 
 
@@ -280,7 +293,12 @@ def main() -> int:
     recorder = UsageRecorder()
     ocr = MdWriterOcr(
         figure_detector=build_detector(args.detector),
-        transcriber=PageTranscriber(build_model(args, recorder)),
+        transcriber=PageTranscriber(
+            build_model(args, recorder, args.model, args.reasoning_effort)
+        ),
+        join_judge=JoinJudge(
+            build_model(args, recorder, args.join_model, args.join_reasoning_effort)
+        ),
         max_parallel_pages=args.max_parallel,
     )
 
