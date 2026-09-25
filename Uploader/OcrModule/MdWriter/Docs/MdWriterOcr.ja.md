@@ -1,10 +1,10 @@
 # MdWriterOcr
 
 MdWriterのOCRパイプラインです（[Plan.md](Plan.md) を参照）。レイアウトモデルは図だけを検出し、
-その枠とIDをページに描き込みます。続いてマルチモーダルモデルが、複数ページをまとめてMarkdownに
+その枠とIDをページに描き込みます。続いてマルチモーダルモデルが、1回のリクエストで1ページずつMarkdownに
 書き下し、図はIDで配置します。最後にそのMarkdownを `OcrResult` に読み込みます。
-1回のリクエストで複数ページを扱うので、ページをまたぐ文章も視野に入ったまま書けます。
-リクエストの回数も、1ページずつ処理する場合よりずっと少なくなります。
+2つのページに挟まれたページは最後に、前後のページのMarkdownを見ながら書くので、
+ページをまたぐ文章も1つの段落につながります。
 
 English version: [MdWriterOcr.md](MdWriterOcr.md)
 
@@ -18,9 +18,8 @@ classDiagram
     }
     class MdWriterOcr {
         +figure_detector: FigureDetector
-        +transcriber: BatchTranscriber
-        +batch_size: int
-        +max_parallel_batches: int
+        +transcriber: PageTranscriber
+        +max_parallel_pages: int
         +renderer: BlockRenderer
         +ocr(all_page_images: list[Image]) OcrResult
         +write_markdown(all_page_images: list[Image]) MarkdownDraft
@@ -34,11 +33,11 @@ classDiagram
     class DocLayoutYoloFigureDetector
     class YomitokuFigureDetector
     class PpStructureFigureDetector
-    class BatchTranscriber {
+    class PageTranscriber {
         +model: BaseChatModel
         +max_attempt_count: int
-        +write(batch, rendered_pages, figures) str
-        +fill(batch, rendered_pages, figures, previous_markdown, next_markdown) str
+        +write(task, rendered_pages, figures) str
+        +fill(task, rendered_pages, figures, previous_markdown, next_markdown) str
     }
     class BlockRenderer {
         +render_page(page: Image, blocks: Sequence[BoxedBlock]) Image
@@ -48,13 +47,9 @@ classDiagram
         +page_index: int
         +bounding_box: tuple[int, int, int, int]
     }
-    class PageBatch {
-        +index: int
-        +first_page: int
-        +last_page: int
-        +written_pages: tuple[int, ...]
-        +kind: BatchKind
-        +pages: range
+    class PageTask {
+        +page_index: int
+        +kind: PageKind
     }
     class MarkdownDraft {
         +markdown: str
@@ -66,12 +61,12 @@ classDiagram
     FigureDetector <|-- YomitokuFigureDetector
     FigureDetector <|-- PpStructureFigureDetector
     MdWriterOcr o-- FigureDetector
-    MdWriterOcr o-- BatchTranscriber
+    MdWriterOcr o-- PageTranscriber
     MdWriterOcr o-- BlockRenderer
-    MdWriterOcr ..> PageBatch : plan_batches
+    MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
-    BatchTranscriber ..> PageBatch
+    PageTranscriber ..> PageTask
     BlockRenderer ..> DetectedFigure : BoxedBlockとして
 ```
 
@@ -79,11 +74,10 @@ classDiagram
 
 | モジュール | 関数 | 責務 |
 | --- | --- | --- |
-| [Batching.py](../Batching.py) | `plan_batches` | 全ページを覆う偶数バッチ（write）と奇数バッチ（fill）を作る |
 | [Transcriber/prompt.py](../Transcriber/prompt.py) | `WRITE_PROMPT`、`FILL_PROMPT` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
-| [MarkdownValidator.py](../MarkdownValidator.py) | `validate_batch_output` | 応答の問題点を、モデルが直せる形の文で返す |
+| [MarkdownValidator.py](../MarkdownValidator.py) | `validate_page_output` | 応答の問題点を、モデルが直せる形の文で返す |
 | [Markers.py](../Markers.py) | `strip_page_markers`、`split_continuation` など | ページマーカーと継続マーカーを見つけて取り除く |
-| [Containers.py](../Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンスを検証し、パートの境界で分かれた囲みをつなぐ |
+| [Containers.py](../Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンスを検証し、ページの境界で分かれた囲みをつなぐ |
 | [Stitcher.py](../Stitcher.py) | `stitch` | 各パートを1つの文書に結合する |
 | [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | 文書を `OcrResult` のツリーに読み込む |
 
@@ -113,29 +107,31 @@ OCRモジュールのほかの部分と共有しているもの: `run_parallel`�
 表と数式は検出しません。モデルがMarkdownの表とKaTeXで書き下します。
 すべてのクラスラベルを意図的に捨てている `Blocker` のオプションにはせず、検出器を `MdWriter/` の下に別に置いています。
 
-## バッチ
+## パス
 
-`B = batch_size` とすると、バッチ `x` は閉区間 `[B*x, B*(x+1)]` です（最後のページで打ち切る）。
-隣り合うバッチは境界のページを共有します。偶数バッチは自分の全ページを書き、奇数バッチは
-2つの偶数バッチの間のページだけを書きます。境界のページは文脈として見るだけです。`B = 2`、7ページの場合:
+1ページを1リクエストで書きます。偶数インデックスのページ（1・3・5…ページ目）が *write* ページで、
+1パス目にそれぞれ単独で送ります。その間のページが *fill* ページで、2パス目に、前後のwriteページが
+返したMarkdownと一緒に送ります。5ページの場合:
 
 ```mermaid
 flowchart LR
-    subgraph E0["バッチ0（write）"]
-        p0[0] --- p1[1] --- p2[2]
+    subgraph first["1パス目（write、並列）"]
+        p0[0]
+        p2[2]
+        p4[4]
     end
-    subgraph F1["バッチ1（fill）"]
-        c2([2]) --- p3[3] --- c4([4])
+    subgraph second["2パス目（fill、並列）"]
+        p1[1]
+        p3[3]
     end
-    subgraph E2["バッチ2（write）"]
-        p4[4] --- p5[5] --- p6[6]
-    end
-    E0 --> F1 --> E2
+    p0 -. Markdown .-> p1
+    p2 -. Markdown .-> p1
+    p2 -. Markdown .-> p3
+    p4 -. Markdown .-> p3
 ```
 
-角の丸いページは文脈として送るだけで、書き直しません。`B` は2以上が必要です（1だと奇数バッチに
-自分のページができません）。書くページが残らない奇数バッチ（文書の末尾）は作りません。
-`B + 1` ページより短い文書は偶数バッチ1つだけになり、2パス目はありません。
+fillページに送る画像は自分のページだけです。前後のページはテキストとして渡し、段落がどこで
+途切れているかを示します。1ページだけの文書には2パス目がなく、文書の最後のfillページには次のページがありません。
 
 ## 処理の流れ
 
@@ -145,56 +141,58 @@ sequenceDiagram
     participant L as MdWriterOcr
     participant D as FigureDetector
     participant R as BlockRenderer
-    participant T as BatchTranscriber
+    participant T as PageTranscriber
     participant M as チャットモデル
     Caller->>L: ocr(pages)
-    L->>L: plan_batches(len(pages), batch_size)
     L->>D: detect(pages)
     D-->>L: figures
     L->>R: ページごとに render_page(page, そのページの図)
     R-->>L: 描画済みページ
-    par すべての偶数バッチ
-        L->>T: write(batch, rendered, figures)
+    par すべてのwriteページ
+        L->>T: write(task, rendered, figures)
         loop 検証を通るまで（最大3回）
             T->>M: 図のIDを添えたページ画像
             M-->>T: Markdown
-            T->>T: validate_batch_output
+            T->>T: validate_page_output
         end
-        T-->>L: バッチのMarkdown
+        T-->>L: ページのMarkdown
     end
-    par すべての奇数バッチ
-        L->>T: fill(batch, rendered, figures, previous, next)
+    par すべてのfillページ
+        L->>T: fill(task, rendered, figures, previous, next)
         loop 検証を通るまで（最大3回）
-            T->>M: 前のパート、ページ画像（境界ページは文脈）、次のパート
-            M-->>T: 内側のページのMarkdown
-            T->>T: validate_batch_output
+            T->>M: 前のページのMarkdown、ページ画像、次のページのMarkdown
+            M-->>T: ページのMarkdown
+            T->>T: validate_page_output
         end
-        T-->>L: バッチのMarkdown
+        T-->>L: ページのMarkdown
     end
     L->>L: stitch(ページ順のパート)
     L->>L: parse_markdown(markdown, figures)
     L-->>Caller: OcrResult
 ```
 
-どちらのパスも `run_parallel` を通し、`max_parallel_batches` 個ずつ並列に処理します。
-最初の失敗で全体を止めます。`max_attempt_count` 回試しても検証を通らないバッチは `RuntimeError` を出します。
+どちらのパスも `run_parallel` を通し、`max_parallel_pages` ページずつ並列に処理します。
+最初の失敗で全体を止めます。`max_attempt_count` 回試しても検証を通らないページは `RuntimeError` を出します。
+各リクエストの実行メタデータには `page_index` と `page_kind` を入れるので、コールバック側で
+どのリクエスト（とそのトークン使用量）がどのページのものかを区別できます。
 
-奇数バッチには、前後の偶数バッチのMarkdown全文と、境界ページも含めた自分の全ページを渡します。
-自分の応答が2つのパートの間にそのまま挿入されることを伝えるので、モデルは前のパートで途切れた段落を
-最初から書き直さず、その続きを書きます。そのことは `<!--continues-previous-->` で示させます。
-自分の最後の段落が次のパートへ続く場合は `<!--continued-by-next-->` で示させます。
-Stitcherはそこで2つの半分を結合します。空白を入れるのは、`join_texts` と同じく、両側がASCIIの場合だけです。
-それ以外の境界は空行でつなぎます。
+fillページには、自分の応答が前後のページの間にそのまま挿入されることを伝えます。そのためモデルは、
+前のページで途切れた段落を最初から書き直さず、その続きを書きます。そのことは `<!--continues-previous-->` で示させます。
+自分の最後の段落が次のページへ続く場合は `<!--continued-by-next-->` で示させます。
+ページマーカーはモデルには書かせません。Stitcherが各ページのMarkdownの前に `<!--page:N-->` を置きます
+（モデルが書いたものは先に取り除きます）。継続マーカーのある所では2つの半分を1つの段落に結合し、
+空白を入れるのは `join_texts` と同じく両側がASCIIの場合だけです。それ以外の境界は空行でつなぎます。
+writeページ同士が隣り合うことはないので、つなぎ方はすべて間にあるfillページが決めます。
 
 `write_markdown()` はパースの手前で止まり、Markdownと図、描画済みのページを返します。
 それらを確認したい呼び出し側のためのものです。
 
 ## テスト
 
-- 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。バッチ計画、マーカーとフェンス、
+- 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。マーカーとフェンス、
   検証、結合、パーサ、決まった応答を返す偽モデルを使った書き下し（再試行とその上限を含む）、
   偽の検出器とリクエストの内容から応答する偽モデルを使ったパイプライン全体。
-- 本物の検出器とモデルでサンプルPDFを読む手動テスト:
+- 本物の検出器とモデルでサンプルPDFを読み、ページごとのトークン数とコストを出す手動テスト:
   [TestMdWriter_setup.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.md)。
 
 ```bash

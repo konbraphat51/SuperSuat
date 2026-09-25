@@ -2,9 +2,10 @@
 
 The MdWriter OCR pipeline (see [Plan.en.md](Plan.en.md)). A layout model finds only the
 figures, which are drawn onto the pages with their ids; a multimodal model then writes
-whole runs of pages out as Markdown, placing each figure by id, and the Markdown is
-read into an `OcrResult`. Since one request covers several pages, text that runs over a
-page turn stays in view, and a document costs far fewer requests than one per page.
+the pages out as Markdown, one page per request, placing each figure by id, and the
+Markdown is read into an `OcrResult`. A page between two others is written last, with
+the Markdown of both in view, so that text running over a page turn joins into one
+paragraph.
 
 日本語版: [MdWriterOcr.ja.md](MdWriterOcr.ja.md)
 
@@ -18,9 +19,8 @@ classDiagram
     }
     class MdWriterOcr {
         +figure_detector: FigureDetector
-        +transcriber: BatchTranscriber
-        +batch_size: int
-        +max_parallel_batches: int
+        +transcriber: PageTranscriber
+        +max_parallel_pages: int
         +renderer: BlockRenderer
         +ocr(all_page_images: list[Image]) OcrResult
         +write_markdown(all_page_images: list[Image]) MarkdownDraft
@@ -34,11 +34,11 @@ classDiagram
     class DocLayoutYoloFigureDetector
     class YomitokuFigureDetector
     class PpStructureFigureDetector
-    class BatchTranscriber {
+    class PageTranscriber {
         +model: BaseChatModel
         +max_attempt_count: int
-        +write(batch, rendered_pages, figures) str
-        +fill(batch, rendered_pages, figures, previous_markdown, next_markdown) str
+        +write(task, rendered_pages, figures) str
+        +fill(task, rendered_pages, figures, previous_markdown, next_markdown) str
     }
     class BlockRenderer {
         +render_page(page: Image, blocks: Sequence[BoxedBlock]) Image
@@ -48,13 +48,9 @@ classDiagram
         +page_index: int
         +bounding_box: tuple[int, int, int, int]
     }
-    class PageBatch {
-        +index: int
-        +first_page: int
-        +last_page: int
-        +written_pages: tuple[int, ...]
-        +kind: BatchKind
-        +pages: range
+    class PageTask {
+        +page_index: int
+        +kind: PageKind
     }
     class MarkdownDraft {
         +markdown: str
@@ -66,12 +62,12 @@ classDiagram
     FigureDetector <|-- YomitokuFigureDetector
     FigureDetector <|-- PpStructureFigureDetector
     MdWriterOcr o-- FigureDetector
-    MdWriterOcr o-- BatchTranscriber
+    MdWriterOcr o-- PageTranscriber
     MdWriterOcr o-- BlockRenderer
-    MdWriterOcr ..> PageBatch : plan_batches
+    MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
-    BatchTranscriber ..> PageBatch
+    PageTranscriber ..> PageTask
     BlockRenderer ..> DetectedFigure : as BoxedBlock
 ```
 
@@ -79,11 +75,10 @@ The remaining stages are plain functions, each in a module of its own:
 
 | Module | Function | Responsibility |
 | --- | --- | --- |
-| [Batching.py](../Batching.py) | `plan_batches` | The write and fill batches covering every page |
 | [Transcriber/prompt.py](../Transcriber/prompt.py) | `WRITE_PROMPT`, `FILL_PROMPT` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
-| [MarkdownValidator.py](../MarkdownValidator.py) | `validate_batch_output` | What is wrong with an answer, as lines the model can act on |
+| [MarkdownValidator.py](../MarkdownValidator.py) | `validate_page_output` | What is wrong with an answer, as lines the model can act on |
 | [Markers.py](../Markers.py) | `strip_page_markers`, `split_continuation`, … | Finding and taking out the page and continuation markers |
-| [Containers.py](../Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences, and joining a box split at a part boundary |
+| [Containers.py](../Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences, and joining a box split at a page boundary |
 | [Stitcher.py](../Stitcher.py) | `stitch` | The parts joined into one document |
 | [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | The document read into the `OcrResult` tree |
 
@@ -117,31 +112,33 @@ Tables and formulas are not detected: the model writes them as Markdown tables a
 The detectors live under `MdWriter/` rather than as an option of the `Blocker`, which
 deliberately drops every class label.
 
-## Batches
+## Passes
 
-With `B = batch_size`, batch `x` spans the closed range `[B*x, B*(x+1)]`, cut short at the
-last page, so neighbouring batches share their boundary page. Even batches write all of
-their pages; odd batches write only the pages between two even ones, and see the
-boundary pages as context only. With `B = 2` and 7 pages:
+Every page is one request. The pages at even indices (the 1st, 3rd, 5th, … page) are the
+*write* pages: the first pass sends each of them on its own. The pages between them are
+the *fill* pages: the second pass sends each with the Markdown the write pages either
+side of it came back as. With 5 pages:
 
 ```mermaid
 flowchart LR
-    subgraph E0["batch 0 (write)"]
-        p0[0] --- p1[1] --- p2[2]
+    subgraph first["pass 1 (write, in parallel)"]
+        p0[0]
+        p2[2]
+        p4[4]
     end
-    subgraph F1["batch 1 (fill)"]
-        c2([2]) --- p3[3] --- c4([4])
+    subgraph second["pass 2 (fill, in parallel)"]
+        p1[1]
+        p3[3]
     end
-    subgraph E2["batch 2 (write)"]
-        p4[4] --- p5[5] --- p6[6]
-    end
-    E0 --> F1 --> E2
+    p0 -. Markdown .-> p1
+    p2 -. Markdown .-> p1
+    p2 -. Markdown .-> p3
+    p4 -. Markdown .-> p3
 ```
 
-Rounded pages are sent as context and not written again. `B` has to be 2 or more, or an
-odd batch has no page of its own; an odd batch left with none (at the end of the
-document) is not planned, and a document shorter than `B + 1` pages is one write batch
-with no second pass.
+A fill page is sent its own image only; the neighbours are there as text, to show where
+their paragraphs break off. A one-page document has no second pass, and a fill page that
+ends the document has no next page.
 
 ## Flow
 
@@ -151,59 +148,61 @@ sequenceDiagram
     participant L as MdWriterOcr
     participant D as FigureDetector
     participant R as BlockRenderer
-    participant T as BatchTranscriber
+    participant T as PageTranscriber
     participant M as Chat model
     Caller->>L: ocr(pages)
-    L->>L: plan_batches(len(pages), batch_size)
     L->>D: detect(pages)
     D-->>L: figures
     L->>R: render_page(page, figures of the page), per page
     R-->>L: rendered pages
-    par every even batch
-        L->>T: write(batch, rendered, figures)
+    par every write page
+        L->>T: write(task, rendered, figures)
         loop until the answer checks out, at most 3 times
-            T->>M: pages, labeled with their figures
+            T->>M: the page, labeled with its figures
             M-->>T: Markdown
-            T->>T: validate_batch_output
+            T->>T: validate_page_output
         end
-        T-->>L: Markdown of the batch
+        T-->>L: Markdown of the page
     end
-    par every odd batch
-        L->>T: fill(batch, rendered, figures, previous, next)
+    par every fill page
+        L->>T: fill(task, rendered, figures, previous, next)
         loop until the answer checks out, at most 3 times
-            T->>M: previous part, pages (boundary ones as context), next part
-            M-->>T: Markdown of the inner pages
-            T->>T: validate_batch_output
+            T->>M: previous page's Markdown, the page, next page's Markdown
+            M-->>T: Markdown of the page
+            T->>T: validate_page_output
         end
-        T-->>L: Markdown of the batch
+        T-->>L: Markdown of the page
     end
     L->>L: stitch(parts in page order)
     L->>L: parse_markdown(markdown, figures)
     L-->>Caller: OcrResult
 ```
 
-Both passes go through `run_parallel`, `max_parallel_batches` batches at a time. The first
-failure ends the run: a batch that still does not check out after `max_attempt_count`
-attempts raises `RuntimeError`.
+Both passes go through `run_parallel`, `max_parallel_pages` pages at a time. The first
+failure ends the run: a page that still does not check out after `max_attempt_count`
+attempts raises `RuntimeError`. Every request carries `page_index` and `page_kind` in its
+run metadata, so a callback can tell which page a request, and its token usage, was for.
 
-A fill batch is given the whole Markdown of the write batches either side of it, and all
-of its own pages, boundary ones included. It is told that its answer goes verbatim between
-the two, so it writes the rest of a paragraph the previous part broke off rather than
-starting it again, and says so with `<!--continues-previous-->`; a paragraph of its own
-that the next part carries on is marked with `<!--continued-by-next-->`. The stitcher joins
-the two halves there — with a space only between two ASCII characters, as `join_texts`
-does — and blank lines everywhere else.
+A fill page is told that its answer goes verbatim between its two neighbours, so it
+writes the rest of a paragraph the previous page broke off rather than starting it again,
+and says so with `<!--continues-previous-->`; a paragraph of its own that the next page
+carries on is marked with `<!--continued-by-next-->`. The model writes no page markers:
+the stitcher puts `<!--page:N-->` before every page's Markdown (any the model wrote are
+taken out first), and joins the two halves of a paragraph at a continuation marker — with
+a space only between two ASCII characters, as `join_texts` does — and blank lines
+everywhere else. Two write pages are never next to each other, so every join is decided
+by the fill page between them.
 
 `write_markdown()` stops before parsing and returns the Markdown with the figures and the
 rendered pages, for a caller that wants to look at them.
 
 ## Tests
 
-- Unit tests in [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/): batch planning, the
-  markers and fences, the validator, the stitcher, the parser, the transcriber against a
+- Unit tests in [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/): the markers and fences, the validator, the stitcher, the parser, the transcriber against a
   scripted fake model (retry and its limit included), and the whole pipeline against a
   fake detector and a fake model that answers from the request.
-- A manual run over the sample PDFs, with a real detector and model:
+- A manual run over the sample PDFs, with a real detector and model, reporting every
+  page's tokens and cost:
   [TestMdWriter_setup.en.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.en.md).
 
 ```bash

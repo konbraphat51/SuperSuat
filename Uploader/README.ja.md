@@ -26,7 +26,7 @@ APIキーは `.env` に書きます。`template.env` を参照してください
 | --- | --- | --- |
 | Linear | エージェントが1ページずつツリーに読み込む | [Linear/Docs/Plan.md](OcrModule/Linear/Docs/Plan.md) |
 | Blocked | レイアウトモデルがブロックを検出し、LLMが種別を決め、最後に各ブロックを読む | [Blocked/Docs/Plan.md](OcrModule/Blocked/Docs/Plan.md) |
-| MdWriter | レイアウトモデルが図を検出し、LLMが複数ページずつMarkdownに書き下し、それを解析する | [MdWriter/Docs/Plan.md](OcrModule/MdWriter/Docs/Plan.md) |
+| MdWriter | レイアウトモデルが図を検出し、LLMが1ページずつMarkdownに書き下し、それを解析する | [MdWriter/Docs/Plan.md](OcrModule/MdWriter/Docs/Plan.md) |
 
 レイアウトモデルの重みは、初回使用時にダウンロードされてキャッシュされます
 （`~/.cache/huggingface/`、`~/.paddlex/official_models/`）。

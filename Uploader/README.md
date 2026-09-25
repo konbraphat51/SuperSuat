@@ -27,7 +27,7 @@ Every pipeline implements `Ocr` ([Ocr.py](OcrModule/Ocr.py)).
 | --- | --- | --- |
 | Linear | An agent reads one page at a time into the tree | [Linear/Docs/Plan.md](OcrModule/Linear/Docs/Plan.md) |
 | Blocked | A layout model finds the blocks, an LLM settles what they are, each block is read last | [Blocked/Docs/Plan.en.md](OcrModule/Blocked/Docs/Plan.en.md) |
-| MdWriter | A layout model finds the figures, an LLM writes runs of pages as Markdown, which is parsed | [MdWriter/Docs/Plan.en.md](OcrModule/MdWriter/Docs/Plan.en.md) |
+| MdWriter | A layout model finds the figures, an LLM writes the pages as Markdown, one per request, which is parsed | [MdWriter/Docs/Plan.en.md](OcrModule/MdWriter/Docs/Plan.en.md) |
 
 Layout model weights are downloaded on first use and cached (`~/.cache/huggingface/`,
 `~/.paddlex/official_models/`).

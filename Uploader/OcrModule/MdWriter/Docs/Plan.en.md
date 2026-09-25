@@ -7,19 +7,15 @@
 
 2. Hand the page images to an LLM and have it convert them into Markdown
 
-- With `BATCH_SIZE` as the batch size,
-  1. First, the pages in `[BATCH_SIZE*x, BATCH_SIZE*(x+1)]` (x even) are given to the LLM to transcribe (in parallel)
-  2. Then, the pages in `[BATCH_SIZE*x, BATCH_SIZE*(x+1)]` (x odd) are given to the LLM to fill the gaps in the Markdown step 1 returned (in parallel)
-  - In step 2, the only Markdown the LLM is given is that of the batches right before and right after the target batch (from step 1).
-- The ranges are closed intervals: neighbouring batches share their boundary page
-  - An even batch transcribes all of its pages
-  - An odd batch transcribes only its inner pages, the ones no even batch covers. The boundary pages are sent as context, so the model can read how the text runs on
-  - An odd batch writes its output so that "previous batch + its output + next batch" reads as one document. Where a paragraph runs over a boundary, it says so with a continuation marker
-  - `BATCH_SIZE` is 2 or more
+- Each request has the LLM transcribe one page only
+  1. First half: the odd pages (the 1st, 3rd, 5th, … page; even indices, counting from 0) are each given to the LLM on their own to transcribe (in parallel)
+  2. Second half: the even pages (the 2nd, 4th, … page) are given to the LLM with the Markdown of the pages either side (from step 1), to be transcribed as the fill between them (in parallel)
+  - In the second half, the only image sent is the target page's; the neighbouring pages are sent as Markdown only
+  - A second-half page writes its output so that "previous page + its output + next page" reads as one document. Where a paragraph runs over a page turn, it says so with a continuation marker
 - Define special syntax for footnotes, sidenotes, columns and the like, and have the LLM use it ([MarkdownSyntax.md](MarkdownSyntax.md))
   - Footnotes in GFM style (`[^n]` / `[^n]: …`), sidenotes and columns as `:::sidenote` / `:::column` blocks
-  - Each page starts with `<!--page:N-->`, which records the pages a block is on
-- Every heading is treated as level 2 (each batch is written independently, so their hierarchies cannot be matched up)
+  - `<!--page:N-->` is put before each page's Markdown (by the stitching, not the LLM), which records the pages a block is on
+- Every heading is treated as level 2 (each page is written independently, so their hierarchies cannot be matched up)
 
 3. Parse the stitched Markdown into an `OcrResult`
 

@@ -9,16 +9,17 @@ specification; change them together.
 
 ## What the model writes
 
+Each answer is the Markdown of one page.
+
 | Element | Syntax | Notes |
 | --- | --- | --- |
-| Page start | `<!--page:N-->` | Where the content of page N begins; N is 0-indexed, the number sent before the page image. One per transcribed page, in order. When a paragraph runs over a page turn, the marker goes inside it, on the same line |
 | Paragraph | one line of text | Lines the page broke are joined as the script wants. Paragraphs are separated by a blank line |
-| Heading | `## heading` | Every heading, the document's title included, is level 2 (batches are written independently, so their hierarchies cannot be matched up) |
+| Heading | `## heading` | Every heading, the document's title included, is level 2 (pages are written independently, so their hierarchies cannot be matched up) |
 | Figure | `![caption](figure:ID)` | A paragraph of its own. ID is the number drawn on the figure's red box. The caption goes in the alt text only, never again as body text |
 | Math | `$...$`, `$$...$$` | KaTeX-compatible LaTeX. A display equation goes on lines of its own |
 | Table | GFM pipe table | A merged cell is repeated in every cell it spans |
 | Code | fenced code block | Source code and pseudocode |
-| Footnote | `[^n]` in the body, `[^n]: text` as a paragraph | n is the printed mark. Two parts may reuse a label |
+| Footnote | `[^n]` in the body, `[^n]: text` as a paragraph | n is the printed mark. Two pages may reuse a label |
 | Sidenote | `:::sidenote` … `:::` | Text in the margin, placed after the paragraph it sits beside |
 | Column | `:::column` … `:::` | A box, sidebar or column set apart from the main text |
 
@@ -26,23 +27,30 @@ Not written: page numbers, running heads and running footers, and the red boxes
 and id labels drawn on the pages.
 
 A figure, footnote, sidenote or column never goes inside a paragraph: when one is
-printed in the middle of a paragraph (a page turn included), the whole paragraph
-comes first and the block after it.
+printed in the middle of a paragraph, the whole paragraph comes first and the
+block after it.
 
 Every answer is complete Markdown on its own: a `:::` block is closed before the
-answer ends, even when the box carries on past its last page, and reopened at the
-start of an answer whose first page begins inside the box. Blocks never nest.
+answer ends, even when the box carries on past the page, and reopened at the start
+of an answer whose page begins inside the box. Blocks never nest.
 
-### Continuation markers (fill batches only)
+### Continuation markers (fill pages only)
 
 | Marker | Where | Meaning |
 | --- | --- | --- |
-| `<!--continues-previous-->` | The very start of the answer | Its first paragraph is the rest of the previous part's last paragraph |
-| `<!--continued-by-next-->` | The very end of the answer | Its last paragraph carries on into the next part's first paragraph |
+| `<!--continues-previous-->` | The very start of the answer | Its first paragraph is the rest of the previous page's last paragraph |
+| `<!--continued-by-next-->` | The very end of the answer | Its last paragraph carries on into the next page's first paragraph |
 
 Where such a paragraph is inside a box, both answers hold it in a `:::` block of the
 same name; the [Stitcher](../Stitcher.py) drops the closing and reopening fences at
 the join, so the box becomes one block again.
+
+### Page markers
+
+The model writes no page markers; any it writes are taken out. The
+[Stitcher](../Stitcher.py) puts `<!--page:N-->` (N 0-indexed) before the Markdown of
+every page, so where a paragraph is joined across a page turn, the marker ends up
+inside it, on the same line.
 
 ## How it is checked
 
@@ -50,14 +58,15 @@ the join, so the box becomes one block again.
 problem is sent back to the model, which writes the whole answer again, up to
 `MAX_ATTEMPT_COUNT` (3) times:
 
-- The page markers are exactly the pages the batch writes, once each, in order, and
-  the answer starts with the first of them (after `<!--continues-previous-->`)
-- Every figure on those pages is placed exactly once, and no other figure is
-- The continuation markers are only in a fill batch, only at the start and the end,
-  and `<!--continued-by-next-->` only when a part follows
+- Every figure on the page is placed exactly once, and no other figure is
+- Every figure is a paragraph of its own: on a line by itself, with no text on the
+  line before or after it (a `:::` fence may be), since the parser would otherwise
+  read it as part of a paragraph
+- The continuation markers are only in a fill page's answer, only at the start and
+  the end, and `<!--continued-by-next-->` only when a page follows
 - The `:::` fences are balanced and not nested
 - No paragraph of 40 characters or more is written twice, which is what a page
-  transcribed under the wrong marker looks like
+  read twice looks like
 
 ## How it is read
 
