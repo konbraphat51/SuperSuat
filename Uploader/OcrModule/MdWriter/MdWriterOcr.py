@@ -10,7 +10,9 @@ from ..Blocked.PageParallel import DEFAULT_MAX_PARALLEL_PAGES, run_parallel
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResult
 from .FigureDetector import FigureDetector
+from .Markers import split_continuation
 from .MarkdownParser import parse_markdown
+from .PageJoin import JoinJudge, decide_joins
 from .Schema import DetectedFigure, MarkdownDraft, PageTask
 from .Stitcher import stitch
 from .Transcriber.PageTranscriber import PageTranscriber
@@ -22,20 +24,20 @@ class MdWriterOcr(Ocr):
     """Reads a document by having a model write it out as Markdown, a page per request.
 
     A `FigureDetector` finds the figures, which are drawn onto the pages with
-    their ids, so the model places each one by id rather than reading it. The
-    pages are then written in two passes (see Docs/Plan.md): the pages at
-    even indices first, each on its own and all at once, then the pages
-    between them, each filling the gap with the Markdown of both neighbours
-    in view, so that the parts join into one text. The stitched Markdown is
+    their ids, so the model places each one by id rather than reading it.
+    Every page is then written at once, each on its own (see Docs/Plan.md),
+    saying of its own ends whether its text runs over the page turn; where
+    two pages disagree, a `JoinJudge` settles it. The stitched Markdown is
     last read into the document tree.
 
-    Which models run is the caller's choice: the detector and the transcriber
-    are handed in already built."""
+    Which models run is the caller's choice: the detector, the transcriber
+    and the judge are handed in already built."""
 
     def __init__(
         self,
         figure_detector: FigureDetector,
         transcriber: PageTranscriber,
+        join_judge: JoinJudge | None = None,
         max_parallel_pages: int = DEFAULT_MAX_PARALLEL_PAGES,
         renderer: BlockRenderer | None = None,
     ) -> None:
@@ -43,11 +45,14 @@ class MdWriterOcr(Ocr):
         Args:
             figure_detector: Finds the figures of each page.
             transcriber: Writes a page out as Markdown.
+            join_judge: Settles a page turn the two pages disagree on; without
+                one, whether the paragraph stops at a sentence's end does.
             max_parallel_pages: Most pages sent to the model at once.
             renderer: Draws the figures and their ids onto the pages.
         """
         self.figure_detector = figure_detector
         self.transcriber = transcriber
+        self.join_judge = join_judge
         self.max_parallel_pages = max_parallel_pages
         self.renderer = renderer or BlockRenderer()
 
@@ -61,17 +66,20 @@ class MdWriterOcr(Ocr):
 
     def write_markdown(self, all_page_images: list[Image]) -> MarkdownDraft:
         """Every page written out as one Markdown document, not yet parsed."""
-        logger.info("MdWriter OCR | %d page(s)", len(all_page_images))
-        tasks = [PageTask(page_index) for page_index in range(len(all_page_images))]
+        page_count = len(all_page_images)
+        logger.info("MdWriter OCR | %d page(s)", page_count)
+        tasks = [PageTask(index, page_count) for index in range(page_count)]
 
         figures = self.figure_detector.detect(all_page_images)
         rendered_pages = self._render(all_page_images, figures)
 
-        written = self._write(tasks, rendered_pages, figures)
-        filled = self._fill(tasks, rendered_pages, figures, written)
+        pages = [
+            split_continuation(markdown)
+            for markdown in self._write(tasks, rendered_pages, figures)
+        ]
+        joins = decide_joins(pages, self.join_judge)
 
-        markdowns = {**written, **filled}
-        markdown = stitch([(task, markdowns[task.page_index]) for task in tasks])
+        markdown = stitch([page.body for page in pages], joins)
         return MarkdownDraft(
             markdown=markdown, figures=figures, rendered_pages=rendered_pages
         )
@@ -94,51 +102,17 @@ class MdWriterOcr(Ocr):
         tasks: list[PageTask],
         rendered_pages: list[Image],
         figures: list[DetectedFigure],
-    ) -> dict[int, str]:
-        """The first pass: the Markdown of every write page, by page index."""
-        write_tasks = [task for task in tasks if task.kind == "write"]
+    ) -> list[str]:
+        """The Markdown of every page, in page order."""
         started_at = time.monotonic()
 
         markdowns = run_parallel(
-            lambda task: self.transcriber.write(task, rendered_pages, figures),
-            write_tasks,
+            lambda task: self.transcriber.transcribe(task, rendered_pages, figures),
+            tasks,
             self.max_parallel_pages,
             progress_label="writing",
         )
         logger.info(
-            "write pass | %d page(s) in %.1fs",
-            len(write_tasks),
-            time.monotonic() - started_at,
+            "write | %d page(s) in %.1fs", len(tasks), time.monotonic() - started_at
         )
-        return {task.page_index: md for task, md in zip(write_tasks, markdowns)}
-
-    def _fill(
-        self,
-        tasks: list[PageTask],
-        rendered_pages: list[Image],
-        figures: list[DetectedFigure],
-        written: dict[int, str],
-    ) -> dict[int, str]:
-        """The second pass: the Markdown of every fill page, by page index,
-        each written against the write pages either side of it."""
-        fill_tasks = [task for task in tasks if task.kind == "fill"]
-        started_at = time.monotonic()
-
-        markdowns = run_parallel(
-            lambda task: self.transcriber.fill(
-                task,
-                rendered_pages,
-                figures,
-                previous_markdown=written[task.page_index - 1],
-                next_markdown=written.get(task.page_index + 1),
-            ),
-            fill_tasks,
-            self.max_parallel_pages,
-            progress_label="filling",
-        )
-        logger.info(
-            "fill pass | %d page(s) in %.1fs",
-            len(fill_tasks),
-            time.monotonic() - started_at,
-        )
-        return {task.page_index: md for task, md in zip(fill_tasks, markdowns)}
+        return markdowns

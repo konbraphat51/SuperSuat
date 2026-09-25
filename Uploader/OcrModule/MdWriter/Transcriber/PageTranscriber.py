@@ -17,7 +17,7 @@ from ...LlmHelper import (
 from ..Markers import without_page_markers
 from ..MarkdownValidator import validate_page_output
 from ..Schema import DetectedFigure, PageTask
-from .prompt import FILL_PROMPT, WRITE_PROMPT
+from .prompt import PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +50,13 @@ class PageTranscriber:
         self.model = model
         self.max_attempt_count = max_attempt_count
 
-    def write(
+    def transcribe(
         self,
         task: PageTask,
         rendered_pages: Sequence[Image],
         figures: Sequence[DetectedFigure],
     ) -> str:
-        """The Markdown of a page, written on its own.
+        """The Markdown of a page, continuation markers included.
 
         Args:
             task: The page to write.
@@ -68,56 +68,15 @@ class PageTranscriber:
         """
         content: Content = [
             *build_image_message(
-                f"{_page_label(task.page_index, figures)}:",
+                f"{_page_label(task, figures)}:",
                 page_to_base64(rendered_pages[task.page_index]),
             )
         ]
 
         return self._transcribe(
             task,
-            [SystemMessage(content=WRITE_PROMPT), HumanMessage(content=content)],
+            [SystemMessage(content=PROMPT), HumanMessage(content=content)],
             figures,
-            has_next=False,
-        )
-
-    def fill(
-        self,
-        task: PageTask,
-        rendered_pages: Sequence[Image],
-        figures: Sequence[DetectedFigure],
-        previous_markdown: str,
-        next_markdown: str | None,
-    ) -> str:
-        """The Markdown of a page, written to join the pages either side of
-        it into one text.
-
-        Args:
-            task: The page to fill.
-            rendered_pages: Every page of the document, its figures drawn on.
-            figures: Every figure of the document.
-            previous_markdown: What the page before this one was written as.
-            next_markdown: What the page after this one was written as, or
-                None if this page ends the document.
-
-        Raises:
-            RuntimeError: No answer checked out in max_attempt_count attempts.
-        """
-        content: Content = [
-            _text_block(f"<previous_page>\n{previous_markdown}\n</previous_page>"),
-            *build_image_message(
-                f"{_page_label(task.page_index, figures)}, to transcribe:",
-                page_to_base64(rendered_pages[task.page_index]),
-            ),
-        ]
-
-        if next_markdown is not None:
-            content.append(_text_block(f"<next_page>\n{next_markdown}\n</next_page>"))
-
-        return self._transcribe(
-            task,
-            [SystemMessage(content=FILL_PROMPT), HumanMessage(content=content)],
-            figures,
-            has_next=next_markdown is not None,
         )
 
     def _transcribe(
@@ -125,12 +84,11 @@ class PageTranscriber:
         task: PageTask,
         messages: list[BaseMessage],
         figures: Sequence[DetectedFigure],
-        has_next: bool,
     ) -> str:
         """Asks for the page's Markdown until an answer checks out."""
-        label = f"page {task.page_index} ({task.kind})"
+        label = f"page {task.page_index}"
         figure_ids = _figure_ids(task.page_index, figures)
-        metadata = {"page_index": task.page_index, "page_kind": task.kind}
+        metadata = {"page_index": task.page_index, "page_kind": "write"}
 
         for attempt in range(1, self.max_attempt_count + 1):
             response = self.model.invoke(messages, config={"metadata": metadata})
@@ -140,7 +98,7 @@ class PageTranscriber:
             markdown = without_page_markers(
                 strip_code_fence(response.text.strip())
             ).strip()
-            problems = validate_page_output(markdown, task, figure_ids, has_next)
+            problems = validate_page_output(markdown, figure_ids)
 
             if not problems:
                 return markdown
@@ -163,24 +121,20 @@ class PageTranscriber:
         )
 
 
-def _text_block(text: str) -> dict[Any, Any]:
-    """A standard text content block."""
-    return {"type": "text", "text": text}
-
-
 def _figure_ids(page_index: int, figures: Sequence[DetectedFigure]) -> list[int]:
     """The ids of the figures on the given page."""
     return [figure.block_id for figure in figures if figure.page_index == page_index]
 
 
-def _page_label(page_index: int, figures: Sequence[DetectedFigure]) -> str:
-    """What a page image is introduced with: its number and its figures."""
-    ids = _figure_ids(page_index, figures)
+def _page_label(task: PageTask, figures: Sequence[DetectedFigure]) -> str:
+    """What a page image is introduced with: where it is, and its figures."""
+    ids = _figure_ids(task.page_index, figures)
+    place = f"Page {task.page_index + 1} of {task.page_count}"
 
     if not ids:
-        return f"Page {page_index} (no figures)"
+        return f"{place} (no figures)"
 
-    return f"Page {page_index} (figures {', '.join(str(i) for i in ids)})"
+    return f"{place} (figures {', '.join(str(i) for i in ids)})"
 
 
 def _retry_message(problems: list[str]) -> str:

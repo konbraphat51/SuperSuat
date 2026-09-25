@@ -1,6 +1,6 @@
 """The instructions the model transcribes a page into Markdown with."""
 
-# The Markdown both passes write, and MarkdownParser reads (see Docs/MarkdownSyntax.md).
+# The Markdown every page is written in, and MarkdownParser reads (see Docs/MarkdownSyntax.md).
 MARKDOWN_RULES = """Markdown rules:
 - Paragraphs: write each paragraph on one line, joining the lines the page broke it into as its script wants (directly for Japanese and Chinese, with a space for scripts that separate words with spaces, keeping a hyphen the author wrote). Separate paragraphs with a blank line.
 - Headings: write every heading, including the document's title and every chapter or section title, as a level 2 heading (`## `), whatever its size or numbering on the page.
@@ -25,7 +25,7 @@ MARKDOWN_RULES = """Markdown rules:
 - Do not write page numbers, running heads, or running footers: the chapter or section title repeated at the top or bottom of every page is a running head, not a heading.
 """
 
-# Common to both passes: what to write, and what not to.
+# What to write, and what not to.
 TRANSCRIPTION_RULES = """Transcription rules:
 - Output only the Markdown itself: no preamble, no explanation, no code fence around it.
 - Follow the document's reading order, multi-column and vertical (tategaki) layouts included.
@@ -34,24 +34,22 @@ TRANSCRIPTION_RULES = """Transcription rules:
 - Do not invent, complete, or correct text that is unclear or cut off; transcribe only what is visible. The page may begin or end in the middle of a sentence: transcribe it as it is, without finishing or leaving out the broken sentence.
 """
 
-WRITE_PROMPT = f"""You are a highly precise OCR engine. You are given one page image of a document, and transcribe it into Markdown.
+# How a page says that its text runs over a page turn (see Docs/MarkdownSyntax.md).
+CONTINUATION_RULES = """Page turn rules: the document is transcribed page by page, and the pages are joined afterwards. Say where your page's text runs over a page turn, judging from your page image alone:
+- Start your output with <!--continues-previous--> when the first text of the page is the middle of a paragraph begun on the previous page: it starts in the middle of a sentence, or without the indent or spacing the document opens its paragraphs with.
+- End your output with <!--continued-by-next--> when the last paragraph of the page runs on onto the next page: it stops in the middle of a sentence, or its last line runs to the end of the line with no sentence-ending punctuation.
+- This holds inside a sidenote or column too: keep the block complete as usual (open it again at the start, close it at the end), and put <!--continues-previous--> before its opening line or <!--continued-by-next--> after its closing line.
+- Otherwise, do not write either marker. Never write any other page marker.
+"""
+
+PROMPT = f"""You are a highly precise OCR engine. You are given one page image of a document, and transcribe it into Markdown.
 
 {TRANSCRIPTION_RULES}
-{MARKDOWN_RULES}"""
+{MARKDOWN_RULES}
+{CONTINUATION_RULES}"""
 
-FILL_PROMPT = f"""You are a highly precise OCR engine. A document is being transcribed into Markdown page by page, and you transcribe one page whose neighbouring pages are already transcribed.
+JOIN_PROMPT = """Two consecutive pages of a document were transcribed separately. You are given the end of one page in <end_of_page> and the start of the next page in <start_of_next_page>.
 
-You are given:
-- the Markdown of the page right before yours, in <previous_page>;
-- the image of your page;
-- the Markdown of the page right after yours, in <next_page>, unless yours is the last page.
+Decide whether the start of the next page continues the same paragraph as the end of the page: the paragraph runs over the page turn, as when a sentence is cut in the middle.
 
-Your output is inserted verbatim between the two neighbouring pages, so that the previous page, your output, and the next page read as one continuous document.
-- If the previous page ends in the middle of a paragraph that carries on onto your page, start your output with <!--continues-previous-->, followed straight away by the rest of that paragraph as your page shows it.
-- If your page's last paragraph carries on onto the next page, end your output with <!--continued-by-next-->, right after your page's last text.
-- This holds inside a sidenote or column too. When the paragraph that carries on is inside a box, open the same block again right after <!--continues-previous--> (a :::column line, then the rest of the paragraph); and when your last paragraph carries on into a box the next page opens, close your block with ::: as usual, before <!--continued-by-next-->. The two halves of the box are joined into one.
-- Otherwise, do not write either marker.
-- Transcribe only your own page, from its image: the neighbouring pages are there only to show how the text runs on. Never repeat, rewrite, or correct their text.
-
-{TRANSCRIPTION_RULES}
-{MARKDOWN_RULES}"""
+Answer with exactly one word: join if it is one paragraph, break if they are separate paragraphs."""

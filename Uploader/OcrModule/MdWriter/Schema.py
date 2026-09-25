@@ -1,12 +1,8 @@
 """What the stages of the MdWriter pipeline hand each other."""
 
 from dataclasses import dataclass
-from typing import Literal
 
 from PIL.Image import Image
-
-# How a page is transcribed: on its own, or as the gap between two written pages.
-PageKind = Literal["write", "fill"]
 
 
 @dataclass
@@ -31,18 +27,22 @@ class PageTask:
     """One page sent to the model in one request.
 
     Attributes:
-        page_index: The page to transcribe, 0-indexed. Pages at even indices
-            (the 1st, 3rd, ... page) are written first, on their own; the
-            pages between them are filled in afterwards, with the Markdown
-            of the pages either side in view.
+        page_index: The page to transcribe, 0-indexed.
+        page_count: How many pages the document has.
     """
 
     page_index: int
+    page_count: int
 
     @property
-    def kind(self) -> PageKind:
-        """Whether this page is written on its own or fills a gap."""
-        return "write" if self.page_index % 2 == 0 else "fill"
+    def has_previous(self) -> bool:
+        """Whether a page comes before this one, which it may continue."""
+        return self.page_index > 0
+
+    @property
+    def has_next(self) -> bool:
+        """Whether a page comes after this one, which may continue it."""
+        return self.page_index < self.page_count - 1
 
 
 @dataclass

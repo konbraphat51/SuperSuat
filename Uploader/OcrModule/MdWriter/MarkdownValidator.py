@@ -13,7 +13,6 @@ from .Markers import (
     find_figure_references,
     split_continuation,
 )
-from .Schema import PageTask
 
 # Shortest paragraph a repeat of is taken as the page transcribed twice, not a
 # phrase the document itself repeats.
@@ -23,12 +22,7 @@ MIN_REPEATED_PARAGRAPH_LENGTH = 40
 QUOTED_LENGTH = 40
 
 
-def validate_page_output(
-    markdown: str,
-    task: PageTask,
-    figure_ids: Collection[int],
-    has_next: bool,
-) -> list[str]:
+def validate_page_output(markdown: str, figure_ids: Collection[int]) -> list[str]:
     """What is wrong with a page's Markdown, as one line per problem for the model.
 
     An empty list means the output can be used as it is.
@@ -36,11 +30,9 @@ def validate_page_output(
     Args:
         markdown: The Markdown the model returned for the page, page markers
             taken out.
-        task: The page it was asked to write.
         figure_ids: The ids of the figures on the page.
-        has_next: Whether a page follows, which a fill page may continue into.
     """
-    problems = _continuation_problems(markdown, task, has_next)
+    problems = _continuation_problems(markdown)
     body = split_continuation(markdown).body
 
     problems += _figure_problems(body, figure_ids)
@@ -50,25 +42,12 @@ def validate_page_output(
     return problems
 
 
-def _continuation_problems(
-    markdown: str,
-    task: PageTask,
-    has_next: bool,
-) -> list[str]:
-    """Continuation markers that are not allowed, or not where they belong."""
+def _continuation_problems(markdown: str) -> list[str]:
+    """Continuation markers anywhere but at the very start or end, or repeated."""
     split = split_continuation(markdown)
     leading_count = len(CONTINUES_PREVIOUS_PATTERN.findall(markdown))
     trailing_count = len(CONTINUED_BY_NEXT_PATTERN.findall(markdown))
     problems: list[str] = []
-
-    if task.kind == "write":
-        if leading_count or trailing_count:
-            problems.append(
-                f"Do not write {CONTINUES_PREVIOUS_MARKER} or "
-                f"{CONTINUED_BY_NEXT_MARKER}: there is no neighbouring page to "
-                "continue from or into."
-            )
-        return problems
 
     if leading_count > int(split.continues_previous):
         problems.append(
@@ -80,12 +59,6 @@ def _continuation_problems(
         problems.append(
             f"{CONTINUED_BY_NEXT_MARKER} may only appear once, as the very last "
             "thing of your output."
-        )
-
-    if split.continued_by_next and not has_next:
-        problems.append(
-            f"Do not write {CONTINUED_BY_NEXT_MARKER}: no page follows yours, so "
-            "nothing continues your last paragraph."
         )
 
     return problems

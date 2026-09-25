@@ -1,28 +1,18 @@
-"""Tests for the parts of every page being joined into one document."""
+"""Tests for the pages being joined into one document."""
 
-from OcrModule.MdWriter.Schema import PageTask
 from OcrModule.MdWriter.Stitcher import stitch
 
-P0, P1, P2 = PageTask(0), PageTask(1), PageTask(2)
 
-
-def test_parts_that_share_no_paragraph_are_separated_by_a_blank_line():
-    document = stitch([(P0, "a\n"), (P1, "b"), (P2, "\nc")])
+def test_pages_that_share_no_paragraph_are_separated_by_a_blank_line():
+    document = stitch(["a\n", "b", "\nc"], [False, False])
 
     assert document == "<!--page:0-->a\n\n<!--page:1-->b\n\n<!--page:2-->c"
 
 
 def test_ascii_paragraphs_continued_across_pages_are_joined_with_a_space():
     document = stitch(
-        [
-            (P0, "the end of"),
-            (
-                P1,
-                "<!--continues-previous-->\na sentence "
-                "that runs on<!--continued-by-next-->",
-            ),
-            (P2, "into the next page."),
-        ]
+        ["the end of", "a sentence that runs on", "into the next page."],
+        [True, True],
     )
 
     assert document == (
@@ -32,36 +22,27 @@ def test_ascii_paragraphs_continued_across_pages_are_joined_with_a_space():
 
 
 def test_cjk_paragraphs_continued_across_pages_are_joined_directly():
-    document = stitch(
-        [
-            (P0, "文章の"),
-            (P1, "<!--continues-previous-->続き"),
-            (P2, "次"),
-        ]
-    )
+    document = stitch(["文章の", "続き", "次"], [True, False])
 
     assert document == "<!--page:0-->文章の<!--page:1-->続き\n\n<!--page:2-->次"
 
 
-def test_a_single_part_is_the_document():
-    assert stitch([(P0, "  a  ")]) == "<!--page:0-->a"
+def test_a_single_page_is_the_document():
+    assert stitch(["  a  "], []) == "<!--page:0-->a"
 
 
 def test_a_blank_page_keeps_its_marker():
-    assert stitch([(P0, "a"), (P1, "")]) == "<!--page:0-->a\n\n<!--page:1-->"
+    assert stitch(["a", ""], [False]) == "<!--page:0-->a\n\n<!--page:1-->"
 
 
 def test_a_box_closed_and_reopened_at_a_continued_join_is_one_box():
     document = stitch(
         [
-            (P0, ":::column\n箱の中の\n:::"),
-            (
-                P1,
-                "<!--continues-previous-->\n:::column\n続き\n:::\n"
-                "<!--continued-by-next-->",
-            ),
-            (P2, ":::column\nさらに続く\n:::"),
-        ]
+            ":::column\n箱の中の\n:::",
+            ":::column\n続き\n:::",
+            ":::column\nさらに続く\n:::",
+        ],
+        [True, True],
     )
 
     assert document == (
@@ -70,12 +51,7 @@ def test_a_box_closed_and_reopened_at_a_continued_join_is_one_box():
 
 
 def test_boxes_of_different_kinds_are_not_merged():
-    document = stitch(
-        [
-            (P0, ":::column\na\n:::"),
-            (P1, "<!--continues-previous-->\n:::sidenote\nb\n:::"),
-        ]
-    )
+    document = stitch([":::column\na\n:::", ":::sidenote\nb\n:::"], [True])
 
     assert document == (
         "<!--page:0-->:::column\na\n:::\n\n<!--page:1-->:::sidenote\nb\n:::"
@@ -83,22 +59,12 @@ def test_boxes_of_different_kinds_are_not_merged():
 
 
 def test_a_figure_opening_the_continued_page_goes_after_the_joined_paragraph():
-    document = stitch(
-        [
-            (P0, "文章の"),
-            (P1, "<!--continues-previous-->![図](figure:0)\n\n続き\n\n次"),
-        ]
-    )
+    document = stitch(["文章の", "![図](figure:0)\n\n続き\n\n次"], [True])
 
     assert document == "<!--page:0-->文章の<!--page:1-->続き\n\n![図](figure:0)\n\n次"
 
 
 def test_a_figure_ending_the_page_before_goes_after_the_joined_paragraph():
-    document = stitch(
-        [
-            (P0, "前\n\n文章の\n\n![図](figure:0)"),
-            (P1, "<!--continues-previous-->続き"),
-        ]
-    )
+    document = stitch(["前\n\n文章の\n\n![図](figure:0)", "続き"], [True])
 
     assert document == "<!--page:0-->前\n\n文章の<!--page:1-->続き\n\n![図](figure:0)"

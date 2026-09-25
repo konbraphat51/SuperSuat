@@ -12,41 +12,34 @@ from .Containers import (
 from .Markers import (
     FIGURE_REFERENCE_PATTERN,
     page_marker,
-    split_continuation,
     split_leading_page_markers,
     without_page_markers,
 )
-from .Schema import PageTask
 
 # What separates two parts that do not share a paragraph.
 PARAGRAPH_BREAK = "\n\n"
 
 
-def stitch(parts: Sequence[tuple[PageTask, str]]) -> str:
-    """The whole document's Markdown, the pages' parts joined in order.
+def stitch(bodies: Sequence[str], joins: Sequence[bool]) -> str:
+    """The whole document's Markdown, the pages joined in order.
 
-    Each part is put after its page marker. A fill page says where its
-    paragraphs continue a neighbour's, with its continuation markers; there,
-    the two halves are joined into one paragraph, and a note block both parts
-    hold it in into one block. Everywhere else, parts are separated by a
-    blank line.
+    Each page is put after its page marker. Where a page turn splits a
+    paragraph, the two halves are joined into one paragraph, and a note block
+    both pages hold it in into one block. Everywhere else, pages are separated
+    by a blank line.
 
     Args:
-        parts: Every page with the Markdown it returned, in document order.
+        bodies: Every page's Markdown, continuation markers taken off, in order.
+        joins: Whether each page's last paragraph runs on into the next page;
+            one fewer than there are pages.
     """
     document = ""
-    continues_into_next = False
 
-    for task, markdown in parts:
-        if task.kind == "fill":
-            split = split_continuation(markdown)
-            body, continues = split.body, split.continues_previous
-            continued = split.continued_by_next
-        else:
-            body, continues, continued = markdown.strip(), continues_into_next, False
-
-        document = _append(document, f"{page_marker(task.page_index)}{body}", continues)
-        continues_into_next = continued
+    for page_index, body in enumerate(bodies):
+        continues = page_index > 0 and joins[page_index - 1]
+        document = _append(
+            document, f"{page_marker(page_index)}{body.strip()}", continues
+        )
 
     return document
 
