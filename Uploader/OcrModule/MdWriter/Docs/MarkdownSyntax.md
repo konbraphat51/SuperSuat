@@ -81,7 +81,7 @@ with it, so a paragraph is not split either.
 | fenced or indented code | `code` (the code, without its fences) |
 | `$$` block | `math` (without the `$$`) |
 | table | `table` |
-| `:::sidenote`, `:::column` | `note` (the inner text) |
+| `:::sidenote`, `:::column` | `note` (the inner text); a figure paragraph inside it becomes an `OcrResultBlockFigure` right after the note |
 | a paragraph of one `figure:ID` image | `OcrResultBlockFigure`: box and page from the detection, caption from the alt text |
 
 A block's text is its Markdown source, as written. Link reference definitions are

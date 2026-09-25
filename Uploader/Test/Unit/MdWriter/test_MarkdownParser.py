@@ -186,3 +186,17 @@ def test_block_indices_are_unique_and_in_document_order():
             indices += [block.block_index for block in section.section_content]
 
     assert indices == list(range(len(indices)))
+
+
+def test_a_figure_inside_a_box_is_placed_right_after_the_box():
+    markdown = (
+        "<!--page:0-->:::column\n![photo](figure:3)\n\nabout the author\n:::\n\nafter"
+    )
+
+    root = parse_markdown(markdown, [figure(3, 0)]).root_section
+
+    assert summary(root) == [
+        ("note", "about the author", [0]),
+        ("figure", "photo", [0]),
+        ("paragraph", "after", [0]),
+    ]

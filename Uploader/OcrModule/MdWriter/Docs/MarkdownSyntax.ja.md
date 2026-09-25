@@ -72,7 +72,7 @@ English version: [MarkdownSyntax.md](MarkdownSyntax.md)
 | フェンス付き・インデントのコード | `code`（フェンスを除いたコード） |
 | `$$` ブロック | `math`（`$$` を除く） |
 | 表 | `table` |
-| `:::sidenote`、`:::column` | `note`（中のテキスト） |
+| `:::sidenote`、`:::column` | `note`（中のテキスト）。中にある図だけの段落は、noteの直後の `OcrResultBlockFigure` にする |
 | `figure:ID` の画像1つだけの段落 | `OcrResultBlockFigure`。枠とページは検出結果から、キャプションは代替テキストから取る |
 
 ブロックのテキストは、書かれたMarkdownのソースそのものです。リンク参照定義は無効にしています。

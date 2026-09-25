@@ -32,6 +32,11 @@ ROOT_BLOCK_INDEX = 0
 # Where a figure placed by the model points, as `![caption](figure:ID)`.
 FIGURE_SOURCE_PATTERN = re.compile(r"^figure:(\d+)$")
 
+# A line holding one figure and nothing else, taken out of the box it sits in.
+FIGURE_LINE_PATTERN = re.compile(
+    r"^[ \t]*!\[[^\]]*\]\(\s*figure:\d+\s*\)[ \t]*(?:\n|$)", re.MULTILINE
+)
+
 # A footnote's definition, `[^n]: note text`, opening a paragraph.
 FOOTNOTE_DEFINITION_PATTERN = re.compile(r"^\[\^[^\]\s]+\]:")
 
@@ -180,10 +185,44 @@ def _read_entries(
             if FOOTNOTE_DEFINITION_PATTERN.match(text):
                 block_type = "note"
 
+        contained = (
+            _contained_figures(tokens, index)
+            if token.type.startswith("container_")
+            else []
+        )
+        if contained:
+            text = FIGURE_LINE_PATTERN.sub("", text).strip()
+
         if text:
             entries.append(_Entry(pages=pages, block_type=block_type, text=text))
 
+        # a figure in a box is a figure all the same, put right after the box
+        for figure_id, inline in contained:
+            figure_entry = _figure_entry(figure_id, inline, figures_by_id, placed)
+            if figure_entry is not None:
+                entries.append(figure_entry)
+
     return entries
+
+
+def _contained_figures(tokens: list[Token], index: int) -> list[tuple[int, Token]]:
+    """The figure paragraphs inside the note block opening at `index`, as
+    their ids and their inline tokens."""
+    close_type = tokens[index].type.removesuffix("_open") + "_close"
+    found: list[tuple[int, Token]] = []
+
+    for position in range(index + 1, len(tokens)):
+        token = tokens[position]
+        if token.type == close_type and token.level == 0:
+            break
+
+        if token.type == "paragraph_open":
+            inline = tokens[position + 1]
+            figure_id = _placed_figure_id(inline)
+            if figure_id is not None:
+                found.append((figure_id, inline))
+
+    return found
 
 
 def _block_text(
