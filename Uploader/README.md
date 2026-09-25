@@ -27,7 +27,7 @@ Every pipeline implements `Ocr` ([Ocr.py](OcrModule/Ocr.py)).
 | --- | --- | --- |
 | Linear | An agent reads one page at a time into the tree | [Linear/Docs/Plan.md](OcrModule/Linear/Docs/Plan.md) |
 | Blocked | A layout model finds the blocks, an LLM settles what they are, each block is read last | [Blocked/Docs/Plan.en.md](OcrModule/Blocked/Docs/Plan.en.md) |
-| LinearMD | A layout model finds the figures, an LLM writes runs of pages as Markdown, which is parsed | [LinearMD/Docs/Plan.en.md](OcrModule/LinearMD/Docs/Plan.en.md) |
+| MdWriter | A layout model finds the figures, an LLM writes runs of pages as Markdown, which is parsed | [MdWriter/Docs/Plan.en.md](OcrModule/MdWriter/Docs/Plan.en.md) |
 
 Layout model weights are downloaded on first use and cached (`~/.cache/huggingface/`,
 `~/.paddlex/official_models/`).
@@ -46,4 +46,4 @@ Each runs the sample PDFs in `Test/Manual/Ocr/Sample/` through real models:
 
 - [TestLinear_setup.md](Test/Manual/Ocr/TestLinear_setup.md) — Linear
 - [TestBlocker_setup.en.md](Test/Manual/Blocked/TestBlocker_setup.en.md) — the Blocked pipeline's layout stage
-- [TestLinearMd_setup.en.md](Test/Manual/LinearMD/TestLinearMd_setup.en.md) — LinearMD
+- [TestMdWriter_setup.en.md](Test/Manual/MdWriter/TestMdWriter_setup.en.md) — MdWriter

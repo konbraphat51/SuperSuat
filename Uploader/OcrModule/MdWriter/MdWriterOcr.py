@@ -1,4 +1,4 @@
-"""The LinearMD OCR pipeline: find the figures, write the pages out as Markdown, then read it."""
+"""The MdWriter OCR pipeline: find the figures, write the pages out as Markdown, then read it."""
 
 import logging
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_BATCH_SIZE = 4
 
 
-class LinearMdOcr(Ocr):
+class MdWriterOcr(Ocr):
     """Reads a document by having a model write whole runs of pages as Markdown.
 
     A `FigureDetector` finds the figures, which are drawn onto the pages with
@@ -66,7 +66,7 @@ class LinearMdOcr(Ocr):
 
     def write_markdown(self, all_page_images: list[Image]) -> MarkdownDraft:
         """Every page written out as one Markdown document, not yet parsed."""
-        logger.info("LinearMD OCR | %d page(s)", len(all_page_images))
+        logger.info("MdWriter OCR | %d page(s)", len(all_page_images))
         batches = plan_batches(len(all_page_images), self.batch_size)
 
         figures = self.figure_detector.detect(all_page_images)

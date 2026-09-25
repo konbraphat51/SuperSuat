@@ -1,6 +1,6 @@
 # Markdown syntax
 
-The Markdown the model writes in the LinearMD pipeline, and how
+The Markdown the model writes in the MdWriter pipeline, and how
 [MarkdownParser](../MarkdownParser.py) reads it back into an `OcrResult`. The
 prompts ([prompt.py](../Transcriber/prompt.py)) and the parser follow this one
 specification; change them together.

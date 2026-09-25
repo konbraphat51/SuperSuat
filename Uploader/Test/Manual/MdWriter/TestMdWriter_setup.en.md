@@ -1,10 +1,10 @@
-# TestLinearMd setup
+# TestMdWriter setup
 
-A manual test that runs the PDFs in `Test/Manual/Ocr/Sample/` through `LinearMdOcr`
+A manual test that runs the PDFs in `Test/Manual/Ocr/Sample/` through `MdWriterOcr`
 and writes the transcribed Markdown, the parsed document tree, and the page images
-with their figures drawn on into `Test/Manual/LinearMD/Output/<detector>/`.
+with their figures drawn on into `Test/Manual/MdWriter/Output/<detector>/`.
 
-日本語版: [TestLinearMd_setup.md](TestLinearMd_setup.md)
+日本語版: [TestMdWriter_setup.md](TestMdWriter_setup.md)
 
 - Figure detection: `doclayout` (DocLayout-YOLO) / `yomitoku` / `ppstructure` (PP-StructureV3), run locally
 - Transcription: a multimodal model on the OpenAI API or on Amazon Bedrock
@@ -37,10 +37,10 @@ Put these in `Uploader/.env` (see `template.env`).
 cd Uploader
 
 # 5 pages only, with BATCH_SIZE=2
-uv run python Test/Manual/LinearMD/TestLinearMd.py --pdf shido_math.pdf --detector doclayout --batch-size 2 --max-pages 5
+uv run python Test/Manual/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --batch-size 2 --max-pages 5
 
 # every sample PDF, with the defaults
-uv run python Test/Manual/LinearMD/TestLinearMd.py
+uv run python Test/Manual/MdWriter/TestMdWriter.py
 ```
 
 ### Options
@@ -58,13 +58,13 @@ uv run python Test/Manual/LinearMD/TestLinearMd.py
 | `--max-tokens N` | `32000` | Most tokens in one answer; large, since one answer writes several pages |
 | `--reasoning-effort LEVEL` | `OPENAI_REASONING_EFFORT` | Reasoning depth of an OpenAI reasoning model |
 | `--log-level LEVEL` | `INFO` | Log verbosity |
-| `--log-file PATH` | `Output/TestLinearMd.log` | Where the log goes (overwritten every run) |
+| `--log-file PATH` | `Output/TestMdWriter.log` | Where the log goes (overwritten every run) |
 
 ## 4. Output
 
 ```
-Test/Manual/LinearMD/Output/
-├── TestLinearMd.log     # model answers, token usage, validation problems and retries
+Test/Manual/MdWriter/Output/
+├── TestMdWriter.log     # model answers, token usage, validation problems and retries
 └── doclayout/
     ├── Seaman.md        # every batch stitched together, page markers included
     ├── Seaman.json      # the parsed OcrResult

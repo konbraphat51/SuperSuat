@@ -3,7 +3,7 @@
 - DocLayoutYolo, Yomitoku or PpStructure can be selected as the model
 - Draw each detected figure's bounding box and its unique ID onto the page image
 - Only figures (figure / image / chart) are detected. Tables and formulas are written out in Markdown by the LLM
-- The Blocked pipeline's `Blocker` is left as it is; LinearMD has a figure-only `FigureDetector` of its own
+- The Blocked pipeline's `Blocker` is left as it is; MdWriter has a figure-only `FigureDetector` of its own
 
 2. Hand the page images to an LLM and have it convert them into Markdown
 
@@ -23,6 +23,6 @@
 
 3. Parse the stitched Markdown into an `OcrResult`
 
-The entry point running it all: [LinearMdOcr.md](LinearMdOcr.md)
+The entry point running it all: [MdWriterOcr.md](MdWriterOcr.md)
 
 日本語版: [Plan.md](Plan.md)

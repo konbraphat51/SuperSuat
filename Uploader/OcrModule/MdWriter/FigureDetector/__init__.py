@@ -1,4 +1,4 @@
-"""Figure detectors for the first stage of the LinearMD pipeline.
+"""Figure detectors for the first stage of the MdWriter pipeline.
 
 Only the names asked for are imported: each implementation pulls in a heavy
 framework of its own, and a pipeline uses one of them.

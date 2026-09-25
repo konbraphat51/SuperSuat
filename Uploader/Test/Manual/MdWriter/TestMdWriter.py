@@ -1,6 +1,6 @@
-"""Manual test for LinearMdOcr against the sample PDFs.
+"""Manual test for MdWriterOcr against the sample PDFs.
 
-Runs the LinearMD pipeline over the PDFs in `Test/Manual/Ocr/Sample/` and
+Runs the MdWriter pipeline over the PDFs in `Test/Manual/Ocr/Sample/` and
 writes, per PDF, into `Output/<detector>/`:
 
 - `<stem>.md`: the stitched Markdown, as the model wrote it
@@ -12,10 +12,10 @@ OCR_PROVIDER / OCR_MODEL_ID in `.env` (or --provider / --model).
 
 Usage (from the `Uploader` directory):
 
-    uv run python Test/Manual/LinearMD/TestLinearMd.py --pdf shido_math.pdf --detector doclayout --batch-size 2
-    uv run python Test/Manual/LinearMD/TestLinearMd.py --max-pages 5
+    uv run python Test/Manual/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --batch-size 2
+    uv run python Test/Manual/MdWriter/TestMdWriter.py --max-pages 5
 
-See TestLinearMd_setup.md for what this needs.
+See TestMdWriter_setup.md for what this needs.
 """
 
 import argparse
@@ -39,10 +39,10 @@ sys.path.insert(0, str(UPLOADER_ROOT))
 
 from dotenv import load_dotenv  # noqa: E402
 
-from OcrModule.LinearMD.FigureDetector import FigureDetector  # noqa: E402
-from OcrModule.LinearMD.LinearMdOcr import DEFAULT_BATCH_SIZE, LinearMdOcr  # noqa: E402
-from OcrModule.LinearMD.MarkdownParser import parse_markdown  # noqa: E402
-from OcrModule.LinearMD.Transcriber.BatchTranscriber import (  # noqa: E402
+from OcrModule.MdWriter.FigureDetector import FigureDetector  # noqa: E402
+from OcrModule.MdWriter.MdWriterOcr import DEFAULT_BATCH_SIZE, MdWriterOcr  # noqa: E402
+from OcrModule.MdWriter.MarkdownParser import parse_markdown  # noqa: E402
+from OcrModule.MdWriter.Transcriber.BatchTranscriber import (  # noqa: E402
     BatchTranscriber,
 )
 
@@ -102,7 +102,7 @@ def build_model(args: argparse.Namespace) -> Any:
 
 def build_detector(name: str) -> FigureDetector:
     """The figure detector named on the command line, its framework loaded now."""
-    from OcrModule.LinearMD import FigureDetector as detectors
+    from OcrModule.MdWriter import FigureDetector as detectors
 
     if name == "yomitoku":
         return detectors.YomitokuFigureDetector()
@@ -128,7 +128,7 @@ def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Any]:
     return images
 
 
-def run_one_pdf(pdf_path: Path, ocr: LinearMdOcr, args: argparse.Namespace) -> None:
+def run_one_pdf(pdf_path: Path, ocr: MdWriterOcr, args: argparse.Namespace) -> None:
     """Reads one PDF and writes its Markdown, tree and rendered pages out."""
     print(f"\n=== {pdf_path.name} ===", flush=True)
 
@@ -210,7 +210,7 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("LOG_LEVEL", "INFO"),
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
     )
-    parser.add_argument("--log-file", default=str(OUTPUT_DIR / "TestLinearMd.log"))
+    parser.add_argument("--log-file", default=str(OUTPUT_DIR / "TestMdWriter.log"))
     args = parser.parse_args()
 
     args.provider = args.provider or os.getenv("OCR_PROVIDER", DEFAULT_PROVIDER)
@@ -251,7 +251,7 @@ def main() -> int:
     print(f"targets: {', '.join(p.name for p in pdfs)}")
     print(f"log: {args.log_file}")
 
-    ocr = LinearMdOcr(
+    ocr = MdWriterOcr(
         figure_detector=build_detector(args.detector),
         transcriber=BatchTranscriber(build_model(args)),
         batch_size=args.batch_size,

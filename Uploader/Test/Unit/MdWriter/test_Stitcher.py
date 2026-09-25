@@ -1,7 +1,7 @@
 """Tests for the parts of every batch being joined into one document."""
 
-from OcrModule.LinearMD.Schema import PageBatch
-from OcrModule.LinearMD.Stitcher import stitch
+from OcrModule.MdWriter.Schema import PageBatch
+from OcrModule.MdWriter.Stitcher import stitch
 
 E0 = PageBatch(index=0, first_page=0, last_page=2, written_pages=(0, 1, 2))
 F1 = PageBatch(index=1, first_page=2, last_page=4, written_pages=(3,))

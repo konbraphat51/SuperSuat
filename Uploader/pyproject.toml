@@ -65,7 +65,7 @@ pythonpath = ["."]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["OcrModule/LinearMD", "OcrModule/TextJoin.py"]
+files = ["OcrModule/MdWriter", "OcrModule/TextJoin.py"]
 
 [[tool.mypy.overrides]]
 module = ["OcrModule.Blocked.*", "OcrModule.Linear.*", "OcrModule.LlmHelper"]

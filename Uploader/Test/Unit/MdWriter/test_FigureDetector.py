@@ -4,7 +4,7 @@ from PIL import Image
 from PIL.Image import Image as PilImage
 
 from OcrModule.Blocked.Blocker.BlockRenderer import BlockRenderer
-from OcrModule.LinearMD.FigureDetector import FigureDetector
+from OcrModule.MdWriter.FigureDetector import FigureDetector
 
 
 class FakeFigureDetector(FigureDetector):

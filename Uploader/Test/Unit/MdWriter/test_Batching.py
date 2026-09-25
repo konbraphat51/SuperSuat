@@ -2,7 +2,7 @@
 
 import pytest
 
-from OcrModule.LinearMD.Batching import plan_batches
+from OcrModule.MdWriter.Batching import plan_batches
 
 
 def spans(

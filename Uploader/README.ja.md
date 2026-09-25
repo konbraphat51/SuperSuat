@@ -26,7 +26,7 @@ APIキーは `.env` に書きます。`template.env` を参照してください
 | --- | --- | --- |
 | Linear | エージェントが1ページずつツリーに読み込む | [Linear/Docs/Plan.md](OcrModule/Linear/Docs/Plan.md) |
 | Blocked | レイアウトモデルがブロックを検出し、LLMが種別を決め、最後に各ブロックを読む | [Blocked/Docs/Plan.md](OcrModule/Blocked/Docs/Plan.md) |
-| LinearMD | レイアウトモデルが図を検出し、LLMが複数ページずつMarkdownに書き下し、それを解析する | [LinearMD/Docs/Plan.md](OcrModule/LinearMD/Docs/Plan.md) |
+| MdWriter | レイアウトモデルが図を検出し、LLMが複数ページずつMarkdownに書き下し、それを解析する | [MdWriter/Docs/Plan.md](OcrModule/MdWriter/Docs/Plan.md) |
 
 レイアウトモデルの重みは、初回使用時にダウンロードされてキャッシュされます
 （`~/.cache/huggingface/`、`~/.paddlex/official_models/`）。
@@ -45,4 +45,4 @@ uv run black --check OcrModule Test
 
 - [TestLinear_setup.md](Test/Manual/Ocr/TestLinear_setup.md) — Linear
 - [TestBlocker_setup.md](Test/Manual/Blocked/TestBlocker_setup.md) — Blockedパイプラインのレイアウト段階
-- [TestLinearMd_setup.md](Test/Manual/LinearMD/TestLinearMd_setup.md) — LinearMD
+- [TestMdWriter_setup.md](Test/Manual/MdWriter/TestMdWriter_setup.md) — MdWriter

@@ -1,4 +1,4 @@
-"""Lets the LinearMD tests import the helpers kept beside them."""
+"""Lets the MdWriter tests import the helpers kept beside them."""
 
 import sys
 from pathlib import Path

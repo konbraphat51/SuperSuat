@@ -3,7 +3,7 @@
 - モデルにはDocLayoutYolo, Yomitoku, PpStructureを選択可能にする
 - 文章画像上に、検出された図領域のバウンディングボックスと、そのユニークIDを描画
 - 検出するのは図（figure / image / chart）のみ。表と数式はLLMがMarkdownで書き下す
-- Blockedの `Blocker` は変更せず、LinearMD側に図専用の `FigureDetector` を別に実装する
+- Blockedの `Blocker` は変更せず、MdWriter側に図専用の `FigureDetector` を別に実装する
 
 2. LLMに、文書画像を渡し、マークダウンへ変換するよう指示
 
@@ -23,6 +23,6 @@
 
 3. 結合したMarkdownを解析し、`OcrResult` に変換する
 
-全体をつなぐ入口: [LinearMdOcr.ja.md](LinearMdOcr.ja.md)
+全体をつなぐ入口: [MdWriterOcr.ja.md](MdWriterOcr.ja.md)
 
 English version: [Plan.en.md](Plan.en.md)

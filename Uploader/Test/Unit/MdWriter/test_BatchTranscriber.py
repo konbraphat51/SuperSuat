@@ -5,8 +5,8 @@ from FakeModel import RecordingFakeModel
 from langchain_core.messages import HumanMessage
 from PIL import Image
 
-from OcrModule.LinearMD.Schema import DetectedFigure, PageBatch
-from OcrModule.LinearMD.Transcriber.BatchTranscriber import BatchTranscriber
+from OcrModule.MdWriter.Schema import DetectedFigure, PageBatch
+from OcrModule.MdWriter.Transcriber.BatchTranscriber import BatchTranscriber
 
 PAGES = [Image.new("RGB", (20, 20), "white") for _ in range(5)]
 FIGURES = [DetectedFigure(block_id=0, page_index=1, bounding_box=(0, 0, 5, 5))]

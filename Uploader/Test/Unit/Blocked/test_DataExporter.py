@@ -17,7 +17,9 @@ from OcrModule.OcrSchema import OcrResultSection
 BOX = (0, 0, 100, 10)
 
 
-def text(block_id: int, body: str, page_index: int = 0, **kwargs) -> ProcessingBlockText:
+def text(
+    block_id: int, body: str, page_index: int = 0, **kwargs
+) -> ProcessingBlockText:
     return ProcessingBlockText(
         block_id=block_id,
         page_index=page_index,
@@ -144,7 +146,9 @@ def test_a_japanese_join_takes_no_space():
 
 
 def test_a_block_left_unlabeled_is_written_down_as_a_paragraph():
-    unlabeled = ProcessingBlockText(block_id=0, page_index=0, bounding_box=BOX, text="?")
+    unlabeled = ProcessingBlockText(
+        block_id=0, page_index=0, bounding_box=BOX, text="?"
+    )
 
     tree = export_processing_blocks_to_ocr_result([unlabeled])
 
@@ -161,7 +165,9 @@ def test_only_text_blocks_are_read_and_a_table_is_read_as_one():
 
     targets = build_transcription_targets(blocks)
 
-    assert [(target.block_id, target.transcription_type.value) for target in targets] == [
+    assert [
+        (target.block_id, target.transcription_type.value) for target in targets
+    ] == [
         (0, "table"),
         (1, "text"),
     ]

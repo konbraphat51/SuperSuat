@@ -1,4 +1,4 @@
-"""What the stages of the LinearMD pipeline hand each other."""
+"""What the stages of the MdWriter pipeline hand each other."""
 
 from dataclasses import dataclass
 from typing import Literal

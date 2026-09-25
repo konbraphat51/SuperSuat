@@ -1,12 +1,12 @@
-# LinearMdOcr
+# MdWriterOcr
 
-LinearMDのOCRパイプラインです（[Plan.md](Plan.md) を参照）。レイアウトモデルは図だけを検出し、
+MdWriterのOCRパイプラインです（[Plan.md](Plan.md) を参照）。レイアウトモデルは図だけを検出し、
 その枠とIDをページに描き込みます。続いてマルチモーダルモデルが、複数ページをまとめてMarkdownに
 書き下し、図はIDで配置します。最後にそのMarkdownを `OcrResult` に読み込みます。
 1回のリクエストで複数ページを扱うので、ページをまたぐ文章も視野に入ったまま書けます。
 リクエストの回数も、1ページずつ処理する場合よりずっと少なくなります。
 
-English version: [LinearMdOcr.md](LinearMdOcr.md)
+English version: [MdWriterOcr.md](MdWriterOcr.md)
 
 ## 構成
 
@@ -16,7 +16,7 @@ classDiagram
         <<abstract>>
         +ocr(all_page_images: list[Image]) OcrResult*
     }
-    class LinearMdOcr {
+    class MdWriterOcr {
         +figure_detector: FigureDetector
         +transcriber: BatchTranscriber
         +batch_size: int
@@ -61,15 +61,15 @@ classDiagram
         +figures: list[DetectedFigure]
         +rendered_pages: list[Image]
     }
-    Ocr <|-- LinearMdOcr
+    Ocr <|-- MdWriterOcr
     FigureDetector <|-- DocLayoutYoloFigureDetector
     FigureDetector <|-- YomitokuFigureDetector
     FigureDetector <|-- PpStructureFigureDetector
-    LinearMdOcr o-- FigureDetector
-    LinearMdOcr o-- BatchTranscriber
-    LinearMdOcr o-- BlockRenderer
-    LinearMdOcr ..> PageBatch : plan_batches
-    LinearMdOcr ..> MarkdownDraft
+    MdWriterOcr o-- FigureDetector
+    MdWriterOcr o-- BatchTranscriber
+    MdWriterOcr o-- BlockRenderer
+    MdWriterOcr ..> PageBatch : plan_batches
+    MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
     BatchTranscriber ..> PageBatch
     BlockRenderer ..> DetectedFigure : BoxedBlockとして
@@ -111,7 +111,7 @@ OCRモジュールのほかの部分と共有しているもの: `run_parallel`�
 複数のスレッドから同時に呼ぶと結果が混ざり、あるページの図が別のページのものとして返ってきます。
 
 表と数式は検出しません。モデルがMarkdownの表とKaTeXで書き下します。
-すべてのクラスラベルを意図的に捨てている `Blocker` のオプションにはせず、検出器を `LinearMD/` の下に別に置いています。
+すべてのクラスラベルを意図的に捨てている `Blocker` のオプションにはせず、検出器を `MdWriter/` の下に別に置いています。
 
 ## バッチ
 
@@ -142,7 +142,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant Caller as 呼び出し側
-    participant L as LinearMdOcr
+    participant L as MdWriterOcr
     participant D as FigureDetector
     participant R as BlockRenderer
     participant T as BatchTranscriber
@@ -191,14 +191,14 @@ Stitcherはそこで2つの半分を結合します。空白を入れるのは�
 
 ## テスト
 
-- 単体テスト: [Test/Unit/LinearMD/](../../../Test/Unit/LinearMD/)。バッチ計画、マーカーとフェンス、
+- 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。バッチ計画、マーカーとフェンス、
   検証、結合、パーサ、決まった応答を返す偽モデルを使った書き下し（再試行とその上限を含む）、
   偽の検出器とリクエストの内容から応答する偽モデルを使ったパイプライン全体。
 - 本物の検出器とモデルでサンプルPDFを読む手動テスト:
-  [TestLinearMd_setup.md](../../../Test/Manual/LinearMD/TestLinearMd_setup.md)。
+  [TestMdWriter_setup.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.md)。
 
 ```bash
 cd Uploader
 uv run pytest
-uv run mypy          # LinearMDに対して厳格モード
+uv run mypy          # MdWriterに対して厳格モード
 ```

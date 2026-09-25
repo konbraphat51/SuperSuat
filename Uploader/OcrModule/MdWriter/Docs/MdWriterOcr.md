@@ -1,12 +1,12 @@
-# LinearMdOcr
+# MdWriterOcr
 
-The LinearMD OCR pipeline (see [Plan.en.md](Plan.en.md)). A layout model finds only the
+The MdWriter OCR pipeline (see [Plan.en.md](Plan.en.md)). A layout model finds only the
 figures, which are drawn onto the pages with their ids; a multimodal model then writes
 whole runs of pages out as Markdown, placing each figure by id, and the Markdown is
 read into an `OcrResult`. Since one request covers several pages, text that runs over a
 page turn stays in view, and a document costs far fewer requests than one per page.
 
-日本語版: [LinearMdOcr.ja.md](LinearMdOcr.ja.md)
+日本語版: [MdWriterOcr.ja.md](MdWriterOcr.ja.md)
 
 ## Structure
 
@@ -16,7 +16,7 @@ classDiagram
         <<abstract>>
         +ocr(all_page_images: list[Image]) OcrResult*
     }
-    class LinearMdOcr {
+    class MdWriterOcr {
         +figure_detector: FigureDetector
         +transcriber: BatchTranscriber
         +batch_size: int
@@ -61,15 +61,15 @@ classDiagram
         +figures: list[DetectedFigure]
         +rendered_pages: list[Image]
     }
-    Ocr <|-- LinearMdOcr
+    Ocr <|-- MdWriterOcr
     FigureDetector <|-- DocLayoutYoloFigureDetector
     FigureDetector <|-- YomitokuFigureDetector
     FigureDetector <|-- PpStructureFigureDetector
-    LinearMdOcr o-- FigureDetector
-    LinearMdOcr o-- BatchTranscriber
-    LinearMdOcr o-- BlockRenderer
-    LinearMdOcr ..> PageBatch : plan_batches
-    LinearMdOcr ..> MarkdownDraft
+    MdWriterOcr o-- FigureDetector
+    MdWriterOcr o-- BatchTranscriber
+    MdWriterOcr o-- BlockRenderer
+    MdWriterOcr ..> PageBatch : plan_batches
+    MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
     BatchTranscriber ..> PageBatch
     BlockRenderer ..> DetectedFigure : as BoxedBlock
@@ -114,7 +114,7 @@ the results of pages predicted from several threads at once, handing one page's 
 another.
 
 Tables and formulas are not detected: the model writes them as Markdown tables and KaTeX.
-The detectors live under `LinearMD/` rather than as an option of the `Blocker`, which
+The detectors live under `MdWriter/` rather than as an option of the `Blocker`, which
 deliberately drops every class label.
 
 ## Batches
@@ -148,7 +148,7 @@ with no second pass.
 ```mermaid
 sequenceDiagram
     participant Caller
-    participant L as LinearMdOcr
+    participant L as MdWriterOcr
     participant D as FigureDetector
     participant R as BlockRenderer
     participant T as BatchTranscriber
@@ -199,15 +199,15 @@ rendered pages, for a caller that wants to look at them.
 
 ## Tests
 
-- Unit tests in [Test/Unit/LinearMD/](../../../Test/Unit/LinearMD/): batch planning, the
+- Unit tests in [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/): batch planning, the
   markers and fences, the validator, the stitcher, the parser, the transcriber against a
   scripted fake model (retry and its limit included), and the whole pipeline against a
   fake detector and a fake model that answers from the request.
 - A manual run over the sample PDFs, with a real detector and model:
-  [TestLinearMd_setup.en.md](../../../Test/Manual/LinearMD/TestLinearMd_setup.en.md).
+  [TestMdWriter_setup.en.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.en.md).
 
 ```bash
 cd Uploader
 uv run pytest
-uv run mypy          # strict, over LinearMD
+uv run mypy          # strict, over MdWriter
 ```

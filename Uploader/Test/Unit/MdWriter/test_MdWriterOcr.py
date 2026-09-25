@@ -1,4 +1,4 @@
-"""Tests for the whole LinearMD pipeline, with a fake detector and a fake model."""
+"""Tests for the whole MdWriter pipeline, with a fake detector and a fake model."""
 
 import re
 import threading
@@ -11,10 +11,10 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from PIL import Image
 from PIL.Image import Image as PilImage
 
-from OcrModule.LinearMD.FigureDetector import FigureDetector
-from OcrModule.LinearMD.LinearMdOcr import LinearMdOcr
-from OcrModule.LinearMD.Transcriber.BatchTranscriber import BatchTranscriber
-from OcrModule.LinearMD.Transcriber.prompt import FILL_PROMPT
+from OcrModule.MdWriter.FigureDetector import FigureDetector
+from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr
+from OcrModule.MdWriter.Transcriber.BatchTranscriber import BatchTranscriber
+from OcrModule.MdWriter.Transcriber.prompt import FILL_PROMPT
 from OcrModule.OcrSchema import OcrResultBlockFigure, OcrResultBlockText
 
 
@@ -76,9 +76,9 @@ def pages(count: int) -> list[PilImage]:
     return [Image.new("RGB", (40 + index, 40), "white") for index in range(count)]
 
 
-def build(batch_size: int) -> tuple[LinearMdOcr, PageEchoModel]:
+def build(batch_size: int) -> tuple[MdWriterOcr, PageEchoModel]:
     model = PageEchoModel(requests=[], lock=threading.Lock())
-    ocr = LinearMdOcr(OneFigurePerOddPage(), BatchTranscriber(model), batch_size)
+    ocr = MdWriterOcr(OneFigurePerOddPage(), BatchTranscriber(model), batch_size)
     return ocr, model
 
 

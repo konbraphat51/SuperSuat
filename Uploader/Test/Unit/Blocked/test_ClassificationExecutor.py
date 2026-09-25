@@ -85,7 +85,8 @@ def test_reorder_moves_a_block_in_front_of_another():
     blocks = make_blocks(3)
 
     apply(
-        blocks, {"order_label": "reorder", "target_block_id": 2, "to_in_front_of_block_id": 0}
+        blocks,
+        {"order_label": "reorder", "target_block_id": 2, "to_in_front_of_block_id": 0},
     )
 
     assert [block.block_id for block in blocks] == [2, 0, 1]

@@ -1,6 +1,6 @@
 # Markdownの文法
 
-LinearMDパイプラインでモデルが書くMarkdownと、それを [MarkdownParser](../MarkdownParser.py) が
+MdWriterパイプラインでモデルが書くMarkdownと、それを [MarkdownParser](../MarkdownParser.py) が
 `OcrResult` に読み戻す方法です。プロンプト（[prompt.py](../Transcriber/prompt.py)）とパーサは
 この1つの仕様に従っています。変えるときは両方を一緒に変えてください。
 

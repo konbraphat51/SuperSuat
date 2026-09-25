@@ -1,7 +1,7 @@
 """Tests for a batch's Markdown being checked before it is used."""
 
-from OcrModule.LinearMD.MarkdownValidator import validate_batch_output
-from OcrModule.LinearMD.Schema import PageBatch
+from OcrModule.MdWriter.MarkdownValidator import validate_batch_output
+from OcrModule.MdWriter.Schema import PageBatch
 
 WRITE = PageBatch(index=0, first_page=0, last_page=2, written_pages=(0, 1, 2))
 FILL = PageBatch(index=1, first_page=2, last_page=4, written_pages=(3,))

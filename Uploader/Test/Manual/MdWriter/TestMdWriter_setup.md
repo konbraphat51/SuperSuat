@@ -1,9 +1,9 @@
-# TestLinearMd 実行手順
+# TestMdWriter 実行手順
 
-`Test/Manual/Ocr/Sample/` のPDFを `LinearMdOcr` にかけ、書き下したMarkdown・解析した文書ツリー・
-図を描き込んだページ画像を `Test/Manual/LinearMD/Output/<detector>/` に書き出す手動テストです。
+`Test/Manual/Ocr/Sample/` のPDFを `MdWriterOcr` にかけ、書き下したMarkdown・解析した文書ツリー・
+図を描き込んだページ画像を `Test/Manual/MdWriter/Output/<detector>/` に書き出す手動テストです。
 
-English version: [TestLinearMd_setup.en.md](TestLinearMd_setup.en.md)
+English version: [TestMdWriter_setup.en.md](TestMdWriter_setup.en.md)
 
 - 図の検出: `doclayout`（DocLayout-YOLO）/ `yomitoku` / `ppstructure`（PP-StructureV3）。ローカルで実行
 - 書き下し: OpenAI API または Amazon Bedrock のマルチモーダルモデル
@@ -36,10 +36,10 @@ GPUとモデルの重みについては [TestBlocker_setup.md](../Blocked/TestBl
 cd Uploader
 
 # 5ページだけ、BATCH_SIZE=2で
-uv run python Test/Manual/LinearMD/TestLinearMd.py --pdf shido_math.pdf --detector doclayout --batch-size 2 --max-pages 5
+uv run python Test/Manual/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --batch-size 2 --max-pages 5
 
 # Sample内の全PDFを既定の設定で
-uv run python Test/Manual/LinearMD/TestLinearMd.py
+uv run python Test/Manual/MdWriter/TestMdWriter.py
 ```
 
 ### オプション
@@ -57,13 +57,13 @@ uv run python Test/Manual/LinearMD/TestLinearMd.py
 | `--max-tokens N` | `32000` | 1回の応答の最大トークン数。1回で複数ページを書くため大きめにしている |
 | `--reasoning-effort LEVEL` | `OPENAI_REASONING_EFFORT` | OpenAIの推論モデルの推論量 |
 | `--log-level LEVEL` | `INFO` | ログの詳細度 |
-| `--log-file PATH` | `Output/TestLinearMd.log` | ログの出力先（実行ごとに上書き） |
+| `--log-file PATH` | `Output/TestMdWriter.log` | ログの出力先（実行ごとに上書き） |
 
 ## 4. 出力
 
 ```
-Test/Manual/LinearMD/Output/
-├── TestLinearMd.log     # モデルの応答・トークン数・検証エラーと再試行
+Test/Manual/MdWriter/Output/
+├── TestMdWriter.log     # モデルの応答・トークン数・検証エラーと再試行
 └── doclayout/
     ├── Seaman.md        # 全バッチを結合したMarkdown（ページマーカー付き）
     ├── Seaman.json      # 解析した OcrResult
