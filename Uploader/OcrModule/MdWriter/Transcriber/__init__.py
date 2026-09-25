@@ -1,1 +1,1 @@
-"""Transcribing batches of pages into Markdown."""
+"""Transcribing pages into Markdown, one page per request."""

@@ -3,14 +3,14 @@
 import re
 from dataclasses import dataclass
 
-# Where a page starts, written by the model at the first thing of each page.
+# Where a page starts, put by the stitcher before the Markdown of each page.
 PAGE_MARKER_PATTERN = re.compile(r"<!--\s*page:\s*(\d+)\s*-->")
 
-# A fill batch's first paragraph continues the previous batch's last one.
+# A fill page's first paragraph continues the previous page's last one.
 CONTINUES_PREVIOUS_MARKER = "<!--continues-previous-->"
 CONTINUES_PREVIOUS_PATTERN = re.compile(r"<!--\s*continues-previous\s*-->")
 
-# A fill batch's last paragraph is continued by the next batch's first one.
+# A fill page's last paragraph is continued by the next page's first one.
 CONTINUED_BY_NEXT_MARKER = "<!--continued-by-next-->"
 CONTINUED_BY_NEXT_PATTERN = re.compile(r"<!--\s*continued-by-next\s*-->")
 
@@ -36,7 +36,7 @@ class PageMark:
 
 @dataclass(frozen=True)
 class ContinuationSplit:
-    """A fill batch's output with its continuation markers taken off.
+    """A fill page's output with its continuation markers taken off.
 
     Attributes:
         body: The Markdown without the markers.
@@ -103,7 +103,7 @@ def strip_page_markers(text: str) -> tuple[str, list[PageMark]]:
 
 
 def split_continuation(text: str) -> ContinuationSplit:
-    """The output of a fill batch, its continuation markers taken off either end."""
+    """The output of a fill page, its continuation markers taken off either end."""
     body = text.strip()
 
     leading = CONTINUES_PREVIOUS_PATTERN.match(body)

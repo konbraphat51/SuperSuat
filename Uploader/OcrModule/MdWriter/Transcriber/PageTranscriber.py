@@ -1,4 +1,4 @@
-"""Transcribing a batch of pages into Markdown with a multimodal chat model."""
+"""Transcribing one page into Markdown with a multimodal chat model."""
 
 import logging
 from collections.abc import Sequence
@@ -14,9 +14,9 @@ from ...LlmHelper import (
     page_to_base64,
     strip_code_fence,
 )
-from ..Markers import page_marker
-from ..MarkdownValidator import validate_batch_output
-from ..Schema import DetectedFigure, PageBatch
+from ..Markers import without_page_markers
+from ..MarkdownValidator import validate_page_output
+from ..Schema import DetectedFigure, PageTask
 from .prompt import FILL_PROMPT, WRITE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -28,12 +28,14 @@ Content = list[str | dict[Any, Any]]
 MAX_ATTEMPT_COUNT = 3
 
 
-class BatchTranscriber:
-    """Writes the pages of one batch out as Markdown.
+class PageTranscriber:
+    """Writes one page out as Markdown per request.
 
-    Every answer is checked against what the batch was asked for - its page
-    markers and its figures - and a failing one is sent back with what is
-    wrong, so a batch either comes back whole or stops the run."""
+    Every answer is checked against what the page was asked for - its
+    figures and its continuation markers - and a failing one is sent back
+    with what is wrong, so a page either comes back whole or stops the run.
+    Every request carries the page's index and kind in its run metadata, so
+    a callback can tell what each request cost."""
 
     def __init__(
         self,
@@ -43,21 +45,21 @@ class BatchTranscriber:
         """
         Args:
             model: Multimodal chat model that writes the Markdown.
-            max_attempt_count: Most answers asked for per batch.
+            max_attempt_count: Most answers asked for per page.
         """
         self.model = model
         self.max_attempt_count = max_attempt_count
 
     def write(
         self,
-        batch: PageBatch,
+        task: PageTask,
         rendered_pages: Sequence[Image],
         figures: Sequence[DetectedFigure],
     ) -> str:
-        """The Markdown of every page of a write batch.
+        """The Markdown of a page, written on its own.
 
         Args:
-            batch: The batch to write.
+            task: The page to write.
             rendered_pages: Every page of the document, its figures drawn on.
             figures: Every figure of the document.
 
@@ -65,22 +67,14 @@ class BatchTranscriber:
             RuntimeError: No answer checked out in max_attempt_count attempts.
         """
         content: Content = [
-            _text_block(
-                f"Transcribe pages {batch.first_page} to {batch.last_page}. "
-                "Each page image is preceded by its page number."
+            *build_image_message(
+                f"{_page_label(task.page_index, figures)}:",
+                page_to_base64(rendered_pages[task.page_index]),
             )
         ]
 
-        for page_index in batch.pages:
-            content += build_image_message(
-                f"{_page_label(page_index, figures)}:",
-                page_to_base64(rendered_pages[page_index]),
-            )
-
-        content.append(_text_block(_markers_reminder(batch)))
-
         return self._transcribe(
-            batch,
+            task,
             [SystemMessage(content=WRITE_PROMPT), HumanMessage(content=content)],
             figures,
             has_next=False,
@@ -88,54 +82,39 @@ class BatchTranscriber:
 
     def fill(
         self,
-        batch: PageBatch,
+        task: PageTask,
         rendered_pages: Sequence[Image],
         figures: Sequence[DetectedFigure],
         previous_markdown: str,
         next_markdown: str | None,
     ) -> str:
-        """The Markdown of the inner pages of a fill batch, written to join
-        the parts either side of it into one text.
+        """The Markdown of a page, written to join the pages either side of
+        it into one text.
 
         Args:
-            batch: The batch to fill.
+            task: The page to fill.
             rendered_pages: Every page of the document, its figures drawn on.
             figures: Every figure of the document.
-            previous_markdown: What the write batch before this one returned.
-            next_markdown: What the write batch after this one returned, or
-                None if this batch ends the document.
+            previous_markdown: What the page before this one was written as.
+            next_markdown: What the page after this one was written as, or
+                None if this page ends the document.
 
         Raises:
             RuntimeError: No answer checked out in max_attempt_count attempts.
         """
-        written = ", ".join(str(page) for page in batch.written_pages)
         content: Content = [
-            _text_block(f"<previous_part>\n{previous_markdown}\n</previous_part>"),
-            _text_block(
-                f"Your part: pages {batch.first_page} to {batch.last_page}. "
-                f"Transcribe pages {written} only. Each page image is preceded "
-                "by its page number."
+            _text_block(f"<previous_page>\n{previous_markdown}\n</previous_page>"),
+            *build_image_message(
+                f"{_page_label(task.page_index, figures)}, to transcribe:",
+                page_to_base64(rendered_pages[task.page_index]),
             ),
         ]
 
-        for page_index in batch.pages:
-            role = (
-                "to transcribe"
-                if page_index in batch.written_pages
-                else "already transcribed, context only"
-            )
-            content += build_image_message(
-                f"{_page_label(page_index, figures)}, {role}:",
-                page_to_base64(rendered_pages[page_index]),
-            )
-
         if next_markdown is not None:
-            content.append(_text_block(f"<next_part>\n{next_markdown}\n</next_part>"))
-
-        content.append(_text_block(_markers_reminder(batch)))
+            content.append(_text_block(f"<next_page>\n{next_markdown}\n</next_page>"))
 
         return self._transcribe(
-            batch,
+            task,
             [SystemMessage(content=FILL_PROMPT), HumanMessage(content=content)],
             figures,
             has_next=next_markdown is not None,
@@ -143,21 +122,25 @@ class BatchTranscriber:
 
     def _transcribe(
         self,
-        batch: PageBatch,
+        task: PageTask,
         messages: list[BaseMessage],
         figures: Sequence[DetectedFigure],
         has_next: bool,
     ) -> str:
-        """Asks for the batch's Markdown until an answer checks out."""
-        label = f"batch {batch.index} (pages {batch.first_page}-{batch.last_page})"
-        figure_ids = _figure_ids(batch.written_pages, figures)
+        """Asks for the page's Markdown until an answer checks out."""
+        label = f"page {task.page_index} ({task.kind})"
+        figure_ids = _figure_ids(task.page_index, figures)
+        metadata = {"page_index": task.page_index, "page_kind": task.kind}
 
         for attempt in range(1, self.max_attempt_count + 1):
-            response = self.model.invoke(messages)
+            response = self.model.invoke(messages, config={"metadata": metadata})
             log_agent_message(f"{label} attempt {attempt}", response)
 
-            markdown = strip_code_fence(response.text.strip())
-            problems = validate_batch_output(markdown, batch, figure_ids, has_next)
+            # the stitcher places the page markers, so any the model wrote go
+            markdown = without_page_markers(
+                strip_code_fence(response.text.strip())
+            ).strip()
+            problems = validate_page_output(markdown, task, figure_ids, has_next)
 
             if not problems:
                 return markdown
@@ -185,28 +168,19 @@ def _text_block(text: str) -> dict[Any, Any]:
     return {"type": "text", "text": text}
 
 
-def _figure_ids(
-    pages: Sequence[int],
-    figures: Sequence[DetectedFigure],
-) -> list[int]:
-    """The ids of the figures on the given pages."""
-    return [figure.block_id for figure in figures if figure.page_index in pages]
+def _figure_ids(page_index: int, figures: Sequence[DetectedFigure]) -> list[int]:
+    """The ids of the figures on the given page."""
+    return [figure.block_id for figure in figures if figure.page_index == page_index]
 
 
 def _page_label(page_index: int, figures: Sequence[DetectedFigure]) -> str:
     """What a page image is introduced with: its number and its figures."""
-    ids = _figure_ids([page_index], figures)
+    ids = _figure_ids(page_index, figures)
 
     if not ids:
         return f"Page {page_index} (no figures)"
 
     return f"Page {page_index} (figures {', '.join(str(i) for i in ids)})"
-
-
-def _markers_reminder(batch: PageBatch) -> str:
-    """The page markers the answer has to carry, spelled out."""
-    markers = ", ".join(page_marker(page) for page in batch.written_pages)
-    return f"Write these page markers, once each and in this order: {markers}."
 
 
 def _retry_message(problems: list[str]) -> str:

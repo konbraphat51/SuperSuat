@@ -1,13 +1,11 @@
-"""The instructions the model transcribes a batch of pages into Markdown with."""
+"""The instructions the model transcribes a page into Markdown with."""
 
 # The Markdown both passes write, and MarkdownParser reads (see Docs/MarkdownSyntax.md).
 MARKDOWN_RULES = """Markdown rules:
-- Page markers: write <!--page:N--> exactly where the content of page N begins, N being the page number given before its image. Every page you transcribe gets exactly one marker, in page order, even a page with no text on it.
-  - When a paragraph runs over from one page onto the next, put the next page's marker inside the paragraph, at the exact point the page turns, on the same line: never break the paragraph for it.
 - Paragraphs: write each paragraph on one line, joining the lines the page broke it into as its script wants (directly for Japanese and Chinese, with a space for scripts that separate words with spaces, keeping a hyphen the author wrote). Separate paragraphs with a blank line.
 - Headings: write every heading, including the document's title and every chapter or section title, as a level 2 heading (`## `), whatever its size or numbering on the page.
-- Figures: the red boxes with an id number drawn on the page images are the figures. Do not transcribe anything inside a red box.
-  - Place each figure of the pages you transcribe exactly once, as a paragraph of its own, where it falls in the reading order: ![caption](figure:ID), with ID the number on its box.
+- Figures: the red boxes with an id number drawn on the page image are the figures. Do not transcribe anything inside a red box.
+  - Place each figure of your page exactly once, as a paragraph of its own, where it falls in the reading order: ![caption](figure:ID), with ID the number on its box.
   - Put the figure's caption (for example "Figure 2: ...") as the alt text, and do not write the caption again as body text. Write ![](figure:ID) for a figure that has no caption.
   - The boxes and id labels are not part of the document: never transcribe them as text.
 - Math: write every mathematical expression in KaTeX-compatible LaTeX, `$...$` inline and `$$...$$` for a display equation, which goes on lines of its own.
@@ -22,8 +20,8 @@ MARKDOWN_RULES = """Markdown rules:
   :::column
   column text, in the Markdown above
   :::
-- A sidenote or column that runs over a page turn stays one block, with the next page's marker inside it. Your output must be complete Markdown on its own: close every block you open with a ::: line before your output ends, even when the box carries on past your last page, and when your first page starts in the middle of a box, open its block again at the start. Never nest one block inside another.
-- Never put a figure, footnote, sidenote, or column inside a paragraph: when one is printed in the middle of a paragraph (a page turn included), write the whole paragraph first and the block after it.
+- Your output must be complete Markdown on its own: close every block you open with a ::: line before your output ends, even when the box carries on past your page, and when your page starts in the middle of a box, open its block again at the start. Never nest one block inside another.
+- Never put a figure, footnote, sidenote, or column inside a paragraph: when one is printed in the middle of a paragraph, write the whole paragraph first and the block after it.
 - Do not write page numbers, running heads, or running footers: the chapter or section title repeated at the top or bottom of every page is a running head, not a heading.
 """
 
@@ -33,27 +31,27 @@ TRANSCRIPTION_RULES = """Transcription rules:
 - Follow the document's reading order, multi-column and vertical (tategaki) layouts included.
 - Keep the text in its own language. Never translate, paraphrase, or summarize.
 - Reproduce the text verbatim, including punctuation, casing, and numbers.
-- Do not invent, complete, or correct text that is unclear or cut off; transcribe only what is visible. A page may begin or end in the middle of a sentence: transcribe it as it is.
+- Do not invent, complete, or correct text that is unclear or cut off; transcribe only what is visible. The page may begin or end in the middle of a sentence: transcribe it as it is, without finishing or leaving out the broken sentence.
 """
 
-WRITE_PROMPT = f"""You are a highly precise OCR engine. You are given consecutive page images of one document, and transcribe every one of them into a single Markdown document.
+WRITE_PROMPT = f"""You are a highly precise OCR engine. You are given one page image of a document, and transcribe it into Markdown.
 
 {TRANSCRIPTION_RULES}
 {MARKDOWN_RULES}"""
 
-FILL_PROMPT = f"""You are a highly precise OCR engine. A document is being transcribed into Markdown in parts, and you write the part that fills the gap between two parts already written.
+FILL_PROMPT = f"""You are a highly precise OCR engine. A document is being transcribed into Markdown page by page, and you transcribe one page whose neighbouring pages are already transcribed.
 
 You are given:
-- the Markdown of the part right before yours, in <previous_part>;
-- the Markdown of the part right after yours, in <next_part>, unless yours is the last part;
-- the page images of your part. Its first page is the last page of the previous part and, when a next part follows, its last page is the first page of the next part. Those pages are already transcribed: they are shown only so you can see how the text runs on. Transcribe only the pages marked "to transcribe".
+- the Markdown of the page right before yours, in <previous_page>;
+- the image of your page;
+- the Markdown of the page right after yours, in <next_page>, unless yours is the last page.
 
-Your output is inserted verbatim between the two parts, so that the previous part, your output, and the next part read as one continuous document: nothing repeated, nothing missing.
-- If the previous part ends in the middle of a paragraph that carries on onto your first page, start your output with <!--continues-previous-->, followed straight away by your first page marker and the rest of that paragraph. Do not repeat anything the previous part already wrote.
-- If your last paragraph carries on onto the first page of the next part, end your output with <!--continued-by-next-->, right after the text of your last page. Do not write anything the next part already has.
-- This holds inside a sidenote or column too. When the paragraph that carries on is inside a box, open the same block again right after your first page marker (for example <!--continues-previous--><!--page:N-->, then a :::column line, then the rest of the paragraph); and when your last paragraph carries on into a box the next part opens, close your block with ::: as usual, before <!--continued-by-next-->. The two halves of the box are joined into one.
+Your output is inserted verbatim between the two neighbouring pages, so that the previous page, your output, and the next page read as one continuous document.
+- If the previous page ends in the middle of a paragraph that carries on onto your page, start your output with <!--continues-previous-->, followed straight away by the rest of that paragraph as your page shows it.
+- If your page's last paragraph carries on onto the next page, end your output with <!--continued-by-next-->, right after your page's last text.
+- This holds inside a sidenote or column too. When the paragraph that carries on is inside a box, open the same block again right after <!--continues-previous--> (a :::column line, then the rest of the paragraph); and when your last paragraph carries on into a box the next page opens, close your block with ::: as usual, before <!--continued-by-next-->. The two halves of the box are joined into one.
 - Otherwise, do not write either marker.
-- Never rewrite or correct the previous or next parts: write only your own pages.
+- Transcribe only your own page, from its image: the neighbouring pages are there only to show how the text runs on. Never repeat, rewrite, or correct their text.
 
 {TRANSCRIPTION_RULES}
 {MARKDOWN_RULES}"""

@@ -113,7 +113,7 @@ def parse_markdown(markdown: str, figures: Sequence[DetectedFigure]) -> OcrResul
     a detected figure it never places is put after the last block of its page.
 
     Args:
-        markdown: The whole document, as the batches were stitched into.
+        markdown: The whole document, as the pages were stitched into.
         figures: Every figure detected in the document.
     """
     source, marks = strip_page_markers(markdown)

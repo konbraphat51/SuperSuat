@@ -5,8 +5,8 @@ from typing import Literal
 
 from PIL.Image import Image
 
-# How a batch is transcribed: all of its pages, or only the gap between two others.
-BatchKind = Literal["write", "fill"]
+# How a page is transcribed: on its own, or as the gap between two written pages.
+PageKind = Literal["write", "fill"]
 
 
 @dataclass
@@ -27,33 +27,22 @@ class DetectedFigure:
 
 
 @dataclass(frozen=True)
-class PageBatch:
-    """A run of pages sent to the model in one request.
+class PageTask:
+    """One page sent to the model in one request.
 
     Attributes:
-        index: The batch's position `x` in the document: even batches are
-            written first, odd ones fill the gaps between them.
-        first_page: The first page of the batch, 0-indexed.
-        last_page: The last page of the batch, inclusive.
-        written_pages: The pages this batch transcribes, in order. An odd
-            batch shares its first and last page with the even batches around
-            it, which are sent as context but not transcribed again.
+        page_index: The page to transcribe, 0-indexed. Pages at even indices
+            (the 1st, 3rd, ... page) are written first, on their own; the
+            pages between them are filled in afterwards, with the Markdown
+            of the pages either side in view.
     """
 
-    index: int
-    first_page: int
-    last_page: int
-    written_pages: tuple[int, ...]
+    page_index: int
 
     @property
-    def kind(self) -> BatchKind:
-        """Whether this batch writes all of its pages or fills a gap."""
-        return "write" if self.index % 2 == 0 else "fill"
-
-    @property
-    def pages(self) -> range:
-        """Every page sent with this batch, in order."""
-        return range(self.first_page, self.last_page + 1)
+    def kind(self) -> PageKind:
+        """Whether this page is written on its own or fills a gap."""
+        return "write" if self.page_index % 2 == 0 else "fill"
 
 
 @dataclass
@@ -61,7 +50,7 @@ class MarkdownDraft:
     """A document written out as Markdown, before it is read into the tree.
 
     Attributes:
-        markdown: The whole document, the batches stitched together.
+        markdown: The whole document, the pages stitched together.
         figures: Every figure detected in the document.
         rendered_pages: Every page as the model saw it, figures drawn on.
     """

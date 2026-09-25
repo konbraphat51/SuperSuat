@@ -40,7 +40,7 @@ def fence_problems(text: str) -> list[str]:
     if open_name is not None:
         problems.append(
             f"The last :::{open_name} block is never closed; end it with a ::: line, "
-            "even if the box carries on past your last page."
+            "even if the box carries on past your page."
         )
 
     return problems

@@ -1,50 +1,28 @@
-"""Tests for a batch's Markdown being checked before it is used."""
+"""Tests for a page's Markdown being checked before it is used."""
 
-from OcrModule.MdWriter.MarkdownValidator import validate_batch_output
-from OcrModule.MdWriter.Schema import PageBatch
+from OcrModule.MdWriter.MarkdownValidator import validate_page_output
+from OcrModule.MdWriter.Schema import PageTask
 
-WRITE = PageBatch(index=0, first_page=0, last_page=2, written_pages=(0, 1, 2))
-FILL = PageBatch(index=1, first_page=2, last_page=4, written_pages=(3,))
-
-
-def test_a_complete_write_batch_passes():
-    markdown = "<!--page:0-->a\n\n<!--page:1-->![c](figure:0)\n\n<!--page:2-->b"
-
-    assert validate_batch_output(markdown, WRITE, [0], has_next=True) == []
+WRITE = PageTask(page_index=0)
+FILL = PageTask(page_index=1)
 
 
-def test_a_fill_batch_may_continue_both_ways():
-    markdown = (
-        "<!--continues-previous--><!--page:3-->rest of it<!--continued-by-next-->"
-    )
+def test_a_complete_write_page_passes():
+    markdown = "a\n\n![c](figure:0)\n\nb"
 
-    assert validate_batch_output(markdown, FILL, [], has_next=True) == []
+    assert validate_page_output(markdown, WRITE, [0], has_next=True) == []
 
 
-def test_missing_or_misordered_page_markers_are_reported():
-    problems = validate_batch_output(
-        "<!--page:0-->a<!--page:2-->b<!--page:1-->c", WRITE, [], has_next=False
-    )
+def test_a_fill_page_may_continue_both_ways():
+    markdown = "<!--continues-previous-->rest of it<!--continued-by-next-->"
 
-    assert len(problems) == 1
-    assert "<!--page:0-->, <!--page:1-->, <!--page:2-->" in problems[0]
-
-
-def test_output_must_open_with_its_first_page_marker():
-    problems = validate_batch_output(
-        "preamble <!--page:3-->text", FILL, [], has_next=True
-    )
-
-    assert any("Start your output with <!--page:3-->" in p for p in problems)
+    assert validate_page_output(markdown, FILL, [], has_next=True) == []
 
 
 def test_figures_unknown_repeated_and_missing_are_reported():
-    markdown = (
-        "<!--page:0-->![a](figure:0)![b](figure:0)"
-        "<!--page:1-->![c](figure:9)<!--page:2-->"
-    )
+    markdown = "![a](figure:0)\n\n![b](figure:0)\n\n![c](figure:9)"
 
-    problems = validate_batch_output(markdown, WRITE, [0, 1], has_next=False)
+    problems = validate_page_output(markdown, WRITE, [0, 1], has_next=False)
 
     assert len(problems) == 3
     assert "no figure 9" in problems[0]
@@ -52,49 +30,47 @@ def test_figures_unknown_repeated_and_missing_are_reported():
     assert "Figure 1 is not placed" in problems[2]
 
 
-def test_a_write_batch_may_not_use_continuation_markers():
-    markdown = "<!--continues-previous--><!--page:0--><!--page:1--><!--page:2-->"
+def test_a_write_page_may_not_use_continuation_markers():
+    markdown = "<!--continues-previous-->text"
 
-    problems = validate_batch_output(markdown, WRITE, [], has_next=True)
+    problems = validate_page_output(markdown, WRITE, [], has_next=True)
 
-    assert any("no neighbouring part" in p for p in problems)
+    assert any("no neighbouring page" in p for p in problems)
 
 
-def test_the_last_fill_batch_may_not_continue_into_nothing():
-    problems = validate_batch_output(
-        "<!--page:3-->text<!--continued-by-next-->", FILL, [], has_next=False
+def test_the_last_fill_page_may_not_continue_into_nothing():
+    problems = validate_page_output(
+        "text<!--continued-by-next-->", FILL, [], has_next=False
     )
 
-    assert any("no part follows yours" in p for p in problems)
+    assert any("no page follows yours" in p for p in problems)
 
 
 def test_a_continuation_marker_in_the_middle_is_reported():
-    problems = validate_batch_output(
-        "<!--page:3-->a<!--continues-previous-->b", FILL, [], has_next=True
+    problems = validate_page_output(
+        "a<!--continues-previous-->b", FILL, [], has_next=True
     )
 
     assert any("very first thing" in p for p in problems)
 
 
 def test_an_unclosed_box_is_reported():
-    problems = validate_batch_output(
-        "<!--page:0-->:::column\na<!--page:1--><!--page:2-->", WRITE, [], has_next=False
-    )
+    problems = validate_page_output(":::column\na", WRITE, [], has_next=False)
 
     assert any("never closed" in p for p in problems)
 
 
 def test_a_page_written_twice_is_reported():
     paragraph = "A paragraph long enough that repeating it is no accident at all."
-    markdown = f"<!--page:0-->{paragraph}\n\n<!--page:1-->{paragraph}\n\n<!--page:2-->"
+    markdown = f"{paragraph}\n\n{paragraph}"
 
-    problems = validate_batch_output(markdown, WRITE, [], has_next=False)
+    problems = validate_page_output(markdown, WRITE, [], has_next=False)
 
     assert len(problems) == 1
     assert "written 2 times" in problems[0]
 
 
 def test_a_short_line_the_document_repeats_is_not_reported():
-    markdown = "<!--page:0-->Answer:\n\n<!--page:1-->Answer:\n\n<!--page:2-->"
+    markdown = "Answer:\n\nAnswer:"
 
-    assert validate_batch_output(markdown, WRITE, [], has_next=False) == []
+    assert validate_page_output(markdown, WRITE, [], has_next=False) == []

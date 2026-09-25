@@ -1,4 +1,4 @@
-"""Joining the Markdown of every batch into the one document it is part of."""
+"""Joining the Markdown of every page into the one document it is part of."""
 
 from collections.abc import Sequence
 
@@ -10,38 +10,42 @@ from .Containers import (
     opening_container,
 )
 from .Markers import (
+    page_marker,
     split_continuation,
     split_leading_page_markers,
     without_page_markers,
 )
-from .Schema import PageBatch
+from .Schema import PageTask
 
 # What separates two parts that do not share a paragraph.
 PARAGRAPH_BREAK = "\n\n"
 
 
-def stitch(parts: Sequence[tuple[PageBatch, str]]) -> str:
-    """The whole document's Markdown, the batches' parts joined in order.
+def stitch(parts: Sequence[tuple[PageTask, str]]) -> str:
+    """The whole document's Markdown, the pages' parts joined in order.
 
-    A fill batch says where its paragraphs continue a neighbour's, with its
-    continuation markers; there, the two halves are joined into one
-    paragraph, and a note block both parts hold it in into one block.
-    Everywhere else, parts are separated by a blank line.
+    Each part is put after its page marker. A fill page says where its
+    paragraphs continue a neighbour's, with its continuation markers; there,
+    the two halves are joined into one paragraph, and a note block both parts
+    hold it in into one block. Everywhere else, parts are separated by a
+    blank line.
 
     Args:
-        parts: Every batch with the Markdown it returned, in document order.
+        parts: Every page with the Markdown it returned, in document order.
     """
     document = ""
     continues_into_next = False
 
-    for batch, markdown in parts:
-        if batch.kind == "fill":
+    for task, markdown in parts:
+        if task.kind == "fill":
             split = split_continuation(markdown)
-            document = _append(document, split.body, split.continues_previous)
-            continues_into_next = split.continued_by_next
+            body, continues = split.body, split.continues_previous
+            continued = split.continued_by_next
         else:
-            document = _append(document, markdown.strip(), continues_into_next)
-            continues_into_next = False
+            body, continues, continued = markdown.strip(), continues_into_next, False
+
+        document = _append(document, f"{page_marker(task.page_index)}{body}", continues)
+        continues_into_next = continued
 
     return document
 
@@ -50,9 +54,6 @@ def _append(document: str, part: str, continues_paragraph: bool) -> str:
     """The document with the part after it, as one paragraph or after a break."""
     if not document:
         return part
-
-    if not part:
-        return document
 
     if not continues_paragraph:
         return f"{document.rstrip()}{PARAGRAPH_BREAK}{part}"

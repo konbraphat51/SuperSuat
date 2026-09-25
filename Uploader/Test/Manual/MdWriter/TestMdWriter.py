@@ -12,7 +12,7 @@ OCR_PROVIDER / OCR_MODEL_ID in `.env` (or --provider / --model).
 
 Usage (from the `Uploader` directory):
 
-    uv run python Test/Manual/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --batch-size 2
+    uv run python Test/Manual/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout
     uv run python Test/Manual/MdWriter/TestMdWriter.py --max-pages 5
 
 See TestMdWriter_setup.md for what this needs.
@@ -40,10 +40,10 @@ sys.path.insert(0, str(UPLOADER_ROOT))
 from dotenv import load_dotenv  # noqa: E402
 
 from OcrModule.MdWriter.FigureDetector import FigureDetector  # noqa: E402
-from OcrModule.MdWriter.MdWriterOcr import DEFAULT_BATCH_SIZE, MdWriterOcr  # noqa: E402
+from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr  # noqa: E402
 from OcrModule.MdWriter.MarkdownParser import parse_markdown  # noqa: E402
-from OcrModule.MdWriter.Transcriber.BatchTranscriber import (  # noqa: E402
-    BatchTranscriber,
+from OcrModule.MdWriter.Transcriber.PageTranscriber import (  # noqa: E402
+    PageTranscriber,
 )
 
 SAMPLE_DIR = UPLOADER_ROOT / "Test" / "Manual" / "Ocr" / "Sample"
@@ -60,12 +60,15 @@ DEFAULT_MODEL_IDS = {
 DEFAULT_REGION = "us-west-2"
 DEFAULT_DPI = 200
 
-# One answer carries a whole batch of pages, far more than one page's worth.
-DEFAULT_MAX_TOKENS = 32000
+# One answer carries one page, with room left for the model's reasoning.
+DEFAULT_MAX_TOKENS = 16000
+
+# One request per page, so more of them go out at once than pages did before.
+DEFAULT_MAX_PARALLEL = 8
 
 
 def build_model(args: argparse.Namespace) -> Any:
-    """The chat model the batches are written with. Imported lazily so that
+    """The chat model the pages are written with. Imported lazily so that
     `--help` works without the provider's package."""
     if args.provider == "openai":
         from langchain_openai import ChatOpenAI
@@ -184,12 +187,11 @@ def parse_args() -> argparse.Namespace:
         help="File name (or path) of a PDF to run. Repeatable. Defaults to every sample PDF.",
     )
     parser.add_argument("--detector", choices=DETECTORS, default="doclayout")
-    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument(
         "--max-parallel",
         type=int,
-        default=4,
-        help="Most batches sent to the model at once.",
+        default=DEFAULT_MAX_PARALLEL,
+        help="Most pages sent to the model at once.",
     )
     parser.add_argument("--max-pages", type=int, default=None)
     parser.add_argument("--dpi", type=int, default=DEFAULT_DPI)
@@ -247,15 +249,14 @@ def main() -> int:
 
     pdfs = resolve_pdfs(args.pdf)
     print(f"model: {args.model} [{args.provider}]")
-    print(f"detector: {args.detector}, batch size: {args.batch_size}")
+    print(f"detector: {args.detector}")
     print(f"targets: {', '.join(p.name for p in pdfs)}")
     print(f"log: {args.log_file}")
 
     ocr = MdWriterOcr(
         figure_detector=build_detector(args.detector),
-        transcriber=BatchTranscriber(build_model(args)),
-        batch_size=args.batch_size,
-        max_parallel_batches=args.max_parallel,
+        transcriber=PageTranscriber(build_model(args)),
+        max_parallel_pages=args.max_parallel,
     )
 
     failures: list[str] = []
