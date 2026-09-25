@@ -1,5 +1,8 @@
 """Tests for a page being written out as Markdown."""
 
+import base64
+from io import BytesIO
+
 import pytest
 from FakeModel import RecordingFakeModel
 from langchain_core.messages import HumanMessage
@@ -76,3 +79,16 @@ def test_a_page_that_never_checks_out_stops_the_run():
         PageTranscriber(model, max_attempt_count=3).transcribe(TASK, PAGES, FIGURES)
 
     assert len(model.requests) == 3
+
+
+def test_a_page_is_sent_no_larger_than_the_set_size():
+    model = RecordingFakeModel.replying("a")
+    big = [Image.new("RGB", (400, 200), "white")]
+
+    PageTranscriber(model, image_max_edge=100).transcribe(PageTask(0, 1), big, [])
+
+    request = model.requests[0][1]
+    assert isinstance(request.content, list)
+    image = next(b for b in request.content if b.get("type") == "image")
+    decoded = Image.open(BytesIO(base64.b64decode(image["base64"])))
+    assert decoded.size == (100, 50)

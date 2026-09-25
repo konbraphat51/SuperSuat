@@ -41,6 +41,7 @@ sys.path.insert(0, str(UPLOADER_ROOT))
 
 from dotenv import load_dotenv  # noqa: E402
 
+from OcrModule.LlmHelper import MODEL_IMAGE_MAX_EDGE  # noqa: E402
 from OcrModule.MdWriter.FigureDetector import FigureDetector  # noqa: E402
 from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr  # noqa: E402
 from OcrModule.MdWriter.PageJoin import JoinJudge  # noqa: E402
@@ -220,6 +221,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-pages", type=int, default=None)
     parser.add_argument("--dpi", type=int, default=DEFAULT_DPI)
+    parser.add_argument(
+        "--image-max-edge",
+        type=int,
+        default=MODEL_IMAGE_MAX_EDGE,
+        help="Longest side a page is sent to the model at, in pixels.",
+    )
     parser.add_argument("--provider", choices=PROVIDERS, default=None)
     parser.add_argument("--model", default=None)
     parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
@@ -294,7 +301,8 @@ def main() -> int:
     ocr = MdWriterOcr(
         figure_detector=build_detector(args.detector),
         transcriber=PageTranscriber(
-            build_model(args, recorder, args.model, args.reasoning_effort)
+            build_model(args, recorder, args.model, args.reasoning_effort),
+            image_max_edge=args.image_max_edge,
         ),
         join_judge=JoinJudge(
             build_model(args, recorder, args.join_model, args.join_reasoning_effort)

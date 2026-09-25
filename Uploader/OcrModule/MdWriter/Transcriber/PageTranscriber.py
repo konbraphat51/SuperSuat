@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from PIL.Image import Image
 
 from ...LlmHelper import (
+    MODEL_IMAGE_MAX_EDGE,
     build_image_message,
     log_agent_message,
     page_to_base64,
@@ -41,14 +42,19 @@ class PageTranscriber:
         self,
         model: BaseChatModel,
         max_attempt_count: int = MAX_ATTEMPT_COUNT,
+        image_max_edge: int = MODEL_IMAGE_MAX_EDGE,
     ) -> None:
         """
         Args:
             model: Multimodal chat model that writes the Markdown.
             max_attempt_count: Most answers asked for per page.
+            image_max_edge: Longest side a page is sent at. A model that reads
+                every pixel it is sent sees small print better at a larger
+                size, for more input tokens.
         """
         self.model = model
         self.max_attempt_count = max_attempt_count
+        self.image_max_edge = image_max_edge
 
     def transcribe(
         self,
@@ -69,7 +75,7 @@ class PageTranscriber:
         content: Content = [
             *build_image_message(
                 f"{_page_label(task, figures)}:",
-                page_to_base64(rendered_pages[task.page_index]),
+                page_to_base64(rendered_pages[task.page_index], self.image_max_edge),
             )
         ]
 
