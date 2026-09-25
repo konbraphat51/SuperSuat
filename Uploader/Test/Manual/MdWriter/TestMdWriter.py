@@ -1,10 +1,12 @@
 """Manual test for MdWriterOcr against the sample PDFs.
 
 Runs the MdWriter pipeline over the PDFs in `Test/Manual/Ocr/Sample/` and
-writes, per PDF, into `Output/<detector>/`:
+writes, per PDF, into `Output/<detector>/<model>/`:
 
 - `<stem>.md`: the stitched Markdown, as the model wrote it
 - `<stem>.json`: the document tree parsed from it
+- `<stem>.usage.txt`: every page's tokens and, for a model in
+  UsageCost.PRICING, what they cost
 - `<stem>/page_<N>.png`: every page as the model saw it, figures boxed
 
 The model runs on the OpenAI API or on Amazon Bedrock, chosen by
@@ -45,6 +47,7 @@ from OcrModule.MdWriter.MarkdownParser import parse_markdown  # noqa: E402
 from OcrModule.MdWriter.Transcriber.PageTranscriber import (  # noqa: E402
     PageTranscriber,
 )
+from UsageCost import PRICING, UsageRecorder, format_report  # noqa: E402
 
 SAMPLE_DIR = UPLOADER_ROOT / "Test" / "Manual" / "Ocr" / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
@@ -67,9 +70,10 @@ DEFAULT_MAX_TOKENS = 16000
 DEFAULT_MAX_PARALLEL = 8
 
 
-def build_model(args: argparse.Namespace) -> Any:
-    """The chat model the pages are written with. Imported lazily so that
-    `--help` works without the provider's package."""
+def build_model(args: argparse.Namespace, recorder: UsageRecorder) -> Any:
+    """The chat model the pages are written with, reporting its usage to
+    `recorder`. Imported lazily so that `--help` works without the provider's
+    package."""
     if args.provider == "openai":
         from langchain_openai import ChatOpenAI
 
@@ -77,6 +81,7 @@ def build_model(args: argparse.Namespace) -> Any:
             model=args.model,
             use_responses_api=True,
             max_tokens=args.max_tokens,
+            callbacks=[recorder],
             **(
                 {"reasoning_effort": args.reasoning_effort}
                 if args.reasoning_effort
@@ -99,6 +104,7 @@ def build_model(args: argparse.Namespace) -> Any:
         region_name=args.region,
         max_tokens=args.max_tokens,
         temperature=0,
+        callbacks=[recorder],
         **({"bedrock_api_key": api_key} if api_key else {}),
     )
 
@@ -131,9 +137,20 @@ def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Any]:
     return images
 
 
-def run_one_pdf(pdf_path: Path, ocr: MdWriterOcr, args: argparse.Namespace) -> None:
-    """Reads one PDF and writes its Markdown, tree and rendered pages out."""
+def output_dir_of(args: argparse.Namespace) -> Path:
+    """Where the results of this detector and model go."""
+    return OUTPUT_DIR / args.detector / args.model
+
+
+def run_one_pdf(
+    pdf_path: Path,
+    ocr: MdWriterOcr,
+    recorder: UsageRecorder,
+    args: argparse.Namespace,
+) -> None:
+    """Reads one PDF and writes its Markdown, tree, usage and rendered pages out."""
     print(f"\n=== {pdf_path.name} ===", flush=True)
+    recorder.reset()
 
     images = pdf_to_images(pdf_path, args.dpi, args.max_pages)
     print(f"rendered {len(images)} page(s) at {args.dpi} DPI", flush=True)
@@ -143,7 +160,7 @@ def run_one_pdf(pdf_path: Path, ocr: MdWriterOcr, args: argparse.Namespace) -> N
     result = parse_markdown(draft.markdown, draft.figures)
     elapsed = time.monotonic() - started_at
 
-    output_dir = OUTPUT_DIR / args.detector
+    output_dir = output_dir_of(args)
     pages_dir = output_dir / pdf_path.stem
     pages_dir.mkdir(parents=True, exist_ok=True)
 
@@ -154,10 +171,17 @@ def run_one_pdf(pdf_path: Path, ocr: MdWriterOcr, args: argparse.Namespace) -> N
     for page_index, page in enumerate(draft.rendered_pages):
         page.save(pages_dir / f"page_{page_index}.png")
 
+    report = format_report(recorder.pages, PRICING.get(args.model))
+    (output_dir / f"{pdf_path.stem}.usage.txt").write_text(
+        f"{pdf_path.name}: {len(images)} page(s) in {elapsed:.1f}s\n{report}\n",
+        encoding="utf-8",
+    )
+
     print(
         f"done in {elapsed:.1f}s: {len(draft.figures)} figure(s) -> {output_dir}",
         flush=True,
     )
+    print(report, flush=True)
 
 
 def resolve_pdfs(selected: list[str] | None) -> list[Path]:
@@ -253,16 +277,17 @@ def main() -> int:
     print(f"targets: {', '.join(p.name for p in pdfs)}")
     print(f"log: {args.log_file}")
 
+    recorder = UsageRecorder()
     ocr = MdWriterOcr(
         figure_detector=build_detector(args.detector),
-        transcriber=PageTranscriber(build_model(args)),
+        transcriber=PageTranscriber(build_model(args, recorder)),
         max_parallel_pages=args.max_parallel,
     )
 
     failures: list[str] = []
     for pdf_path in pdfs:
         try:
-            run_one_pdf(pdf_path, ocr, args)
+            run_one_pdf(pdf_path, ocr, recorder, args)
         except Exception:
             # one bad PDF should not cost the results of the others
             traceback.print_exc()
@@ -272,7 +297,7 @@ def main() -> int:
         print(f"\nFAILED: {', '.join(failures)}", file=sys.stderr)
         return 1
 
-    print(f"\nAll {len(pdfs)} PDF(s) written to {OUTPUT_DIR / args.detector}")
+    print(f"\nAll {len(pdfs)} PDF(s) written to {output_dir_of(args)}")
     return 0
 
 
