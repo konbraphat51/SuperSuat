@@ -52,7 +52,9 @@ paddlepaddle-gpu = { index = "paddle-cu129" }
 [dependency-groups]
 dev = [
     "mypy>=2.3.1",
+    "pdfminer-six>=20260107",
     "pytest>=9.1.1",
+    "rapidfuzz>=3.14.6",
 ]
 
 # Unit tests import the OCR module as a top-level package, as the app does.
