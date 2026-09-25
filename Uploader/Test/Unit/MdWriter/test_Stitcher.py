@@ -80,3 +80,25 @@ def test_boxes_of_different_kinds_are_not_merged():
     assert document == (
         "<!--page:0-->:::column\na\n:::\n\n<!--page:1-->:::sidenote\nb\n:::"
     )
+
+
+def test_a_figure_opening_the_continued_page_goes_after_the_joined_paragraph():
+    document = stitch(
+        [
+            (P0, "文章の"),
+            (P1, "<!--continues-previous-->![図](figure:0)\n\n続き\n\n次"),
+        ]
+    )
+
+    assert document == "<!--page:0-->文章の<!--page:1-->続き\n\n![図](figure:0)\n\n次"
+
+
+def test_a_figure_ending_the_page_before_goes_after_the_joined_paragraph():
+    document = stitch(
+        [
+            (P0, "前\n\n文章の\n\n![図](figure:0)"),
+            (P1, "<!--continues-previous-->続き"),
+        ]
+    )
+
+    assert document == "<!--page:0-->前\n\n文章の<!--page:1-->続き\n\n![図](figure:0)"

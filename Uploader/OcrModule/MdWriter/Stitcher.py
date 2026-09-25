@@ -10,6 +10,7 @@ from .Containers import (
     opening_container,
 )
 from .Markers import (
+    FIGURE_REFERENCE_PATTERN,
     page_marker,
     split_continuation,
     split_leading_page_markers,
@@ -60,7 +61,11 @@ def _append(document: str, part: str, continues_paragraph: bool) -> str:
 
     # the part opens with its page marker, so the text after it decides the join
     markers, rest = split_leading_page_markers(part)
-    former = document.rstrip()
+
+    # a figure at the join stands between the halves; it goes after the paragraph
+    former, trailing = _split_trailing_figures(document.rstrip())
+    rest, leading = _split_leading_figures(rest)
+    rest = _after_first_paragraph(rest, trailing + leading)
 
     closed = closing_container(without_page_markers(former))
     opened = opening_container(rest)
@@ -70,8 +75,44 @@ def _append(document: str, part: str, continues_paragraph: bool) -> str:
         former, rest = drop_closing_fence(former), drop_opening_fence(rest)
     # a paragraph cannot run across a fence, so the join is a break after all
     elif closed is not None or opened is not None:
-        return f"{former}{PARAGRAPH_BREAK}{part}"
+        return f"{document.rstrip()}{PARAGRAPH_BREAK}{part}"
 
     separator = join_separator(without_page_markers(former), rest)
 
     return f"{former}{separator}{markers}{rest.lstrip()}"
+
+
+def _is_figure(paragraph: str) -> bool:
+    """Whether a paragraph is one figure and nothing else."""
+    return FIGURE_REFERENCE_PATTERN.fullmatch(paragraph.strip()) is not None
+
+
+def _split_trailing_figures(text: str) -> tuple[str, list[str]]:
+    """The text without the figure paragraphs it ends with, and those figures."""
+    paragraphs = text.split(PARAGRAPH_BREAK)
+    figures: list[str] = []
+
+    while len(paragraphs) > 1 and _is_figure(paragraphs[-1]):
+        figures.insert(0, paragraphs.pop().strip())
+
+    return PARAGRAPH_BREAK.join(paragraphs).rstrip(), figures
+
+
+def _split_leading_figures(text: str) -> tuple[str, list[str]]:
+    """The text without the figure paragraphs it starts with, and those figures."""
+    paragraphs = text.strip().split(PARAGRAPH_BREAK)
+    figures: list[str] = []
+
+    while len(paragraphs) > 1 and _is_figure(paragraphs[0]):
+        figures.append(paragraphs.pop(0).strip())
+
+    return PARAGRAPH_BREAK.join(paragraphs).lstrip(), figures
+
+
+def _after_first_paragraph(text: str, figures: list[str]) -> str:
+    """The text with the figures put after its first paragraph."""
+    if not figures:
+        return text
+
+    first, _, after = text.partition(PARAGRAPH_BREAK)
+    return PARAGRAPH_BREAK.join([first, *figures, *([after] if after else [])])
