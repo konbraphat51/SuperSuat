@@ -300,10 +300,12 @@ def log_agent_message(label: str, message: BaseMessage) -> None:
         if usage:
             # every turn resends the whole conversation, so input tokens grow per round-trip
             logger.info(
-                "%s | usage: input=%s output=%s total=%s",
+                "%s | usage: input=%s (cached %s) output=%s (reasoning %s) total=%s",
                 label,
                 usage.get("input_tokens"),
+                usage.get("input_token_details", {}).get("cache_read", 0),
                 usage.get("output_tokens"),
+                usage.get("output_token_details", {}).get("reasoning", 0),
                 usage.get("total_tokens"),
             )
         text = stringify_message_content(message.content)
