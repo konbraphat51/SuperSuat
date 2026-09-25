@@ -74,3 +74,20 @@ def test_a_short_line_the_document_repeats_is_not_reported():
     markdown = "Answer:\n\nAnswer:"
 
     assert validate_page_output(markdown, WRITE, [], has_next=False) == []
+
+
+def test_a_figure_sharing_its_paragraph_is_reported():
+    for markdown in (
+        "![c](figure:0)text",
+        "text\n![c](figure:0)",
+        "![c](figure:0)\ntext",
+    ):
+        problems = validate_page_output(markdown, WRITE, [0], has_next=False)
+
+        assert any("shares its paragraph" in p for p in problems), markdown
+
+
+def test_a_figure_right_inside_a_box_is_its_own_paragraph():
+    markdown = ":::column\n![c](figure:0)\n:::"
+
+    assert validate_page_output(markdown, WRITE, [0], has_next=False) == []

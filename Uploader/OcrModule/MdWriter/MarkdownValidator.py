@@ -3,12 +3,13 @@
 from collections import Counter
 from collections.abc import Collection
 
-from .Containers import fence_problems
+from .Containers import CLOSE_FENCE_PATTERN, OPEN_FENCE_PATTERN, fence_problems
 from .Markers import (
     CONTINUED_BY_NEXT_MARKER,
     CONTINUED_BY_NEXT_PATTERN,
     CONTINUES_PREVIOUS_MARKER,
     CONTINUES_PREVIOUS_PATTERN,
+    FIGURE_REFERENCE_PATTERN,
     find_figure_references,
     split_continuation,
 )
@@ -91,7 +92,8 @@ def _continuation_problems(
 
 
 def _figure_problems(body: str, figure_ids: Collection[int]) -> list[str]:
-    """Figures placed that are not on the page, placed twice, or not at all."""
+    """Figures placed that are not on the page, placed twice, not at all, or
+    not as a paragraph of their own."""
     counts = Counter(find_figure_references(body))
     problems: list[str] = []
 
@@ -115,7 +117,44 @@ def _figure_problems(body: str, figure_ids: Collection[int]) -> list[str]:
             "![caption](figure:ID) where it stands in the reading order."
         )
 
+    inline = sorted(set(_figures_inside_paragraphs(body)) & set(figure_ids))
+    if inline:
+        problems.append(
+            f"Figure {_list(inline)} shares its paragraph with other text; put "
+            "each ![caption](figure:ID) on a line of its own, with a blank line "
+            "before and after it."
+        )
+
     return problems
+
+
+def _figures_inside_paragraphs(body: str) -> list[int]:
+    """The figures written on a line with other text, or right against one,
+    which the parser would read as part of a paragraph."""
+    lines = body.splitlines()
+    found: list[int] = []
+
+    for index, line in enumerate(lines):
+        ids = find_figure_references(line)
+        if not ids:
+            continue
+
+        alone = len(ids) == 1 and not FIGURE_REFERENCE_PATTERN.sub("", line).strip()
+        neighbours = lines[max(index - 1, 0) : index] + lines[index + 1 : index + 2]
+
+        if not alone or any(_is_text(neighbour) for neighbour in neighbours):
+            found += ids
+
+    return found
+
+
+def _is_text(line: str) -> bool:
+    """Whether a line next to a figure would run into its paragraph."""
+    stripped = line.strip()
+    return bool(stripped) and not (
+        OPEN_FENCE_PATTERN.fullmatch(stripped)
+        or CLOSE_FENCE_PATTERN.fullmatch(stripped)
+    )
 
 
 def _repetition_problems(body: str) -> list[str]:
