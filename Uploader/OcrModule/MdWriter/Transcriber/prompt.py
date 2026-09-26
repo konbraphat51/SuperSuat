@@ -20,6 +20,12 @@ MARKDOWN_RULES = """Markdown rules:
   :::column
   column text, in the Markdown above
   :::
+- Tables of contents: write a table of contents in a toc block, one entry per line as `- number | title | page`: the section number as printed (such as 1.2, Chapter 3 or 第3章), the title, and the page number as printed (such as 12 or iv). Leave a field empty when it is not printed, write a | in a title as \\|, and leave out the dot leaders. Indent each entry two spaces deeper than the entry it belongs under, as the table of contents indents or numbers it; on a page that continues a table of contents, indent its entries as deep as they stand in the whole table. The entries are not headings; the table's own title (such as "Contents") is, and goes before the block:
+  :::toc
+  - | Preface | iv
+  - 1 | Introduction | 1
+    - 1.1 | Background | 3
+  :::
 - Your output must be complete Markdown on its own: close every block you open with a ::: line before your output ends, even when the box carries on past your page, and when your page starts in the middle of a box, open its block again at the start. Never nest one block inside another.
 - Never put a figure, footnote, sidenote, or column inside a paragraph: when one is printed in the middle of a paragraph, write the whole paragraph first and the block after it.
 - Do not write page numbers, running heads, or running footers: the chapter or section title repeated at the top or bottom of every page is a running head, not a heading.
@@ -39,6 +45,7 @@ CONTINUATION_RULES = """Page turn rules: the document is transcribed page by pag
 - Start your output with <!--continues-previous--> when the first text of the page is the middle of a paragraph begun on the previous page: it starts in the middle of a sentence, or without the indent or spacing the document opens its paragraphs with.
 - End your output with <!--continued-by-next--> when the last paragraph of the page runs on onto the next page: it stops in the middle of a sentence, or its last line runs to the end of the line with no sentence-ending punctuation.
 - This holds inside a sidenote or column too: keep the block complete as usual (open it again at the start, close it at the end), and put <!--continues-previous--> before its opening line or <!--continued-by-next--> after its closing line.
+- A toc block never takes either marker: a table of contents that runs over a page turn is joined afterwards on its own.
 - Otherwise, do not write either marker. Never write any other page marker.
 """
 
