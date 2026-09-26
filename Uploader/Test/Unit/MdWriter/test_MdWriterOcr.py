@@ -14,7 +14,7 @@ from OcrModule.MdWriter.FigureDetector import FigureDetector
 from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr
 from OcrModule.MdWriter.ReferenceReader import ReferenceReader
 from OcrModule.MdWriter.Transcriber.PageTranscriber import PageTranscriber
-from OcrModule.OcrSchema import OcrResultBlockFigure
+from OcrModule.OcrSchema import OcrResultBlockFigure, OcrResultBlockTableOfContents
 
 
 class OneFigurePerOddPage(FigureDetector):
@@ -147,3 +147,45 @@ def test_every_page_is_sent_its_own_reference():
         "<reference_ocr>\nwidth 40\n</reference_ocr>",
         "<reference_ocr>\nwidth 41\n</reference_ocr>",
     ]
+
+
+class NoFigures(FigureDetector):
+    """Finds no figure on any page."""
+
+    def _detect_page_figures(self, page: PilImage) -> list[tuple[int, int, int, int]]:
+        return []
+
+
+class TableOfContentsModel(PageEchoModel):
+    """Writes every page as one chapter of a table of contents and its section,
+    marking both ends as running over the page turn all the same."""
+
+    def _generate(
+        self, messages: list[BaseMessage], *args: Any, **kwargs: Any
+    ) -> ChatResult:
+        label = next(text for text in texts(messages) if text.startswith("Page "))
+        chapter = label.split()[1]
+        markdown = (
+            "<!--continues-previous-->:::toc\n"
+            f"- {chapter} | Chapter {chapter} | {chapter}0\n"
+            f"  - {chapter}.1 | Section {chapter}.1 | {chapter}1\n"
+            ":::<!--continued-by-next-->"
+        )
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(markdown))])
+
+
+def test_a_table_of_contents_over_the_pages_is_one_block():
+    model = TableOfContentsModel(requests=[], lock=threading.Lock())
+    ocr = MdWriterOcr(NoFigures(), PageTranscriber(model))
+
+    blocks = ocr.ocr(pages(2)).root_section.section_content
+
+    assert [b.block_type for b in blocks] == ["table_of_contents"]
+    toc = blocks[0]
+    assert isinstance(toc, OcrResultBlockTableOfContents)
+    assert toc.existing_pages == [0, 1]
+    assert [(e.section_number, e.title, e.page_number) for e in toc.entries] == [
+        ("1", "Chapter 1", "10"),
+        ("2", "Chapter 2", "20"),
+    ]
+    assert [e.title for e in toc.entries[1].children] == ["Section 2.1"]
