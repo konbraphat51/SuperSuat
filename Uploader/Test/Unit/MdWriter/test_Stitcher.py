@@ -71,6 +71,8 @@ def test_a_figure_ending_the_page_before_goes_after_the_joined_paragraph():
 
 
 def test_a_figure_whose_caption_holds_brackets_still_moves_after_the_join():
-    document = stitch(["文章の", "![区間 [a, b]](figure:0)\n\n続き"], [True])
+    document = stitch(["the text", "![interval [a, b]](figure:0)\n\nruns on"], [True])
 
-    assert document == "<!--page:0-->文章の<!--page:1-->続き\n\n![区間 [a, b]](figure:0)"
+    assert document == (
+        "<!--page:0-->the text <!--page:1-->runs on\n\n![interval [a, b]](figure:0)"
+    )
