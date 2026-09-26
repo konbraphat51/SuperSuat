@@ -2,7 +2,7 @@
 
 from FakeModel import RecordingFakeModel
 
-from OcrModule.MdWriter.Markers import ContinuationSplit
+from OcrModule.MdWriter.Syntax.Markers import ContinuationSplit
 from OcrModule.MdWriter.PageJoin import JoinJudge, decide_joins
 
 

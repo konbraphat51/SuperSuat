@@ -1,6 +1,6 @@
 """Tests for the entries of a table of contents block being read and checked."""
 
-from OcrModule.MdWriter.TableOfContents import entry_problems, parse_entries
+from OcrModule.MdWriter.Syntax.TableOfContents import entry_problems, parse_entries
 from OcrModule.OcrSchema import TableOfContentsEntry
 
 

@@ -21,10 +21,10 @@ from ..OcrSchema import (
     OcrResultBlockText,
     OcrResultSection,
 )
-from .Containers import CONTAINERS, NOTE_CONTAINERS, TABLE_OF_CONTENTS_CONTAINER
-from .Markers import PageMark, strip_page_markers
+from .Syntax.Containers import CONTAINERS, NOTE_CONTAINERS, TABLE_OF_CONTENTS_CONTAINER
+from .Syntax.Markers import PageMark, strip_page_markers
 from .Schema import DetectedFigure
-from .TableOfContents import parse_entries
+from .Syntax.TableOfContents import parse_entries
 
 logger = logging.getLogger(__name__)
 

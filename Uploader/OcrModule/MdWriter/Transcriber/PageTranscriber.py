@@ -17,7 +17,7 @@ from ...LlmHelper import (
     strip_code_fence,
 )
 from ..Agreement import agreement, letter_count
-from ..Markers import without_page_markers
+from ..Syntax.Markers import without_page_markers
 from ..MarkdownValidator import validate_page_output
 from ..Schema import DetectedFigure, PageTask
 from .prompt import PROMPT, PROMPT_WITH_REFERENCE

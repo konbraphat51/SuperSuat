@@ -10,7 +10,7 @@ from ..Blocked.PageParallel import DEFAULT_MAX_PARALLEL_PAGES, run_parallel
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResult
 from .FigureDetector import FigureDetector
-from .Markers import split_continuation
+from .Syntax.Markers import split_continuation
 from .MarkdownParser import parse_markdown
 from .PageJoin import JoinJudge, decide_joins
 from .ReferenceReader import ReferenceReader

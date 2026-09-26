@@ -1,6 +1,6 @@
 """Tests for the markers the model writes being found and taken out."""
 
-from OcrModule.MdWriter.Markers import (
+from OcrModule.MdWriter.Syntax.Markers import (
     PageMark,
     find_figure_references,
     find_page_markers,

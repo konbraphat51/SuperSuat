@@ -1,6 +1,6 @@
 """Tests for the fences of the note and table of contents blocks being checked and joined."""
 
-from OcrModule.MdWriter.Containers import (
+from OcrModule.MdWriter.Syntax.Containers import (
     closing_container,
     drop_closing_fence,
     drop_opening_fence,

@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 
-from ..OcrSchema import TableOfContentsEntry
+from ...OcrSchema import TableOfContentsEntry
 from .Containers import CLOSE_FENCE_PATTERN, TABLE_OF_CONTENTS_CONTAINER
 
 # One entry, as `- number | title | page`, indented two spaces per level.
