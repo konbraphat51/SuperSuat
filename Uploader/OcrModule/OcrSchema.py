@@ -1,6 +1,6 @@
 """The document tree an OCR run produces."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, get_args
 
 TEXT_BLOCK_TYPES = Literal[
@@ -18,7 +18,7 @@ TEXT_BLOCK_TYPES = Literal[
 class OcrResultBlock:
     """One piece of the document, of whatever kind."""
 
-    block_type: TEXT_BLOCK_TYPES | Literal["figure", "section"]
+    block_type: TEXT_BLOCK_TYPES | Literal["figure", "section", "table_of_contents"]
     existing_pages: list[int]  # pages this block appears on, 0-indexed
     block_index: int  # unique within the document
 
@@ -46,6 +46,26 @@ class OcrResultBlockFigure(OcrResultBlock):
 
     def __post_init__(self) -> None:
         self.block_type = "figure"
+
+
+@dataclass
+class TableOfContentsEntry:
+    """One entry of a table of contents, with the entries nested under it."""
+
+    section_number: str | None  # as printed, such as "1.2"; None if unnumbered
+    title: str
+    page_number: str | None  # as printed, such as "12" or "iv"; None if not printed
+    children: list["TableOfContentsEntry"] = field(default_factory=list)
+
+
+@dataclass
+class OcrResultBlockTableOfContents(OcrResultBlock):
+    """A table of contents printed in the document, as a tree of its entries."""
+
+    entries: list[TableOfContentsEntry]  # the outermost entries, in printed order
+
+    def __post_init__(self) -> None:
+        self.block_type = "table_of_contents"
 
 
 @dataclass
