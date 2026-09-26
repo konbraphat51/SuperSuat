@@ -8,6 +8,8 @@ English version: [TestMdWriter_setup.en.md](TestMdWriter_setup.en.md)
 
 - 図の検出: `doclayout`（DocLayout-YOLO）/ `yomitoku` / `ppstructure`（PP-StructureV3）。ローカルで実行
 - 書き下し: OpenAI API または Amazon Bedrock のマルチモーダルモデル
+- 図の枠の修正: 書き下すモデルが誤った枠に `correct_figures` ツールを呼んだとき、Amazon Bedrock の
+  Qwen3-VL が枠を描き直す（`--figure-corrector-model none` で無効）
 - 実際にAPIを呼ぶため、**課金が発生します**。1回のリクエストで1ページ分の画像を送るので、
   まずは `--max-pages 5`（リクエスト5回と、あれば再試行分）で試すことを推奨します
 
@@ -27,9 +29,10 @@ GPUとモデルの重みについては [TestBlocker_setup.md](../Blocked/TestBl
 | 変数 | 用途 |
 | --- | --- |
 | `OPENAI_API_KEY` | OpenAIで書き下すとき |
-| `AWS_BEDROCK_SHORT_API_KEY` | Bedrockで書き下すとき（発行手順は [TestLinear_setup.md](../TestLinear_setup.md)） |
+| `AWS_BEDROCK_SHORT_API_KEY` | Bedrockで書き下すとき、および図の枠の修正（発行手順は [TestLinear_setup.md](../TestLinear_setup.md)） |
 | `OCR_PROVIDER` | `openai` / `bedrock`。既定は `openai` |
 | `OCR_MODEL_ID` | モデルID。未指定ならプロバイダーごとの既定値 |
+| `FIGURE_CORRECTOR_MODEL_ID` | 図の枠を修正するBedrockのモデルID。既定は `qwen.qwen3-vl-235b-a22b` |
 
 ## 3. 実行
 
@@ -65,6 +68,8 @@ uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py
 | `--reference NAME` | `none` | `yomitoku`: 各ページをyomitokuで読み、そのテキストを参照としてモデルに渡す |
 | `--escalate-model ID` | なし | `--reference` と一緒に使う。参照テキストとの一致度が低いページを、このモデルで書き直す |
 | `--min-agreement F` | `0.95` | エスカレーションする一致度のしきい値 |
+| `--figure-corrector-model ID` | `FIGURE_CORRECTOR_MODEL_ID` | 書き下すモデルが誤りと判断した図の枠を描き直すBedrockのモデル。`none` で `correct_figures` ツールを渡さない |
+| `--max-figure-corrections N` | `2` | 1ページが `correct_figures` を呼べる最大回数 |
 | `--run-name NAME` | モデルID | `Output/<detector>/` の下の出力フォルダ名。設定の違う実行を分けて残す |
 | `--log-level LEVEL` | `INFO` | ログの詳細度 |
 | `--log-file PATH` | `Output/TestMdWriter.log` | ログの出力先（実行ごとに上書き） |
@@ -129,3 +134,4 @@ gpt-6-lunaは同じ設定でも実行ごとのばらつきが大きいので、�
 | `RuntimeError: page N ... did not return usable Markdown` | 3回とも検証を通らなかった。ログの `WARNING` で理由を見る |
 | 応答が途中で切れて検証エラーになる | `--max-tokens` を上げる。推論トークンもこの上限に含まれる |
 | `ERROR: OPENAI_API_KEY is not set.` | `.env` に `OPENAI_API_KEY` を書くか、`--provider bedrock` を使う |
+| ログに `figure correction failed` と `Bearer Token has expired` | Bedrockの短期キーが期限切れ。新しく発行するか、`--figure-corrector-model none` で実行する。そのページは元の枠のまま書き下される |

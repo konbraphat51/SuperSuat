@@ -9,6 +9,8 @@ and cost, and the page images with their figures drawn on into
 
 - Figure detection: `doclayout` (DocLayout-YOLO) / `yomitoku` / `ppstructure` (PP-StructureV3), run locally
 - Transcription: a multimodal model on the OpenAI API or on Amazon Bedrock
+- Figure box correction: Qwen3-VL on Amazon Bedrock, when the transcribing model calls the
+  `correct_figures` tool on a box it finds wrong (`--figure-corrector-model none` turns it off)
 - The API is really called, so **this is billed**. One request carries one page image,
   so start with `--max-pages 5` (five requests, plus any retries)
 
@@ -28,9 +30,10 @@ Put these in `Uploader/.env` (see `template.env`).
 | Variable | Used for |
 | --- | --- |
 | `OPENAI_API_KEY` | Transcribing on OpenAI |
-| `AWS_BEDROCK_SHORT_API_KEY` | Transcribing on Bedrock (how to issue one: [TestLinear_setup.md](../TestLinear_setup.md)) |
+| `AWS_BEDROCK_SHORT_API_KEY` | Transcribing on Bedrock, and the figure box correction (how to issue one: [TestLinear_setup.md](../TestLinear_setup.md)) |
 | `OCR_PROVIDER` | `openai` / `bedrock`. Defaults to `openai` |
 | `OCR_MODEL_ID` | Model id. Defaults to one per provider |
+| `FIGURE_CORRECTOR_MODEL_ID` | Bedrock model id of the figure box correction. Defaults to `qwen.qwen3-vl-235b-a22b` |
 
 ## 3. Run
 
@@ -66,6 +69,8 @@ uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py
 | `--reference NAME` | `none` | `yomitoku`: read each page with yomitoku and give its text to the model as a reference |
 | `--escalate-model ID` | none | With `--reference`, write a page again with this model when it agrees too little with its reference |
 | `--min-agreement F` | `0.95` | The agreement below which a page is escalated |
+| `--figure-corrector-model ID` | `FIGURE_CORRECTOR_MODEL_ID` | Bedrock model that redraws the figure boxes the transcribing model finds wrong; `none` leaves the `correct_figures` tool out |
+| `--max-figure-corrections N` | `2` | Most `correct_figures` calls one page may make |
 | `--run-name NAME` | the model id | Output folder under `Output/<detector>/`, to keep variants apart |
 | `--log-level LEVEL` | `INFO` | Log verbosity |
 | `--log-file PATH` | `Output/TestMdWriter.log` | Where the log goes (overwritten every run) |
@@ -134,3 +139,4 @@ one run.
 | `RuntimeError: page N ... did not return usable Markdown` | No answer passed validation in three attempts. See the log's `WARNING`s for why |
 | An answer is cut short and fails validation | Raise `--max-tokens`: reasoning counts towards it |
 | `ERROR: OPENAI_API_KEY is not set.` | Put `OPENAI_API_KEY` in `.env`, or use `--provider bedrock` |
+| `figure correction failed` ... `Bearer Token has expired` in the log | The Bedrock short-term key has expired: issue a new one, or run with `--figure-corrector-model none`. The page is written with the boxes as they were |

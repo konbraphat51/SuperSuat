@@ -10,7 +10,10 @@ writes, per PDF, into `Output/<detector>/<run name>/` (the model id by default):
 - `<stem>/page_<N>.png`: every page as the model saw it, figures boxed
 
 The model runs on the OpenAI API or on Amazon Bedrock, chosen by
-OCR_PROVIDER / OCR_MODEL_ID in `.env` (or --provider / --model).
+OCR_PROVIDER / OCR_MODEL_ID in `.env` (or --provider / --model). The model
+may have figure boxes it finds wrong redrawn through the correct_figures tool,
+by Qwen3-VL on Bedrock unless FIGURE_CORRECTOR_MODEL_ID (or
+--figure-corrector-model) says otherwise, or "none" leaves the tool out.
 
 Usage (from the `Uploader` directory):
 
@@ -42,6 +45,13 @@ sys.path.insert(0, str(UPLOADER_ROOT))
 from dotenv import load_dotenv  # noqa: E402
 
 from OcrModule.LlmHelper import MODEL_IMAGE_MAX_EDGE  # noqa: E402
+from OcrModule.MdWriter.FigureCorrector.FigureCorrectionTool import (  # noqa: E402
+    DEFAULT_MAX_CALL_COUNT,
+    FigureCorrectionTool,
+)
+from OcrModule.MdWriter.FigureCorrector.FigureCorrector import (  # noqa: E402
+    FigureCorrector,
+)
 from OcrModule.MdWriter.FigureDetector import FigureDetector  # noqa: E402
 from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr  # noqa: E402
 from OcrModule.MdWriter.Assembly.PageJoin import JoinJudge  # noqa: E402
@@ -75,6 +85,15 @@ DEFAULT_MAX_TOKENS = 16000
 # One request per page, so more of them go out at once than pages did before.
 DEFAULT_MAX_PARALLEL = 8
 
+# The Bedrock model the writing model has wrong figure boxes redrawn by.
+DEFAULT_FIGURE_CORRECTOR_MODEL_ID = "qwen.qwen3-vl-235b-a22b"
+
+# What --figure-corrector-model takes to leave the correct_figures tool out.
+NO_FIGURE_CORRECTOR = "none"
+
+# One answer of the corrector is a short JSON list of boxes.
+FIGURE_CORRECTOR_MAX_TOKENS = 4000
+
 
 def build_model(
     args: argparse.Namespace,
@@ -95,6 +114,14 @@ def build_model(
             **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
         )
 
+    return build_bedrock_model(args.region, recorder, model_id, args.max_tokens)
+
+
+def build_bedrock_model(
+    region: str, recorder: UsageRecorder, model_id: str, max_tokens: int
+) -> Any:
+    """A Bedrock chat model, reporting its usage to `recorder`. Imported lazily
+    so that `--help` works without langchain-aws."""
     from langchain_aws import ChatBedrockConverse
 
     api_key = os.getenv("AWS_BEDROCK_SHORT_API_KEY") or os.getenv(
@@ -107,11 +134,28 @@ def build_model(
 
     return ChatBedrockConverse(
         model=model_id,
-        region_name=args.region,
-        max_tokens=args.max_tokens,
+        region_name=region,
+        max_tokens=max_tokens,
         temperature=0,
         callbacks=[recorder],
         **({"bedrock_api_key": api_key} if api_key else {}),
+    )
+
+
+def build_figure_correction(
+    args: argparse.Namespace, recorder: UsageRecorder
+) -> FigureCorrectionTool | None:
+    """The correct_figures tool, backed by the corrector model on Bedrock, or
+    None when --figure-corrector-model is "none"."""
+    if args.figure_corrector_model == NO_FIGURE_CORRECTOR:
+        return None
+
+    model = build_bedrock_model(
+        args.region, recorder, args.figure_corrector_model, FIGURE_CORRECTOR_MAX_TOKENS
+    )
+    return FigureCorrectionTool(
+        FigureCorrector(model, image_max_edge=args.image_max_edge),
+        max_call_count=args.max_figure_corrections,
     )
 
 
@@ -272,6 +316,21 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--min-agreement", type=float, default=DEFAULT_MIN_AGREEMENT)
     parser.add_argument(
+        "--figure-corrector-model",
+        default=os.getenv("FIGURE_CORRECTOR_MODEL_ID", DEFAULT_FIGURE_CORRECTOR_MODEL_ID),
+        help=(
+            "Bedrock model that redraws the figure boxes the writing model finds "
+            f'wrong, through the correct_figures tool. "{NO_FIGURE_CORRECTOR}" '
+            "leaves the tool out."
+        ),
+    )
+    parser.add_argument(
+        "--max-figure-corrections",
+        type=int,
+        default=DEFAULT_MAX_CALL_COUNT,
+        help="Most correct_figures calls one page may make.",
+    )
+    parser.add_argument(
         "--run-name",
         default=None,
         help="Output folder under Output/<detector>/, to keep variants apart. Defaults to the model id.",
@@ -320,6 +379,7 @@ def main() -> int:
     pdfs = resolve_pdfs(args.pdf)
     print(f"model: {args.model} [{args.provider}]")
     print(f"detector: {args.detector}")
+    print(f"figure corrector: {args.figure_corrector_model}")
     print(f"targets: {', '.join(p.name for p in pdfs)}")
     print(f"log: {args.log_file}")
 
@@ -337,6 +397,7 @@ def main() -> int:
                 if args.escalate_model
                 else None
             ),
+            figure_correction=build_figure_correction(args, recorder),
         ),
         reference_reader=build_reference_reader(args.reference),
         join_judge=JoinJudge(
