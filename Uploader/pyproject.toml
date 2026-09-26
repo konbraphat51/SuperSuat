@@ -71,6 +71,7 @@ files = [
     "OcrModule/MdWriter",
     "OcrModule/TextJoin.py",
     "OcrModule/Blocked/StructureOrganizer/Leveler/SectionNester.py",
+    "OcrModule/Blocked/StructureOrganizer/Leveler/OcrResultLeveler.py",
 ]
 
 [[tool.mypy.overrides]]
@@ -79,7 +80,10 @@ ignore_errors = true
 
 # Code written under strict typing inside the older pipelines is still reported on.
 [[tool.mypy.overrides]]
-module = ["OcrModule.Blocked.StructureOrganizer.Leveler.SectionNester"]
+module = [
+    "OcrModule.Blocked.StructureOrganizer.Leveler.SectionNester",
+    "OcrModule.Blocked.StructureOrganizer.Leveler.OcrResultLeveler",
+]
 ignore_errors = false
 
 # Layout frameworks that ship no type information.
