@@ -38,15 +38,16 @@ def test_a_blank_page_keeps_its_marker():
 def test_a_box_closed_and_reopened_at_a_continued_join_is_one_box():
     document = stitch(
         [
-            ":::column\n箱の中の\n:::",
-            ":::column\n続き\n:::",
-            ":::column\nさらに続く\n:::",
+            ":::column\nin the box\n:::",
+            ":::column\nthe text\n:::",
+            ":::column\ngoes on\n:::",
         ],
         [True, True],
     )
 
     assert document == (
-        "<!--page:0-->:::column\n箱の中の<!--page:1-->続き<!--page:2-->さらに続く\n:::"
+        "<!--page:0-->:::column\nin the box <!--page:1-->the text "
+        "<!--page:2-->goes on\n:::"
     )
 
 
@@ -59,15 +60,19 @@ def test_boxes_of_different_kinds_are_not_merged():
 
 
 def test_a_figure_opening_the_continued_page_goes_after_the_joined_paragraph():
-    document = stitch(["文章の", "![図](figure:0)\n\n続き\n\n次"], [True])
+    document = stitch(["the text", "![a](figure:0)\n\nruns on\n\nnext"], [True])
 
-    assert document == "<!--page:0-->文章の<!--page:1-->続き\n\n![図](figure:0)\n\n次"
+    assert document == (
+        "<!--page:0-->the text <!--page:1-->runs on\n\n![a](figure:0)\n\nnext"
+    )
 
 
 def test_a_figure_ending_the_page_before_goes_after_the_joined_paragraph():
-    document = stitch(["前\n\n文章の\n\n![図](figure:0)", "続き"], [True])
+    document = stitch(["before\n\nthe text\n\n![a](figure:0)", "runs on"], [True])
 
-    assert document == "<!--page:0-->前\n\n文章の<!--page:1-->続き\n\n![図](figure:0)"
+    assert document == (
+        "<!--page:0-->before\n\nthe text <!--page:1-->runs on\n\n![a](figure:0)"
+    )
 
 
 def test_a_figure_whose_caption_holds_brackets_still_moves_after_the_join():

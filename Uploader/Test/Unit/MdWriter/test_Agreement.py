@@ -10,11 +10,11 @@ def test_markdown_syntax_and_punctuation_do_not_count():
 
 
 def test_a_figure_counts_by_its_caption():
-    assert agreement("![図1 猫の写真](figure:0)", "図1 猫の写真") == 1.0
+    assert agreement("![Fig. 1: a cat](figure:0)", "Fig. 1: a cat") == 1.0
 
 
 def test_invented_text_lowers_the_agreement():
-    assert agreement("第五十一回の選挙の結果", "第五十一回の選挙") < 0.9
+    assert agreement("the result of the election", "the election") < 0.9
 
 
 def test_two_empty_pages_agree():

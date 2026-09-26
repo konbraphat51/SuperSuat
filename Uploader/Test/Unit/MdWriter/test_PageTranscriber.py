@@ -24,6 +24,7 @@ FIGURES = [DetectedFigure(block_id=0, page_index=2, bounding_box=(0, 0, 5, 5))]
 TASK = PageTask(page_index=2, page_count=5)
 
 GOOD = "a\n\n![c](figure:0)\n\nb"
+REST = "the rest of the text"
 
 
 def texts(message: HumanMessage) -> list[str]:
@@ -119,47 +120,47 @@ def test_a_reference_is_sent_after_the_image_with_its_own_prompt():
 
 
 def test_a_page_agreeing_with_its_reference_is_not_escalated():
-    model = RecordingFakeModel.replying("文章の続き")
+    model = RecordingFakeModel.replying("the rest of the text")
     stronger = RecordingFakeModel.replying()
 
     markdown = PageTranscriber(
         model, escalation=Escalation(stronger, min_reference_letters=0)
-    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference="文章の続き")
+    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference=REST)
 
-    assert markdown == "文章の続き"
+    assert markdown == "the rest of the text"
     assert stronger.requests == []
 
 
 def test_a_misread_page_is_written_again_by_the_stronger_model():
-    model = RecordingFakeModel.replying("まったく違う文")
-    stronger = RecordingFakeModel.replying("文章の続き")
+    model = RecordingFakeModel.replying("something else entirely")
+    stronger = RecordingFakeModel.replying("the rest of the text")
 
     markdown = PageTranscriber(
         model, escalation=Escalation(stronger, min_reference_letters=0)
-    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference="文章の続き")
+    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference=REST)
 
-    assert markdown == "文章の続き"
+    assert markdown == "the rest of the text"
     assert len(stronger.requests) == 1
 
 
 def test_the_first_answer_is_kept_when_the_stronger_one_agrees_less():
-    model = RecordingFakeModel.replying("文章の")
-    stronger = RecordingFakeModel.replying("無関係")
+    model = RecordingFakeModel.replying("the rest")
+    stronger = RecordingFakeModel.replying("unrelated")
 
     markdown = PageTranscriber(
         model, escalation=Escalation(stronger, min_reference_letters=0)
-    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference="文章の続き")
+    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference=REST)
 
-    assert markdown == "文章の"
+    assert markdown == "the rest"
 
 
 def test_a_page_with_too_short_a_reference_is_not_escalated():
-    model = RecordingFakeModel.replying("まったく違う文")
+    model = RecordingFakeModel.replying("something else entirely")
     stronger = RecordingFakeModel.replying()
     escalation = Escalation(stronger, min_reference_letters=100)
 
     PageTranscriber(model, escalation=escalation).transcribe(
-        PageTask(0, 1), FigureBoard(PAGES, []), reference="図1 猫"
+        PageTask(0, 1), FigureBoard(PAGES, []), reference="Fig. 1 a cat"
     )
 
     assert stronger.requests == []
