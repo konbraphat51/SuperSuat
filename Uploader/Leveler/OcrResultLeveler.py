@@ -1,6 +1,7 @@
 """Nesting a transcribed document tree by the level of each of its headings."""
 
 import logging
+from collections.abc import Sequence
 
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
@@ -43,7 +44,7 @@ class OcrResultLeveler:
 
     def level_ocr_result(
         self,
-        all_page_images: list[Image],
+        all_page_images: Sequence[Image],
         ocr_result: OcrResult,
     ) -> OcrResult:
         """The document tree nested by the level of every heading.
@@ -52,7 +53,8 @@ class OcrResultLeveler:
         copies, under new sections.
 
         Args:
-            all_page_images: Every page of the document, as scanned, 0-indexed.
+            all_page_images: Every page of the document, as scanned, 0-indexed;
+                only the pages sent are read from it, so it may render lazily.
                 Only the pages of the headings the text leaves open are shown
                 to the model.
             ocr_result: The transcribed document, nested in any way.

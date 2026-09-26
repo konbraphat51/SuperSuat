@@ -2,6 +2,7 @@
 
 import json
 import logging
+from collections.abc import Sequence
 
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
@@ -51,14 +52,15 @@ class PageLeveler:
 
     def level(
         self,
-        all_page_images: list[Image],
+        all_page_images: Sequence[Image],
         headings: list[Heading],
         skeleton: Skeleton,
     ) -> dict[int, float]:
         """The final level of every heading, keyed by block_index.
 
         Args:
-            all_page_images: Every page of the document, as scanned, 0-indexed.
+            all_page_images: Every page of the document, as scanned, 0-indexed;
+                only the pages sent are read from it, so it may render lazily.
             headings: Every heading of the document, in document order.
             skeleton: The levels judged from text, and the headings left open.
 
@@ -96,7 +98,7 @@ class PageLeveler:
 
 
 def _build_messages(
-    all_page_images: list[Image],
+    all_page_images: Sequence[Image],
     headings: list[Heading],
     part: PageHeadings,
     skeleton: Skeleton,
@@ -140,7 +142,7 @@ def _build_messages(
 
 
 def _example_content(
-    all_page_images: list[Image],
+    all_page_images: Sequence[Image],
     headings: list[Heading],
     settled: dict[int, float],
     part_pages: set[int],
