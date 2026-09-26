@@ -69,3 +69,14 @@ def test_a_figure_right_inside_a_box_is_its_own_paragraph():
     markdown = ":::column\n![c](figure:0)\n:::"
 
     assert validate_page_output(markdown, [0]) == []
+
+
+def test_a_table_of_contents_passes_and_a_line_that_is_no_entry_is_reported():
+    markdown = "## Contents\n\n:::toc\n- 1 | Introduction | 1\n  - 1.1 | Aims | 2\n:::"
+
+    assert validate_page_output(markdown, []) == []
+
+    problems = validate_page_output(":::toc\nIntroduction ... 1\n:::", [])
+
+    assert len(problems) == 1
+    assert "not an entry" in problems[0]

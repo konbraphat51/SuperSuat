@@ -13,6 +13,7 @@ from .Markers import (
     find_figure_references,
     split_continuation,
 )
+from .TableOfContents import entry_problems
 
 # Shortest paragraph a repeat of is taken as the page transcribed twice, not a
 # phrase the document itself repeats.
@@ -37,6 +38,7 @@ def validate_page_output(markdown: str, figure_ids: Collection[int]) -> list[str
 
     problems += _figure_problems(body, figure_ids)
     problems += fence_problems(body)
+    problems += entry_problems(body)
     problems += _repetition_problems(body)
 
     return problems
