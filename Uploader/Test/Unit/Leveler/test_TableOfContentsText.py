@@ -53,7 +53,7 @@ def test_a_missing_number_or_page_is_left_empty():
     contents = table(7, [0], entry(None, "Preface", None))
 
     assert table_of_contents_text([contents]) == (
-        "Table of contents block 7, printed on page 1:\n- | Preface | "
+        "Table of contents block 7, printed on page 1:\n- | Preface |"
     )
 
 
