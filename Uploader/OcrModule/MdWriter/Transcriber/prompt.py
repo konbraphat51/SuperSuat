@@ -65,3 +65,22 @@ REFERENCE_RULES = """Reference rules: a conventional OCR engine has read this pa
 
 PROMPT_WITH_REFERENCE = f"""{PROMPT}
 {REFERENCE_RULES}"""
+
+# When the model may have the figure boxes redrawn, given the correct_figures tool.
+FIGURE_CORRECTION_RULES = """Figure box rules: the red boxes come from a layout detector, which can be wrong. You have the correct_figures tool to have them redrawn.
+- Call it, before you write the page, when a box plainly cuts off part of a figure, holds text or another figure that is not part of it, marks something that is not a figure (a table, a formula or text), or when a picture, diagram, chart or plot has no box at all.
+- Say in the call what is wrong with which box, and where. Put everything that is wrong into one call.
+- The page image is then sent again with the corrected boxes: write the page against them, placing every figure they show, and transcribe what a removed box held as text, tables or math.
+- Do not call it for a box that is only slightly off, or when the boxes are right.
+"""
+
+
+def build_prompt(reference: bool, figure_correction: bool) -> str:
+    """The system prompt of a page, as what the model is given calls for.
+
+    Args:
+        reference: Whether the page's reference OCR text follows the image.
+        figure_correction: Whether the model has the correct_figures tool.
+    """
+    prompt = PROMPT_WITH_REFERENCE if reference else PROMPT
+    return f"{prompt}\n{FIGURE_CORRECTION_RULES}" if figure_correction else prompt

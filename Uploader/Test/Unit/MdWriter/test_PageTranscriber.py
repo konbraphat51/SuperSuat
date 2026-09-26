@@ -5,10 +5,15 @@ from io import BytesIO
 
 import pytest
 from FakeModel import RecordingFakeModel
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from PIL import Image
 
 from OcrModule.MdWriter.FigureBoard import FigureBoard
+from OcrModule.MdWriter.FigureCorrector.FigureCorrectionTool import (
+    TOOL_NAME,
+    FigureCorrectionTool,
+)
+from OcrModule.MdWriter.FigureCorrector.FigureCorrector import FigureCorrector
 from OcrModule.MdWriter.Schema import DetectedFigure, PageTask
 from OcrModule.MdWriter.Transcriber.PageTranscriber import Escalation, PageTranscriber
 
@@ -192,3 +197,75 @@ def test_a_blank_page_marker_beside_text_is_sent_back():
     PageTranscriber(model).transcribe(PageTask(0, 1), FigureBoard(PAGES, []))
 
     assert "<!--blank-page--> means" in str(model.requests[1][-1].content)
+
+
+def correction_call(instruction: str = "Figure 0 misses its lower half.") -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {"name": TOOL_NAME, "args": {"instruction": instruction}, "id": "call_1"}
+        ],
+    )
+
+
+def correcting(*replies: str, max_call_count: int = 2) -> FigureCorrectionTool:
+    corrector = FigureCorrector(RecordingFakeModel.replying(*replies))
+    return FigureCorrectionTool(corrector, max_call_count=max_call_count)
+
+
+def test_without_a_correction_tool_the_model_is_offered_no_tool():
+    model = RecordingFakeModel.replying(GOOD)
+
+    PageTranscriber(model).transcribe(TASK, FigureBoard(PAGES, FIGURES))
+
+    assert model.tools == []
+    assert "correct_figures" not in str(model.requests[0][0].content)
+
+
+def test_a_corrected_page_is_shown_again_and_checked_against_its_new_figures():
+    board = FigureBoard(PAGES, FIGURES)
+    fixed = '{"figures": [{"id": 0, "bbox_2d": [0, 0, 500, 1000]},'
+    fixed += ' {"id": null, "bbox_2d": [600, 0, 1000, 500]}]}'
+    model = RecordingFakeModel.replying(
+        correction_call(), "a\n\n![c](figure:0)\n\n![d](figure:1)"
+    )
+
+    markdown = PageTranscriber(model, figure_correction=correcting(fixed)).transcribe(
+        TASK, board
+    )
+
+    assert markdown == "a\n\n![c](figure:0)\n\n![d](figure:1)"
+    assert model.tools[0]["function"]["name"] == TOOL_NAME
+    assert "correct_figures" in str(model.requests[0][0].content)
+    tool_result, shown_again = model.requests[1][-2:]
+    assert isinstance(tool_result, ToolMessage)
+    assert "now: 0, 1." in str(tool_result.content)
+    assert isinstance(shown_again, HumanMessage)
+    assert texts(shown_again) == ["Page 3 of 5 (figures 0, 1):"]
+    assert images(shown_again) == 1
+    assert board.figures_on(2)[0].bounding_box == (0, 0, 10, 20)
+
+
+def test_an_unchanged_page_is_not_shown_again():
+    unchanged = '{"figures": [{"id": 0, "bbox_2d": [0, 0, 250, 250]}]}'
+    model = RecordingFakeModel.replying(correction_call(), GOOD)
+
+    PageTranscriber(model, figure_correction=correcting(unchanged)).transcribe(
+        TASK, FigureBoard(PAGES, FIGURES)
+    )
+
+    assert isinstance(model.requests[1][-1], ToolMessage)
+
+
+def test_a_page_calling_past_its_limit_spends_its_attempts():
+    model = RecordingFakeModel.replying(*[correction_call()] * 4)
+
+    with pytest.raises(RuntimeError):
+        PageTranscriber(
+            model,
+            max_attempt_count=3,
+            figure_correction=correcting('{"figures": []}', max_call_count=1),
+        ).transcribe(TASK, FigureBoard(PAGES, FIGURES))
+
+    assert len(model.requests) == 4
+    assert "No more corrections" in str(model.requests[-1][-1].content)
