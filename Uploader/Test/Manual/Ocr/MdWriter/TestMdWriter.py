@@ -317,7 +317,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-agreement", type=float, default=DEFAULT_MIN_AGREEMENT)
     parser.add_argument(
         "--figure-corrector-model",
-        default=os.getenv("FIGURE_CORRECTOR_MODEL_ID", DEFAULT_FIGURE_CORRECTOR_MODEL_ID),
+        default=os.getenv(
+            "FIGURE_CORRECTOR_MODEL_ID", DEFAULT_FIGURE_CORRECTOR_MODEL_ID
+        ),
         help=(
             "Bedrock model that redraws the figure boxes the writing model finds "
             f'wrong, through the correct_figures tool. "{NO_FIGURE_CORRECTOR}" '

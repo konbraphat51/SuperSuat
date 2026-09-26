@@ -28,9 +28,9 @@ TOOL_DESCRIPTION = (
 
 # What the model is told to write in its call.
 INSTRUCTION_DESCRIPTION = (
-    "What is wrong with which box, and where: for example \"Figure 3 cuts off the "
-    "plot's x-axis labels below it\", \"Figure 5 is a table, not a figure\" or "
-    "\"the diagram in the lower right has no box\"."
+    'What is wrong with which box, and where: for example "Figure 3 cuts off the '
+    'plot\'s x-axis labels below it", "Figure 5 is a table, not a figure" or '
+    '"the diagram in the lower right has no box".'
 )
 
 
@@ -190,7 +190,9 @@ def _outcome(
     return CorrectionOutcome(" ".join(lines), changed=True)
 
 
-def _boxes(figures: list[DetectedFigure]) -> list[tuple[int, tuple[int, int, int, int]]]:
+def _boxes(
+    figures: list[DetectedFigure],
+) -> list[tuple[int, tuple[int, int, int, int]]]:
     """The figures as comparable (id, box) pairs."""
     return [(figure.block_id, figure.bounding_box) for figure in figures]
 
