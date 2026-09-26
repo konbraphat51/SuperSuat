@@ -12,10 +12,10 @@ from ..OcrSchema import OcrResult
 from .FigureDetector import FigureDetector
 from .Syntax.Markers import split_continuation
 from .MarkdownParser import parse_markdown
-from .PageJoin import JoinJudge, decide_joins
+from .Assembly.PageJoin import JoinJudge, decide_joins
 from .ReferenceReader import ReferenceReader
 from .Schema import DetectedFigure, MarkdownDraft, PageTask
-from .Stitcher import stitch
+from .Assembly.Stitcher import stitch
 from .Transcriber.PageTranscriber import PageTranscriber
 
 logger = logging.getLogger(__name__)

@@ -6,14 +6,14 @@ from collections.abc import Sequence
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from ..LlmHelper import log_agent_message
-from .Syntax.Containers import (
+from ...LlmHelper import log_agent_message
+from ..Syntax.Containers import (
     TABLE_OF_CONTENTS_CONTAINER,
     closing_container,
     opening_container,
 )
-from .Syntax.Markers import FIGURE_REFERENCE_PATTERN, ContinuationSplit
-from .Transcriber.prompt import JOIN_PROMPT
+from ..Syntax.Markers import FIGURE_REFERENCE_PATTERN, ContinuationSplit
+from ..Transcriber.prompt import JOIN_PROMPT
 
 logger = logging.getLogger(__name__)
 

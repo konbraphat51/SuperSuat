@@ -1,6 +1,6 @@
 """Tests for the pages being joined into one document."""
 
-from OcrModule.MdWriter.Stitcher import stitch
+from OcrModule.MdWriter.Assembly.Stitcher import stitch
 
 
 def test_pages_that_share_no_paragraph_are_separated_by_a_blank_line():

@@ -2,14 +2,14 @@
 
 from collections.abc import Sequence
 
-from ..TextJoin import join_separator
-from .Syntax.Containers import (
+from ...TextJoin import join_separator
+from ..Syntax.Containers import (
     closing_container,
     drop_closing_fence,
     drop_opening_fence,
     opening_container,
 )
-from .Syntax.Markers import (
+from ..Syntax.Markers import (
     FIGURE_REFERENCE_PATTERN,
     page_marker,
     split_leading_page_markers,

@@ -3,7 +3,7 @@
 from FakeModel import RecordingFakeModel
 
 from OcrModule.MdWriter.Syntax.Markers import ContinuationSplit
-from OcrModule.MdWriter.PageJoin import JoinJudge, decide_joins
+from OcrModule.MdWriter.Assembly.PageJoin import JoinJudge, decide_joins
 
 
 def page(body: str, starts: bool = False, ends: bool = False) -> ContinuationSplit:

@@ -44,7 +44,7 @@ from dotenv import load_dotenv  # noqa: E402
 from OcrModule.LlmHelper import MODEL_IMAGE_MAX_EDGE  # noqa: E402
 from OcrModule.MdWriter.FigureDetector import FigureDetector  # noqa: E402
 from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr  # noqa: E402
-from OcrModule.MdWriter.PageJoin import JoinJudge  # noqa: E402
+from OcrModule.MdWriter.Assembly.PageJoin import JoinJudge  # noqa: E402
 from OcrModule.MdWriter.MarkdownParser import parse_markdown  # noqa: E402
 from OcrModule.MdWriter.ReferenceReader import ReferenceReader  # noqa: E402
 from OcrModule.MdWriter.Transcriber.PageTranscriber import (  # noqa: E402
