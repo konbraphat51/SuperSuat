@@ -7,7 +7,6 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from PIL.Image import Image
 
 from ...LlmHelper import (
     MODEL_IMAGE_MAX_EDGE,
@@ -18,9 +17,10 @@ from ...LlmHelper import (
 )
 from .Agreement import agreement, letter_count
 from .BlankPage import BlankPageDetector
+from ..FigureBoard import FigureBoard
 from ..Syntax.Markers import is_blank_page, without_page_markers
 from .MarkdownValidator import validate_page_output
-from ..Schema import DetectedFigure, PageTask
+from ..Schema import PageTask
 from .prompt import PROMPT, PROMPT_WITH_REFERENCE
 
 logger = logging.getLogger(__name__)
@@ -100,48 +100,26 @@ class PageTranscriber:
     def transcribe(
         self,
         task: PageTask,
-        rendered_pages: Sequence[Image],
-        figures: Sequence[DetectedFigure],
+        board: FigureBoard,
         reference: str | None = None,
     ) -> str:
         """The Markdown of a page, continuation markers included.
 
         Args:
             task: The page to write.
-            rendered_pages: Every page of the document, its figures drawn on.
-            figures: Every figure of the document.
+            board: Every page of the document and its figures.
             reference: The page's text as a conventional OCR read it, if any.
 
         Raises:
             RuntimeError: No answer checked out in max_attempt_count attempts.
         """
-        page = rendered_pages[task.page_index]
-        if not _figure_ids(task.page_index, figures) and (
-            self.blank_page_detector.is_blank(page)
+        if not board.figure_ids_on(task.page_index) and (
+            self.blank_page_detector.is_blank(board.page(task.page_index))
         ):
             logger.info("page %d is blank; not sent to the model", task.page_index)
             return ""
 
-        content: Content = [
-            *build_image_message(
-                f"{_page_label(task, figures)}:",
-                page_to_base64(page, self.image_max_edge),
-            )
-        ]
-        if reference is not None:
-            content.append(
-                {
-                    "type": "text",
-                    "text": f"<reference_ocr>\n{reference}\n</reference_ocr>",
-                }
-            )
-
-        prompt = PROMPT if reference is None else PROMPT_WITH_REFERENCE
-        messages: list[BaseMessage] = [
-            SystemMessage(content=prompt),
-            HumanMessage(content=content),
-        ]
-        markdown = self._transcribe(self.model, "write", task, list(messages), figures)
+        markdown = self._transcribe(self.model, "write", task, board, reference)
 
         if (
             reference is None
@@ -155,7 +133,7 @@ class PageTranscriber:
             return markdown
 
         escalated = self._transcribe(
-            self.escalation.model, "escalate", task, list(messages), figures
+            self.escalation.model, "escalate", task, board, reference
         )
         escalated_score = agreement(escalated, reference)
         logger.info(
@@ -171,12 +149,12 @@ class PageTranscriber:
         model: BaseChatModel,
         kind: str,
         task: PageTask,
-        messages: list[BaseMessage],
-        figures: Sequence[DetectedFigure],
+        board: FigureBoard,
+        reference: str | None,
     ) -> str:
         """Asks `model` for the page's Markdown until an answer checks out."""
         label = f"page {task.page_index} ({kind})"
-        figure_ids = _figure_ids(task.page_index, figures)
+        messages = self._first_messages(task, board, reference)
         metadata = {"page_index": task.page_index, "page_kind": kind}
 
         for attempt in range(1, self.max_attempt_count + 1):
@@ -187,7 +165,9 @@ class PageTranscriber:
             markdown = without_page_markers(
                 strip_code_fence(response.text.strip())
             ).strip()
-            problems = validate_page_output(markdown, figure_ids)
+            problems = validate_page_output(
+                markdown, board.figure_ids_on(task.page_index)
+            )
 
             if not problems:
                 # a page the model found nothing on is written as empty
@@ -210,15 +190,34 @@ class PageTranscriber:
             f"{self.max_attempt_count} attempts."
         )
 
+    def _first_messages(
+        self, task: PageTask, board: FigureBoard, reference: str | None
+    ) -> list[BaseMessage]:
+        """The instructions and the page, as the page stands on the board now."""
+        content = self._page_content(task, board)
+        if reference is not None:
+            content.append(
+                {
+                    "type": "text",
+                    "text": f"<reference_ocr>\n{reference}\n</reference_ocr>",
+                }
+            )
 
-def _figure_ids(page_index: int, figures: Sequence[DetectedFigure]) -> list[int]:
-    """The ids of the figures on the given page."""
-    return [figure.block_id for figure in figures if figure.page_index == page_index]
+        prompt = PROMPT if reference is None else PROMPT_WITH_REFERENCE
+        return [SystemMessage(content=prompt), HumanMessage(content=content)]
+
+    def _page_content(self, task: PageTask, board: FigureBoard) -> Content:
+        """The page image with its figures drawn on, introduced by its label."""
+        return [
+            *build_image_message(
+                f"{_page_label(task, board.figure_ids_on(task.page_index))}:",
+                page_to_base64(board.rendered(task.page_index), self.image_max_edge),
+            )
+        ]
 
 
-def _page_label(task: PageTask, figures: Sequence[DetectedFigure]) -> str:
+def _page_label(task: PageTask, ids: Sequence[int]) -> str:
     """What a page image is introduced with: where it is, and its figures."""
-    ids = _figure_ids(task.page_index, figures)
     place = f"Page {task.page_index + 1} of {task.page_count}"
 
     if not ids:

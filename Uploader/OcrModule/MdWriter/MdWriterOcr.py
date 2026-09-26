@@ -9,12 +9,13 @@ from ..Blocked.Blocker.BlockRenderer import BlockRenderer
 from ..Blocked.PageParallel import DEFAULT_MAX_PARALLEL_PAGES, run_parallel
 from ..Ocr import Ocr
 from ..OcrSchema import OcrResult
+from .FigureBoard import FigureBoard
 from .FigureDetector import FigureDetector
 from .Syntax.Markers import split_continuation
 from .Parser.MarkdownParser import parse_markdown
 from .Assembly.PageJoin import JoinJudge, decide_joins
 from .ReferenceReader import ReferenceReader
-from .Schema import DetectedFigure, MarkdownDraft, PageTask
+from .Schema import MarkdownDraft, PageTask
 from .Assembly.Stitcher import stitch
 from .Transcriber.PageTranscriber import PageTranscriber
 
@@ -77,8 +78,11 @@ class MdWriterOcr(Ocr):
         logger.info("MdWriter OCR | %d page(s)", page_count)
         tasks = [PageTask(index, page_count) for index in range(page_count)]
 
-        figures = self.figure_detector.detect(all_page_images)
-        rendered_pages = self._render(all_page_images, figures)
+        board = FigureBoard(
+            all_page_images,
+            self.figure_detector.detect(all_page_images),
+            self.renderer,
+        )
         # the reference is read from the pages as scanned, before the boxes are drawn
         references: list[str | None] = (
             list(self.reference_reader.read(all_page_images))
@@ -88,33 +92,22 @@ class MdWriterOcr(Ocr):
 
         pages = [
             split_continuation(markdown)
-            for markdown in self._write(tasks, rendered_pages, figures, references)
+            for markdown in self._write(tasks, board, references)
         ]
         joins = decide_joins(pages, self.join_judge)
 
         markdown = stitch([page.body for page in pages], joins)
+        # the figures as the pages were written against, corrections included
         return MarkdownDraft(
-            markdown=markdown, figures=figures, rendered_pages=rendered_pages
+            markdown=markdown,
+            figures=board.figures,
+            rendered_pages=board.rendered_pages(),
         )
-
-    def _render(
-        self,
-        pages: list[Image],
-        figures: list[DetectedFigure],
-    ) -> list[Image]:
-        """Every page with its figures' boxes and ids drawn on."""
-        return [
-            self.renderer.render_page(
-                page, [figure for figure in figures if figure.page_index == index]
-            )
-            for index, page in enumerate(pages)
-        ]
 
     def _write(
         self,
         tasks: list[PageTask],
-        rendered_pages: list[Image],
-        figures: list[DetectedFigure],
+        board: FigureBoard,
         references: list[str | None],
     ) -> list[str]:
         """The Markdown of every page, in page order."""
@@ -122,7 +115,7 @@ class MdWriterOcr(Ocr):
 
         markdowns = run_parallel(
             lambda task: self.transcriber.transcribe(
-                task, rendered_pages, figures, references[task.page_index]
+                task, board, references[task.page_index]
             ),
             tasks,
             self.max_parallel_pages,

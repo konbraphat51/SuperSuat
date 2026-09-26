@@ -8,6 +8,7 @@ from FakeModel import RecordingFakeModel
 from langchain_core.messages import HumanMessage
 from PIL import Image
 
+from OcrModule.MdWriter.FigureBoard import FigureBoard
 from OcrModule.MdWriter.Schema import DetectedFigure, PageTask
 from OcrModule.MdWriter.Transcriber.PageTranscriber import Escalation, PageTranscriber
 
@@ -41,7 +42,7 @@ def images(message: HumanMessage) -> int:
 def test_a_page_is_sent_alone_labeled_with_its_place_and_figures():
     model = RecordingFakeModel.replying(GOOD)
 
-    markdown = PageTranscriber(model).transcribe(TASK, PAGES, FIGURES)
+    markdown = PageTranscriber(model).transcribe(TASK, FigureBoard(PAGES, FIGURES))
 
     assert markdown == GOOD
     request = model.requests[0][1]
@@ -53,20 +54,20 @@ def test_a_page_is_sent_alone_labeled_with_its_place_and_figures():
 def test_a_wrapping_code_fence_and_page_markers_are_taken_off():
     model = RecordingFakeModel.replying(f"```markdown\n<!--page:2-->{GOOD}\n```")
 
-    assert PageTranscriber(model).transcribe(TASK, PAGES, FIGURES) == GOOD
+    assert PageTranscriber(model).transcribe(TASK, FigureBoard(PAGES, FIGURES)) == GOOD
 
 
 def test_continuation_markers_are_kept_for_the_stitcher():
     reply = f"<!--continues-previous-->{GOOD}<!--continued-by-next-->"
     model = RecordingFakeModel.replying(reply)
 
-    assert PageTranscriber(model).transcribe(TASK, PAGES, FIGURES) == reply
+    assert PageTranscriber(model).transcribe(TASK, FigureBoard(PAGES, FIGURES)) == reply
 
 
 def test_a_failing_answer_is_sent_back_with_its_problems():
     model = RecordingFakeModel.replying("a", GOOD)
 
-    markdown = PageTranscriber(model).transcribe(TASK, PAGES, FIGURES)
+    markdown = PageTranscriber(model).transcribe(TASK, FigureBoard(PAGES, FIGURES))
 
     assert markdown == GOOD
     retry = model.requests[1]
@@ -78,7 +79,9 @@ def test_a_page_that_never_checks_out_stops_the_run():
     model = RecordingFakeModel.replying("bad", "bad", "bad")
 
     with pytest.raises(RuntimeError):
-        PageTranscriber(model, max_attempt_count=3).transcribe(TASK, PAGES, FIGURES)
+        PageTranscriber(model, max_attempt_count=3).transcribe(
+            TASK, FigureBoard(PAGES, FIGURES)
+        )
 
     assert len(model.requests) == 3
 
@@ -87,7 +90,9 @@ def test_a_page_is_sent_no_larger_than_the_set_size():
     model = RecordingFakeModel.replying("a")
     big = [Image.new("RGB", (400, 200), "black")]
 
-    PageTranscriber(model, image_max_edge=100).transcribe(PageTask(0, 1), big, [])
+    PageTranscriber(model, image_max_edge=100).transcribe(
+        PageTask(0, 1), FigureBoard(big, [])
+    )
 
     request = model.requests[0][1]
     assert isinstance(request.content, list)
@@ -99,7 +104,9 @@ def test_a_page_is_sent_no_larger_than_the_set_size():
 def test_a_reference_is_sent_after_the_image_with_its_own_prompt():
     model = RecordingFakeModel.replying(GOOD)
 
-    PageTranscriber(model).transcribe(TASK, PAGES, FIGURES, reference="a b c")
+    PageTranscriber(model).transcribe(
+        TASK, FigureBoard(PAGES, FIGURES), reference="a b c"
+    )
 
     system, request = model.requests[0]
     assert "<reference_ocr>" in str(system.content)
@@ -112,7 +119,7 @@ def test_a_page_agreeing_with_its_reference_is_not_escalated():
 
     markdown = PageTranscriber(
         model, escalation=Escalation(stronger, min_reference_letters=0)
-    ).transcribe(PageTask(0, 1), PAGES, [], reference="文章の続き")
+    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference="文章の続き")
 
     assert markdown == "文章の続き"
     assert stronger.requests == []
@@ -124,7 +131,7 @@ def test_a_misread_page_is_written_again_by_the_stronger_model():
 
     markdown = PageTranscriber(
         model, escalation=Escalation(stronger, min_reference_letters=0)
-    ).transcribe(PageTask(0, 1), PAGES, [], reference="文章の続き")
+    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference="文章の続き")
 
     assert markdown == "文章の続き"
     assert len(stronger.requests) == 1
@@ -136,7 +143,7 @@ def test_the_first_answer_is_kept_when_the_stronger_one_agrees_less():
 
     markdown = PageTranscriber(
         model, escalation=Escalation(stronger, min_reference_letters=0)
-    ).transcribe(PageTask(0, 1), PAGES, [], reference="文章の続き")
+    ).transcribe(PageTask(0, 1), FigureBoard(PAGES, []), reference="文章の続き")
 
     assert markdown == "文章の"
 
@@ -147,7 +154,7 @@ def test_a_page_with_too_short_a_reference_is_not_escalated():
     escalation = Escalation(stronger, min_reference_letters=100)
 
     PageTranscriber(model, escalation=escalation).transcribe(
-        PageTask(0, 1), PAGES, [], reference="図1 猫"
+        PageTask(0, 1), FigureBoard(PAGES, []), reference="図1 猫"
     )
 
     assert stronger.requests == []
@@ -156,7 +163,7 @@ def test_a_page_with_too_short_a_reference_is_not_escalated():
 def test_a_blank_page_is_written_empty_without_asking_the_model():
     model = RecordingFakeModel.replying()
 
-    markdown = PageTranscriber(model).transcribe(PageTask(0, 1), BLANK, [])
+    markdown = PageTranscriber(model).transcribe(PageTask(0, 1), FigureBoard(BLANK, []))
 
     assert markdown == ""
     assert model.requests == []
@@ -166,7 +173,7 @@ def test_a_blank_page_with_a_figure_is_still_sent_to_the_model():
     model = RecordingFakeModel.replying("![](figure:0)")
     figure = DetectedFigure(block_id=0, page_index=0, bounding_box=(0, 0, 5, 5))
 
-    PageTranscriber(model).transcribe(PageTask(0, 1), BLANK, [figure])
+    PageTranscriber(model).transcribe(PageTask(0, 1), FigureBoard(BLANK, [figure]))
 
     assert len(model.requests) == 1
 
@@ -174,12 +181,14 @@ def test_a_blank_page_with_a_figure_is_still_sent_to_the_model():
 def test_a_page_the_model_finds_blank_is_written_empty():
     model = RecordingFakeModel.replying("<!--blank-page-->")
 
-    assert PageTranscriber(model).transcribe(PageTask(0, 1), PAGES, []) == ""
+    markdown = PageTranscriber(model).transcribe(PageTask(0, 1), FigureBoard(PAGES, []))
+
+    assert markdown == ""
 
 
 def test_a_blank_page_marker_beside_text_is_sent_back():
     model = RecordingFakeModel.replying("<!--blank-page-->\n\nThis page is blank.", "")
 
-    PageTranscriber(model).transcribe(PageTask(0, 1), PAGES, [])
+    PageTranscriber(model).transcribe(PageTask(0, 1), FigureBoard(PAGES, []))
 
     assert "<!--blank-page--> means" in str(model.requests[1][-1].content)
