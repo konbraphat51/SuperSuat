@@ -56,3 +56,12 @@ def test_a_figure_at_the_turn_is_looked_past():
     pages = [page("文章の\n\n![図](figure:0)", ends=True), page("続き", starts=True)]
 
     assert decide_joins(pages) == [True]
+
+
+def test_a_table_of_contents_over_a_turn_is_never_joined():
+    pages = [
+        page(":::toc\n- 1 | A | 1\n:::", ends=True),
+        page(":::toc\n- 2 | B | 9\n:::", starts=True),
+    ]
+
+    assert decide_joins(pages) == [False]

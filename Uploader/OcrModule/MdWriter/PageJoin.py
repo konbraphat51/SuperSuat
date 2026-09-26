@@ -7,6 +7,11 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..LlmHelper import log_agent_message
+from .Containers import (
+    TABLE_OF_CONTENTS_CONTAINER,
+    closing_container,
+    opening_container,
+)
 from .Markers import FIGURE_REFERENCE_PATTERN, ContinuationSplit
 from .Transcriber.prompt import JOIN_PROMPT
 
@@ -84,6 +89,9 @@ def decide_joins(
 
         if not _is_text(end) or not _is_text(start):
             joins.append(False)
+        # a table of contents over a turn is two blocks the parser merges, never one paragraph
+        elif _is_table_of_contents_turn(page.body, following.body):
+            joins.append(False)
         elif page.continued_by_next == following.continues_previous:
             joins.append(page.continued_by_next)
         elif judge is not None:
@@ -123,6 +131,14 @@ def _paragraphs(body: str) -> list[str]:
         if paragraph.strip()
         and not FIGURE_REFERENCE_PATTERN.fullmatch(paragraph.strip())
     ]
+
+
+def _is_table_of_contents_turn(body: str, following_body: str) -> bool:
+    """Whether the page ends with a table of contents block or the next starts with one."""
+    return TABLE_OF_CONTENTS_CONTAINER in (
+        closing_container(body),
+        opening_container(following_body),
+    )
 
 
 def _is_text(paragraph: str) -> bool:
