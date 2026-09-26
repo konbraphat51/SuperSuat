@@ -9,17 +9,26 @@ from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
-from ....LlmHelper import build_image_message, page_to_base64
-from ....OcrSchema import OcrResult, OcrResultBlock, OcrResultBlockText
-from .Leveler import MAX_ATTEMPT_COUNT, MAX_PAGES_PER_REQUEST, TOP_HEADING_LEVEL
+from OcrModule.LlmHelper import build_image_message, page_to_base64
+from OcrModule.OcrSchema import OcrResult, OcrResultBlock, OcrResultBlockText
+
 from .LevelerSchema import HeadingLevels
-from .prompt import OCR_RESULT_LEVELER_SYSTEM_PROMPT
-from Leveler.SectionNester import flatten_blocks, nest_by_levels
+from .prompt import LEVELER_SYSTEM_PROMPT
+from .SectionNester import flatten_blocks, nest_by_levels
 
 logger = logging.getLogger(__name__)
 
 # The block_type of a block that opens a section.
 HEADING_BLOCK_TYPE = "heading"
+
+# The level of the document's own title, which nothing sits above.
+TOP_HEADING_LEVEL = 1
+
+# Heading pages sent in one request; the rest of the document follows in later parts.
+MAX_PAGES_PER_REQUEST = 8
+
+# Guard against a model that keeps leaving headings unanswered.
+MAX_ATTEMPT_COUNT = 3
 
 
 @dataclass
@@ -42,15 +51,15 @@ class OcrResultLeveler:
     """Gives every heading of a transcribed document its level, and nests the
     document tree to match.
 
-    The counterpart of Leveler for a document already read into an OcrResult,
-    whatever pipeline produced it: every heading is ranked afresh, so a tree
-    whose headings all sit one level deep comes out nested as the document is.
+    Works on a document already read into an OcrResult, whatever pipeline
+    produced it: every heading is ranked afresh, so a tree whose headings all
+    sit one level deep comes out nested as the document is.
     The heading text is known by now, so the model reads each heading's
     numbering and wording as well as how it is printed.
 
     The document is taken MAX_PAGES_PER_REQUEST heading-pages at a time, and
     every request after the first carries one page per level already decided,
-    as Leveler does, to hold the hierarchy together across the parts.
+    to hold the hierarchy together across the parts.
     """
 
     def __init__(
@@ -201,7 +210,7 @@ class OcrResultLeveler:
         )
 
         return [
-            SystemMessage(content=OCR_RESULT_LEVELER_SYSTEM_PROMPT),
+            SystemMessage(content=LEVELER_SYSTEM_PROMPT),
             HumanMessage(content=content),
         ]
 

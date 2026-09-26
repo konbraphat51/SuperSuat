@@ -8,11 +8,9 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
 from PIL import Image
 
-from OcrModule.Blocked.StructureOrganizer.Leveler import OcrResultLeveler as module
-from OcrModule.Blocked.StructureOrganizer.Leveler.LevelerSchema import HeadingLevels
-from OcrModule.Blocked.StructureOrganizer.Leveler.OcrResultLeveler import (
-    OcrResultLeveler,
-)
+import Leveler.OcrResultLeveler as module
+from Leveler.LevelerSchema import HeadingLevels
+from Leveler.OcrResultLeveler import OcrResultLeveler
 from OcrModule.OcrSchema import (
     OcrResult,
     OcrResultBlock,
