@@ -18,6 +18,19 @@ def test_page_markers_and_figure_references_are_found_in_order():
     assert find_figure_references(text) == [7, 2]
 
 
+def test_a_caption_holding_brackets_is_still_a_figure_reference():
+    text = (
+        r"![Figure 3.1: an interval \([a,b]\) is shaded](figure:29)"
+        "\n\n![Figure 3.2: the interval [x, x + δ]](figure:30)"
+    )
+
+    assert find_figure_references(text) == [29, 30]
+
+
+def test_a_caption_with_unbalanced_brackets_is_no_figure_reference():
+    assert find_figure_references("![a ] b](figure:1)") == []
+
+
 def test_a_marker_inside_a_line_is_removed_where_it_stood():
     stripped, marks = strip_page_markers("<!--page:0-->one two <!--page:1-->three")
 

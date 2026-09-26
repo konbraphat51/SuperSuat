@@ -9,6 +9,12 @@ def test_a_complete_page_passes():
     assert validate_page_output(markdown, [0]) == []
 
 
+def test_a_figure_whose_caption_holds_an_interval_passes():
+    markdown = "a\n\n![The interval \\([a, b]\\)](figure:0)\n\nb"
+
+    assert validate_page_output(markdown, [0]) == []
+
+
 def test_a_page_may_continue_both_ways():
     markdown = "<!--continues-previous-->rest of it<!--continued-by-next-->"
 

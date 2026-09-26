@@ -18,8 +18,11 @@ CONTINUED_BY_NEXT_PATTERN = re.compile(r"<!--\s*continued-by-next\s*-->")
 BLANK_PAGE_MARKER = "<!--blank-page-->"
 BLANK_PAGE_PATTERN = re.compile(r"<!--\s*blank-page\s*-->")
 
-# A figure placed by its detected id, as `![caption](figure:ID)`.
-FIGURE_REFERENCE_PATTERN = re.compile(r"!\[[^\]]*\]\(\s*figure:(\d+)\s*\)")
+# A figure placed by its detected id, as `![caption](figure:ID)`; the caption may
+# hold balanced brackets one level deep, as an interval like `[a, b]` does.
+FIGURE_REFERENCE_PATTERN = re.compile(
+    r"!\[(?:[^\[\]]|\[[^\[\]]*\])*\]\(\s*figure:(\d+)\s*\)"
+)
 
 # Page markers at the very start of a text, with the whitespace around them.
 _LEADING_PAGE_MARKERS = re.compile(rf"^(?:\s*{PAGE_MARKER_PATTERN.pattern})+\s*")

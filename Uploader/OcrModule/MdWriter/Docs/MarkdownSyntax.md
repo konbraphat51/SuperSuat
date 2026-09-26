@@ -15,7 +15,7 @@ Each answer is the Markdown of one page.
 | --- | --- | --- |
 | Paragraph | one line of text | Lines the page broke are joined as the script wants. Paragraphs are separated by a blank line |
 | Heading | `## heading` | Every heading, the document's title included, is level 2 (pages are written independently, so their hierarchies cannot be matched up) |
-| Figure | `![caption](figure:ID)` | A paragraph of its own. ID is the number drawn on the figure's red box. The caption goes in the alt text only, never again as body text |
+| Figure | `![caption](figure:ID)` | A paragraph of its own. ID is the number drawn on the figure's red box. The caption goes in the alt text only, never again as body text. The caption may hold balanced brackets one level deep, such as the interval `[a, b]` |
 | Math | `$...$`, `$$...$$` | KaTeX-compatible LaTeX. A display equation goes on lines of its own |
 | Table | GFM pipe table | A merged cell is repeated in every cell it spans |
 | Code | fenced code block | Source code and pseudocode |
