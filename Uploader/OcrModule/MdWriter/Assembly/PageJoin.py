@@ -13,7 +13,7 @@ from ..Syntax.Containers import (
     opening_container,
 )
 from ..Syntax.Markers import FIGURE_REFERENCE_PATTERN, ContinuationSplit
-from ..Transcriber.prompt import JOIN_PROMPT
+from .prompt import JOIN_PROMPT
 
 logger = logging.getLogger(__name__)
 
