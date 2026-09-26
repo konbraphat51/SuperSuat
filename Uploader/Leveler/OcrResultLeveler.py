@@ -1,50 +1,39 @@
 """Nesting a transcribed document tree by the level of each of its headings."""
 
-import json
 import logging
-from dataclasses import dataclass
-from typing import Any
 
 from PIL.Image import Image
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from OcrModule.LlmHelper import build_image_message, page_to_base64
-from OcrModule.OcrSchema import OcrResult, OcrResultBlock, OcrResultBlockText
+from OcrModule.OcrSchema import OcrResult
 
+from .Headings import (
+    Content,
+    Heading,
+    PageHeadings,
+    apply_levels,
+    collect_headings,
+    format_level,
+    group_by_page,
+    headings_json,
+    list_ids,
+    retry_message,
+    split_into_parts,
+    text_part,
+)
 from .LevelerSchema import HeadingLevels
 from .prompt import LEVELER_SYSTEM_PROMPT
 from .SectionNester import flatten_blocks, nest_by_levels
 
 logger = logging.getLogger(__name__)
 
-# The block_type of a block that opens a section.
-HEADING_BLOCK_TYPE = "heading"
-
-# The level of the document's own title, which nothing sits above.
-TOP_HEADING_LEVEL = 1
-
 # Heading pages sent in one request; the rest of the document follows in later parts.
 MAX_PAGES_PER_REQUEST = 8
 
 # Guard against a model that keeps leaving headings unanswered.
 MAX_ATTEMPT_COUNT = 3
-
-
-@dataclass
-class _Heading:
-    """One heading of the document, as the model is asked about it."""
-
-    block_index: int
-    page_index: int | None  # the first page it is printed on, if known
-    text: str
-
-
-# Headings grouped by the page they are printed on, in document order.
-_PageHeadings = list[tuple[int | None, list[_Heading]]]
-
-# The parts of a message's content, as a chat model takes them.
-_Content = list[str | dict[Any, Any]]
 
 
 class OcrResultLeveler:
@@ -92,10 +81,10 @@ class OcrResultLeveler:
                 MAX_ATTEMPT_COUNT attempts.
         """
         blocks = flatten_blocks(ocr_result.root_section)
-        headings = _collect_headings(blocks)
-        levels: dict[int, int] = {}
+        headings = collect_headings(blocks)
+        levels: dict[int, float] = {}
 
-        parts = _split_into_parts(_group_by_page(headings))
+        parts = split_into_parts(group_by_page(headings), MAX_PAGES_PER_REQUEST)
 
         for part_number, part in enumerate(parts, start=1):
             logger.info(
@@ -123,9 +112,9 @@ class OcrResultLeveler:
     def _level_part(
         self,
         all_page_images: list[Image],
-        part: _PageHeadings,
-        settled: list[_Heading],
-        levels: dict[int, int],
+        part: PageHeadings,
+        settled: list[Heading],
+        levels: dict[int, float],
         part_number: int,
     ) -> None:
         """Levels the headings of one part into `levels`, against those settled."""
@@ -137,7 +126,7 @@ class OcrResultLeveler:
             heading_levels = self._request_levels(messages, part_number, attempt)
             messages.append(AIMessage(content=heading_levels.model_dump_json()))
 
-            problems = _apply_levels(heading_levels, part_headings, levels)
+            problems = apply_levels(heading_levels, part_headings, levels)
             unleveled = [h for h in part_headings if h.block_index not in levels]
 
             if not problems and not unleveled:
@@ -149,7 +138,7 @@ class OcrResultLeveler:
                 attempt,
                 len(unleveled),
             )
-            messages.append(HumanMessage(content=_retry_message(problems, unleveled)))
+            messages.append(HumanMessage(content=retry_message(problems, unleveled)))
 
         unleveled_count = len([h for h in part_headings if h.block_index not in levels])
         raise RuntimeError(
@@ -181,12 +170,12 @@ class OcrResultLeveler:
     def _build_messages(
         self,
         all_page_images: list[Image],
-        part: _PageHeadings,
-        settled: list[_Heading],
-        levels: dict[int, int],
+        part: PageHeadings,
+        settled: list[Heading],
+        levels: dict[int, float],
     ) -> list[BaseMessage]:
         """The system prompt, the levels settled so far, and this part's pages."""
-        content: _Content = []
+        content: Content = []
 
         content += _example_content(all_page_images, settled, levels)
 
@@ -197,15 +186,15 @@ class OcrResultLeveler:
 
             named = "heading block" if len(page_headings) == 1 else "heading blocks"
             content += build_image_message(
-                f"Page {page_index + 1}, holding {named} {_list_ids(page_headings)}:",
+                f"Page {page_index + 1}, holding {named} {list_ids(page_headings)}:",
                 page_to_base64(all_page_images[page_index]),
             )
 
         part_headings = [heading for _, headings in part for heading in headings]
         content.append(
-            _text_part(
+            text_part(
                 "The headings to give a level to, in the order they are read in:\n"
-                + _headings_json(part_headings, None)
+                + headings_json(part_headings, None)
             )
         )
 
@@ -215,60 +204,25 @@ class OcrResultLeveler:
         ]
 
 
-def _collect_headings(blocks: list[OcrResultBlock]) -> list[_Heading]:
-    """Every heading of the document, in document order."""
-    return [
-        _Heading(
-            block_index=block.block_index,
-            page_index=min(block.existing_pages) if block.existing_pages else None,
-            text=block.text,
-        )
-        for block in blocks
-        if isinstance(block, OcrResultBlockText)
-        and block.block_type == HEADING_BLOCK_TYPE
-    ]
-
-
-def _group_by_page(headings: list[_Heading]) -> _PageHeadings:
-    """Each run of headings printed on the same page, in document order."""
-    grouped: _PageHeadings = []
-
-    for heading in headings:
-        if grouped and grouped[-1][0] == heading.page_index:
-            grouped[-1][1].append(heading)
-        else:
-            grouped.append((heading.page_index, [heading]))
-
-    return grouped
-
-
-def _split_into_parts(page_headings: _PageHeadings) -> list[_PageHeadings]:
-    """The heading pages in runs of at most MAX_PAGES_PER_REQUEST, in order."""
-    return [
-        page_headings[start : start + MAX_PAGES_PER_REQUEST]
-        for start in range(0, len(page_headings), MAX_PAGES_PER_REQUEST)
-    ]
-
-
 def _example_content(
     all_page_images: list[Image],
-    settled: list[_Heading],
-    levels: dict[int, int],
-) -> _Content:
+    settled: list[Heading],
+    levels: dict[int, float],
+) -> Content:
     """One page per level settled so far, showing how that level is printed.
 
     The first heading of each level is the example: it is the one the levels
     after it were already judged against.
     """
-    examples: dict[int, _Heading] = {}
+    examples: dict[float, Heading] = {}
     for heading in settled:
         examples.setdefault(levels[heading.block_index], heading)
 
     if not examples:
         return []
 
-    content: _Content = [
-        _text_part(
+    content: Content = [
+        text_part(
             "Levels already settled in the part of the document before this "
             "one. These pages are shown so that you can see how a heading of "
             "each level is printed; do not answer for their headings."
@@ -276,14 +230,14 @@ def _example_content(
     ]
 
     # one page often carries examples of two levels, and it is sent once
-    examples_by_page: dict[int, list[tuple[int, _Heading]]] = {}
+    examples_by_page: dict[int, list[tuple[float, Heading]]] = {}
     for level, heading in sorted(examples.items()):
         if heading.page_index is not None:
             examples_by_page.setdefault(heading.page_index, []).append((level, heading))
 
     for page_index, shown in sorted(examples_by_page.items()):
         described = ", ".join(
-            f"block {heading.block_index} as a level {level} heading"
+            f"block {heading.block_index} as a level {format_level(level)} heading"
             for level, heading in shown
         )
         content += build_image_message(
@@ -292,84 +246,10 @@ def _example_content(
         )
 
     content.append(
-        _text_part(
+        text_part(
             "The levels settled so far, in the order the headings are read in:\n"
-            + _headings_json(settled, levels)
+            + headings_json(settled, levels)
         )
     )
 
     return content
-
-
-def _headings_json(headings: list[_Heading], levels: dict[int, int] | None) -> str:
-    """The headings as JSON, with their levels when `levels` is given."""
-    listed: list[dict[str, object]] = []
-
-    for heading in headings:
-        entry: dict[str, object] = {"block_id": heading.block_index}
-        if heading.page_index is not None:
-            entry["page_number"] = heading.page_index + 1
-        entry["text"] = heading.text
-        if levels is not None:
-            entry["heading_level"] = levels[heading.block_index]
-        listed.append(entry)
-
-    return json.dumps(listed, ensure_ascii=False, separators=(",", ":"))
-
-
-def _apply_levels(
-    heading_levels: HeadingLevels,
-    headings: list[_Heading],
-    levels: dict[int, int],
-) -> list[str]:
-    """Records each answered level into `levels`, and reports what could not
-    be recorded."""
-    asked_ids = {heading.block_index for heading in headings}
-    problems: list[str] = []
-
-    for level in heading_levels.levels:
-        if level.target_block_id not in asked_ids:
-            problems.append(
-                f"Block {level.target_block_id} is not one of the headings you "
-                "were asked about, so it was ignored."
-            )
-            continue
-
-        if level.heading_level < TOP_HEADING_LEVEL:
-            problems.append(
-                f"Block {level.target_block_id} was given level "
-                f"{level.heading_level}; the document's own title is level "
-                f"{TOP_HEADING_LEVEL} and nothing sits above it."
-            )
-            continue
-
-        levels[level.target_block_id] = level.heading_level
-
-    return problems
-
-
-def _retry_message(problems: list[str], unleveled: list[_Heading]) -> str:
-    """What the model is told when its answer did not cover every heading."""
-    lines = [f"- {problem}" for problem in problems]
-
-    if unleveled:
-        lines.append(
-            f"- These headings still have no level: {_list_ids(unleveled)}. "
-            "Give each one the level it holds in the hierarchy you just described."
-        )
-
-    return (
-        "Every level you gave that could be used has been recorded, and the "
-        "hierarchy you described stands. Answer again for what is still "
-        "missing, keeping the levels you already gave:\n" + "\n".join(lines)
-    )
-
-
-def _text_part(text: str) -> dict[str, str]:
-    """A text part of a message's content."""
-    return {"type": "text", "text": text}
-
-
-def _list_ids(headings: list[_Heading]) -> str:
-    """The headings' block ids as one comma-separated list."""
-    return ", ".join(str(heading.block_index) for heading in headings)
