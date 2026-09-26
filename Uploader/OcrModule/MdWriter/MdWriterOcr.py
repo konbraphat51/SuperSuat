@@ -11,7 +11,7 @@ from ..Ocr import Ocr
 from ..OcrSchema import OcrResult
 from .FigureDetector import FigureDetector
 from .Syntax.Markers import split_continuation
-from .MarkdownParser import parse_markdown
+from .Parser.MarkdownParser import parse_markdown
 from .Assembly.PageJoin import JoinJudge, decide_joins
 from .ReferenceReader import ReferenceReader
 from .Schema import DetectedFigure, MarkdownDraft, PageTask

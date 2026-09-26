@@ -12,7 +12,7 @@ from markdown_it.token import Token
 from mdit_py_plugins.container import container_plugin
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 
-from ..OcrSchema import (
+from ...OcrSchema import (
     TEXT_BLOCK_TYPES,
     OcrResult,
     OcrResultBlock,
@@ -21,10 +21,10 @@ from ..OcrSchema import (
     OcrResultBlockText,
     OcrResultSection,
 )
-from .Syntax.Containers import CONTAINERS, NOTE_CONTAINERS, TABLE_OF_CONTENTS_CONTAINER
-from .Syntax.Markers import PageMark, strip_page_markers
-from .Schema import DetectedFigure
-from .Syntax.TableOfContents import parse_entries
+from ..Syntax.Containers import CONTAINERS, NOTE_CONTAINERS, TABLE_OF_CONTENTS_CONTAINER
+from ..Syntax.Markers import PageMark, strip_page_markers
+from ..Schema import DetectedFigure
+from ..Syntax.TableOfContents import parse_entries
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 """Tests for the stitched Markdown being read back into the document tree."""
 
-from OcrModule.MdWriter.MarkdownParser import parse_markdown
+from OcrModule.MdWriter.Parser.MarkdownParser import parse_markdown
 from OcrModule.MdWriter.Schema import DetectedFigure
 from OcrModule.OcrSchema import (
     OcrResultBlock,
