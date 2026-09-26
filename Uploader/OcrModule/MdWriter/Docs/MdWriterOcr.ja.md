@@ -105,7 +105,8 @@ classDiagram
 | [Agreement.py](../Agreement.py) | `agreement` | 応答がそのページの参照テキストとどれだけ一致するか |
 | [PageJoin.py](../PageJoin.py) | `decide_joins` | どのページの変わり目で段落が分かれているかを決める |
 | [Markers.py](../Markers.py) | `strip_page_markers`、`split_continuation` など | ページマーカーと継続マーカーを見つけて取り除く |
-| [Containers.py](../Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンスを検証し、ページの変わり目で分かれた囲みをつなぐ |
+| [Containers.py](../Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンス（注と目次）を検証し、ページの変わり目で分かれた囲みをつなぐ |
+| [TableOfContents.py](../TableOfContents.py) | `parse_entries`、`entry_problems` | `:::toc` ブロックの項目を字下げで入れ子にした木として読み、検証する |
 | [Stitcher.py](../Stitcher.py) | `stitch` | 各ページを1つの文書に結合する |
 | [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | 文書を `OcrResult` のツリーに読み込む |
 
@@ -165,7 +166,7 @@ yomitokuの読み順で並べます（縦書きも含む）。柱・ページ番
 
 ```mermaid
 flowchart TD
-    A["ページNの終わり、ページN+1の始まり"] --> B{"どちらかが見出し、または空?"}
+    A["ページNの終わり、ページN+1の始まり"] --> B{"どちらかが見出し・目次、または空?"}
     B -- はい --> Break["分ける"]
     B -- いいえ --> C{"2ページの判断が一致?"}
     C -- はい --> D["その判断に従う"]
@@ -180,6 +181,9 @@ flowchart TD
 （モデルが書いたものは先に取り除きます）。つなぐ所では2つの半分を1つの段落にし（空白を入れるのは
 `join_texts` と同じく両側がASCIIの場合だけ）、間にあった図は段落の後ろへ移し、両方のページが同じ囲みに
 入れていればそのブロックも1つにします。それ以外の所は空行で区切ります。
+
+目次の項目は段落ではなく行なので、目次の所ではページをつなぎません。各ページが `:::toc` ブロックを
+閉じて開き直し、パーサがそれらを1つのブロックにまとめ、項目を1つの並びとして読みます。
 
 ## 処理の流れ
 

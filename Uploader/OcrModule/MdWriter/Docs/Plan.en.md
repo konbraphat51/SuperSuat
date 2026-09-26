@@ -16,6 +16,7 @@
   - A page that agrees too little with its reference (the F1 of their character bigrams) is written again by a stronger model
 - Define special syntax for footnotes, sidenotes, columns and the like, and have the LLM use it ([MarkdownSyntax.md](MarkdownSyntax.md))
   - Footnotes in GFM style (`[^n]` / `[^n]: …`), sidenotes and columns as `:::sidenote` / `:::column` blocks
+  - A table of contents as a `:::toc` block of `- number | title | page` entries, nested by indentation
   - `<!--page:N-->` is put before each page's Markdown (by the stitching, not the LLM), which records the pages a block is on
 - Every heading is treated as level 2 (each page is written independently, so their hierarchies cannot be matched up)
 

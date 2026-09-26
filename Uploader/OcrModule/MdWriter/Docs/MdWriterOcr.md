@@ -108,7 +108,8 @@ The remaining stages are plain functions, each in a module of its own:
 | [Agreement.py](../Agreement.py) | `agreement` | How well an answer agrees with the page's reference text |
 | [PageJoin.py](../PageJoin.py) | `decide_joins` | Which page turns split a paragraph |
 | [Markers.py](../Markers.py) | `strip_page_markers`, `split_continuation`, … | Finding and taking out the page and continuation markers |
-| [Containers.py](../Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences, and joining a box split at a page turn |
+| [Containers.py](../Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences (notes and the table of contents), and joining a box split at a page turn |
+| [TableOfContents.py](../TableOfContents.py) | `parse_entries`, `entry_problems` | Reading the entries of a `:::toc` block into a tree nested by indentation, and checking them |
 | [Stitcher.py](../Stitcher.py) | `stitch` | The pages joined into one document |
 | [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | The document read into the `OcrResult` tree |
 
@@ -178,7 +179,7 @@ and is dropped.
 
 ```mermaid
 flowchart TD
-    A["page N ends, page N+1 starts"] --> B{"either side a heading, or empty?"}
+    A["page N ends, page N+1 starts"] --> B{"either side a heading, a table of contents, or empty?"}
     B -- yes --> Break
     B -- no --> C{"do the two pages agree?"}
     C -- yes --> D["as they both say"]
@@ -194,6 +195,10 @@ Markdown (any the model wrote are taken out first), and at a join puts the two h
 into one paragraph — with a space only between two ASCII characters, as `join_texts` does
 — moving a figure that stood between them after the paragraph, and merging a note block
 both pages hold it in. Everywhere else, pages are separated by a blank line.
+
+A table of contents is never joined over a turn, since its entries are lines, not a
+paragraph: each page closes and reopens its `:::toc` block, and the parser merges
+the blocks, reading their entries as one list.
 
 ## Flow
 
