@@ -18,7 +18,7 @@ from ...LlmHelper import (
 )
 from .Agreement import agreement, letter_count
 from .BlankPage import BlankPageDetector
-from ..Syntax.Markers import without_page_markers
+from ..Syntax.Markers import is_blank_page, without_page_markers
 from .MarkdownValidator import validate_page_output
 from ..Schema import DetectedFigure, PageTask
 from .prompt import PROMPT, PROMPT_WITH_REFERENCE
@@ -67,7 +67,8 @@ class PageTranscriber:
     characters it writes; and with an escalation, a page whose answer agrees
     too little with it is written again by the stronger model, keeping
     whichever answer agrees more. A page with neither figures nor ink is
-    written as empty without asking the model at all. Every request carries the page's index and
+    written as empty without asking the model at all, as is one the model
+    answers holds nothing to transcribe. Every request carries the page's index and
     kind in its run metadata, so a callback can tell what each request cost."""
 
     def __init__(
@@ -189,7 +190,8 @@ class PageTranscriber:
             problems = validate_page_output(markdown, figure_ids)
 
             if not problems:
-                return markdown
+                # a page the model found nothing on is written as empty
+                return "" if is_blank_page(markdown) else markdown
 
             logger.warning(
                 "%s attempt %d: %d problem(s): %s",

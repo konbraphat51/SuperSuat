@@ -14,6 +14,10 @@ CONTINUES_PREVIOUS_PATTERN = re.compile(r"<!--\s*continues-previous\s*-->")
 CONTINUED_BY_NEXT_MARKER = "<!--continued-by-next-->"
 CONTINUED_BY_NEXT_PATTERN = re.compile(r"<!--\s*continued-by-next\s*-->")
 
+# What the model answers alone for a page that holds nothing to transcribe.
+BLANK_PAGE_MARKER = "<!--blank-page-->"
+BLANK_PAGE_PATTERN = re.compile(r"<!--\s*blank-page\s*-->")
+
 # A figure placed by its detected id, as `![caption](figure:ID)`.
 FIGURE_REFERENCE_PATTERN = re.compile(r"!\[[^\]]*\]\(\s*figure:(\d+)\s*\)")
 
@@ -57,6 +61,11 @@ def page_marker(page_index: int) -> str:
 def find_page_markers(text: str) -> list[int]:
     """The pages of every page marker in the text, in the order they appear."""
     return [int(match.group(1)) for match in PAGE_MARKER_PATTERN.finditer(text)]
+
+
+def is_blank_page(text: str) -> bool:
+    """Whether the text is the blank page marker and nothing else."""
+    return BLANK_PAGE_PATTERN.fullmatch(text.strip()) is not None
 
 
 def find_figure_references(text: str) -> list[int]:

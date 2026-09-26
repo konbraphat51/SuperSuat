@@ -80,3 +80,20 @@ def test_a_table_of_contents_passes_and_a_line_that_is_no_entry_is_reported():
 
     assert len(problems) == 1
     assert "not an entry" in problems[0]
+
+
+def test_a_blank_page_marker_alone_passes():
+    assert validate_page_output("<!--blank-page-->", []) == []
+
+
+def test_a_blank_page_marker_beside_text_is_reported():
+    problems = validate_page_output("<!--blank-page-->\n\nThis page is blank.", [])
+
+    assert len(problems) == 1
+    assert "<!--blank-page-->" in problems[0]
+
+
+def test_a_blank_page_marker_on_a_page_with_figures_leaves_them_missing():
+    problems = validate_page_output("<!--blank-page-->", [3])
+
+    assert any("Figure 3 is not placed" in problem for problem in problems)

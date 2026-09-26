@@ -38,6 +38,7 @@ TRANSCRIPTION_RULES = """Transcription rules:
 - Keep the text in its own language. Never translate, paraphrase, or summarize.
 - Reproduce the text verbatim, including punctuation, casing, and numbers.
 - Do not invent, complete, or correct text that is unclear or cut off; transcribe only what is visible. The page may begin or end in the middle of a sentence: transcribe it as it is, without finishing or leaving out the broken sentence.
+- When the page holds nothing to transcribe (it is blank, or shows only running heads, page numbers, or a note that it is left blank), output exactly <!--blank-page--> and nothing else. Never describe the page or say that it is blank in words.
 """
 
 # How a page says that its text runs over a page turn (see Docs/MarkdownSyntax.md).

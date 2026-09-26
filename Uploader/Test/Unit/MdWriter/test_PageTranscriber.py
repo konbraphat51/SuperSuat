@@ -169,3 +169,17 @@ def test_a_blank_page_with_a_figure_is_still_sent_to_the_model():
     PageTranscriber(model).transcribe(PageTask(0, 1), BLANK, [figure])
 
     assert len(model.requests) == 1
+
+
+def test_a_page_the_model_finds_blank_is_written_empty():
+    model = RecordingFakeModel.replying("<!--blank-page-->")
+
+    assert PageTranscriber(model).transcribe(PageTask(0, 1), PAGES, []) == ""
+
+
+def test_a_blank_page_marker_beside_text_is_sent_back():
+    model = RecordingFakeModel.replying("<!--blank-page-->\n\nThis page is blank.", "")
+
+    PageTranscriber(model).transcribe(PageTask(0, 1), PAGES, [])
+
+    assert "<!--blank-page--> means" in str(model.requests[1][-1].content)

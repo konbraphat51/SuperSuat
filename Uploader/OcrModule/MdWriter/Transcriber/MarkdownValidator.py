@@ -5,12 +5,15 @@ from collections.abc import Collection
 
 from ..Syntax.Containers import CLOSE_FENCE_PATTERN, OPEN_FENCE_PATTERN, fence_problems
 from ..Syntax.Markers import (
+    BLANK_PAGE_MARKER,
+    BLANK_PAGE_PATTERN,
     CONTINUED_BY_NEXT_MARKER,
     CONTINUED_BY_NEXT_PATTERN,
     CONTINUES_PREVIOUS_MARKER,
     CONTINUES_PREVIOUS_PATTERN,
     FIGURE_REFERENCE_PATTERN,
     find_figure_references,
+    is_blank_page,
     split_continuation,
 )
 from ..Syntax.TableOfContents import entry_problems
@@ -33,7 +36,8 @@ def validate_page_output(markdown: str, figure_ids: Collection[int]) -> list[str
             taken out.
         figure_ids: The ids of the figures on the page.
     """
-    problems = _continuation_problems(markdown)
+    problems = _blank_page_problems(markdown)
+    problems += _continuation_problems(markdown)
     body = split_continuation(markdown).body
 
     problems += _figure_problems(body, figure_ids)
@@ -42,6 +46,17 @@ def validate_page_output(markdown: str, figure_ids: Collection[int]) -> list[str
     problems += _repetition_problems(body)
 
     return problems
+
+
+def _blank_page_problems(markdown: str) -> list[str]:
+    """The blank page marker written beside anything else."""
+    if not BLANK_PAGE_PATTERN.search(markdown) or is_blank_page(markdown):
+        return []
+
+    return [
+        f"{BLANK_PAGE_MARKER} means the page holds nothing to transcribe: either "
+        "write it alone, or leave it out and transcribe the page."
+    ]
 
 
 def _continuation_problems(markdown: str) -> list[str]:

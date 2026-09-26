@@ -4,6 +4,7 @@ from OcrModule.MdWriter.Syntax.Markers import (
     PageMark,
     find_figure_references,
     find_page_markers,
+    is_blank_page,
     split_continuation,
     split_leading_page_markers,
     strip_page_markers,
@@ -55,3 +56,9 @@ def test_the_leading_page_markers_are_split_off():
         "rest",
     )
     assert split_leading_page_markers("rest<!--page:4-->") == ("", "rest<!--page:4-->")
+
+
+def test_only_the_blank_page_marker_alone_is_a_blank_page():
+    assert is_blank_page(" <!-- blank-page -->\n")
+    assert not is_blank_page("<!--blank-page--> text")
+    assert not is_blank_page("")
