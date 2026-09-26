@@ -9,7 +9,7 @@ from langchain_core.messages import HumanMessage
 from PIL import Image
 
 from OcrModule.MdWriter.Schema import DetectedFigure, PageTask
-from OcrModule.MdWriter.Transcriber.PageTranscriber import PageTranscriber
+from OcrModule.MdWriter.Transcriber.PageTranscriber import Escalation, PageTranscriber
 
 PAGES = [Image.new("RGB", (20, 20), "white") for _ in range(5)]
 FIGURES = [DetectedFigure(block_id=0, page_index=2, bounding_box=(0, 0, 5, 5))]
@@ -92,3 +92,48 @@ def test_a_page_is_sent_no_larger_than_the_set_size():
     image = next(b for b in request.content if b.get("type") == "image")
     decoded = Image.open(BytesIO(base64.b64decode(image["base64"])))
     assert decoded.size == (100, 50)
+
+
+def test_a_reference_is_sent_after_the_image_with_its_own_prompt():
+    model = RecordingFakeModel.replying(GOOD)
+
+    PageTranscriber(model).transcribe(TASK, PAGES, FIGURES, reference="a b c")
+
+    system, request = model.requests[0]
+    assert "<reference_ocr>" in str(system.content)
+    assert texts(request)[-1] == "<reference_ocr>\na b c\n</reference_ocr>"
+
+
+def test_a_page_agreeing_with_its_reference_is_not_escalated():
+    model = RecordingFakeModel.replying("文章の続き")
+    stronger = RecordingFakeModel.replying()
+
+    markdown = PageTranscriber(model, escalation=Escalation(stronger)).transcribe(
+        PageTask(0, 1), PAGES, [], reference="文章の続き"
+    )
+
+    assert markdown == "文章の続き"
+    assert stronger.requests == []
+
+
+def test_a_misread_page_is_written_again_by_the_stronger_model():
+    model = RecordingFakeModel.replying("まったく違う文")
+    stronger = RecordingFakeModel.replying("文章の続き")
+
+    markdown = PageTranscriber(model, escalation=Escalation(stronger)).transcribe(
+        PageTask(0, 1), PAGES, [], reference="文章の続き"
+    )
+
+    assert markdown == "文章の続き"
+    assert len(stronger.requests) == 1
+
+
+def test_the_first_answer_is_kept_when_the_stronger_one_agrees_less():
+    model = RecordingFakeModel.replying("文章の")
+    stronger = RecordingFakeModel.replying("無関係")
+
+    markdown = PageTranscriber(model, escalation=Escalation(stronger)).transcribe(
+        PageTask(0, 1), PAGES, [], reference="文章の続き"
+    )
+
+    assert markdown == "文章の"

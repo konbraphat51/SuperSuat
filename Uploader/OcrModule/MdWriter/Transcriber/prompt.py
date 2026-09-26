@@ -48,6 +48,16 @@ PROMPT = f"""You are a highly precise OCR engine. You are given one page image o
 {MARKDOWN_RULES}
 {CONTINUATION_RULES}"""
 
+# How the model uses a conventional OCR's text of the page, when it is given one.
+REFERENCE_RULES = """Reference rules: a conventional OCR engine has read this page too, and its text follows the image in <reference_ocr>, paragraph by paragraph in the order it read them. It reads characters very accurately and never invents text, but it knows nothing of Markdown: it may misread math and symbols, split or merge paragraphs and table cells, and get the order of columns or boxes wrong.
+- Take the characters from the reference: every name, number, uncommon word and punctuation mark. Write text that is not in the reference only where the image plainly shows it.
+- Take the structure from the image: headings, paragraphs, lists, tables, math, footnotes, boxes, figures and the reading order.
+- The reference leaves out running heads and page numbers, which you leave out too.
+"""
+
+PROMPT_WITH_REFERENCE = f"""{PROMPT}
+{REFERENCE_RULES}"""
+
 JOIN_PROMPT = """Two consecutive pages of a document were transcribed separately. You are given the end of one page in <end_of_page> and the start of the next page in <start_of_next_page>.
 
 Decide whether the start of the next page continues the same paragraph as the end of the page: the paragraph runs over the page turn, as when a sentence is cut in the middle.

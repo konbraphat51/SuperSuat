@@ -12,6 +12,7 @@ from PIL.Image import Image as PilImage
 
 from OcrModule.MdWriter.FigureDetector import FigureDetector
 from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr
+from OcrModule.MdWriter.ReferenceReader import ReferenceReader
 from OcrModule.MdWriter.Transcriber.PageTranscriber import PageTranscriber
 from OcrModule.OcrSchema import OcrResultBlockFigure
 
@@ -122,3 +123,27 @@ def test_a_single_page_ignores_its_continuation_markers():
 
     assert len(model.requests) == 1
     assert draft.markdown == "<!--page:0-->page 0"
+
+
+class NumberingReader(ReferenceReader):
+    """Reads every page as the width it was drawn at."""
+
+    def _read_page(self, page: PilImage) -> str:
+        return f"width {page.width}"
+
+
+def test_every_page_is_sent_its_own_reference():
+    model = PageEchoModel(requests=[], lock=threading.Lock())
+    ocr = MdWriterOcr(
+        OneFigurePerOddPage(),
+        PageTranscriber(model),
+        reference_reader=NumberingReader(),
+    )
+
+    ocr.write_markdown(pages(2))
+
+    references = sorted(texts(request)[-1] for request in model.requests)
+    assert references == [
+        "<reference_ocr>\nwidth 40\n</reference_ocr>",
+        "<reference_ocr>\nwidth 41\n</reference_ocr>",
+    ]

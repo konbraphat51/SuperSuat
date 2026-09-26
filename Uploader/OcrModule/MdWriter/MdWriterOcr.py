@@ -13,6 +13,7 @@ from .FigureDetector import FigureDetector
 from .Markers import split_continuation
 from .MarkdownParser import parse_markdown
 from .PageJoin import JoinJudge, decide_joins
+from .ReferenceReader import ReferenceReader
 from .Schema import DetectedFigure, MarkdownDraft, PageTask
 from .Stitcher import stitch
 from .Transcriber.PageTranscriber import PageTranscriber
@@ -25,19 +26,22 @@ class MdWriterOcr(Ocr):
 
     A `FigureDetector` finds the figures, which are drawn onto the pages with
     their ids, so the model places each one by id rather than reading it.
-    Every page is then written at once, each on its own (see Docs/Plan.md),
-    saying of its own ends whether its text runs over the page turn; where
-    two pages disagree, a `JoinJudge` settles it. The stitched Markdown is
-    last read into the document tree.
+    A `ReferenceReader`, if given, reads every page's plain text with a
+    conventional OCR, which the model checks its characters against. Every
+    page is then written at once, each on its own (see Docs/Plan.md), saying
+    of its own ends whether its text runs over the page turn; where two pages
+    disagree, a `JoinJudge` settles it. The stitched Markdown is last read
+    into the document tree.
 
-    Which models run is the caller's choice: the detector, the transcriber
-    and the judge are handed in already built."""
+    Which models run is the caller's choice: the detector, the reader, the
+    transcriber and the judge are handed in already built."""
 
     def __init__(
         self,
         figure_detector: FigureDetector,
         transcriber: PageTranscriber,
         join_judge: JoinJudge | None = None,
+        reference_reader: ReferenceReader | None = None,
         max_parallel_pages: int = DEFAULT_MAX_PARALLEL_PAGES,
         renderer: BlockRenderer | None = None,
     ) -> None:
@@ -47,12 +51,15 @@ class MdWriterOcr(Ocr):
             transcriber: Writes a page out as Markdown.
             join_judge: Settles a page turn the two pages disagree on; without
                 one, whether the paragraph stops at a sentence's end does.
+            reference_reader: Reads each page's plain text for the model to
+                check against; without one, the model reads the image alone.
             max_parallel_pages: Most pages sent to the model at once.
             renderer: Draws the figures and their ids onto the pages.
         """
         self.figure_detector = figure_detector
         self.transcriber = transcriber
         self.join_judge = join_judge
+        self.reference_reader = reference_reader
         self.max_parallel_pages = max_parallel_pages
         self.renderer = renderer or BlockRenderer()
 
@@ -72,10 +79,16 @@ class MdWriterOcr(Ocr):
 
         figures = self.figure_detector.detect(all_page_images)
         rendered_pages = self._render(all_page_images, figures)
+        # the reference is read from the pages as scanned, before the boxes are drawn
+        references: list[str | None] = (
+            list(self.reference_reader.read(all_page_images))
+            if self.reference_reader is not None
+            else [None] * page_count
+        )
 
         pages = [
             split_continuation(markdown)
-            for markdown in self._write(tasks, rendered_pages, figures)
+            for markdown in self._write(tasks, rendered_pages, figures, references)
         ]
         joins = decide_joins(pages, self.join_judge)
 
@@ -102,12 +115,15 @@ class MdWriterOcr(Ocr):
         tasks: list[PageTask],
         rendered_pages: list[Image],
         figures: list[DetectedFigure],
+        references: list[str | None],
     ) -> list[str]:
         """The Markdown of every page, in page order."""
         started_at = time.monotonic()
 
         markdowns = run_parallel(
-            lambda task: self.transcriber.transcribe(task, rendered_pages, figures),
+            lambda task: self.transcriber.transcribe(
+                task, rendered_pages, figures, references[task.page_index]
+            ),
             tasks,
             self.max_parallel_pages,
             progress_label="writing",
