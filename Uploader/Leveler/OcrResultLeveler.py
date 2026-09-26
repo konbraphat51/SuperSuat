@@ -126,7 +126,7 @@ class OcrResultLeveler:
             heading_levels = self._request_levels(messages, part_number, attempt)
             messages.append(AIMessage(content=heading_levels.model_dump_json()))
 
-            problems = apply_levels(heading_levels, part_headings, levels)
+            problems = apply_levels(heading_levels.levels, part_headings, levels)
             unleveled = [h for h in part_headings if h.block_index not in levels]
 
             if not problems and not unleveled:

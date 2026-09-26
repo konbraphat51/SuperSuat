@@ -1,12 +1,13 @@
 """The headings of a document as the leveler model is asked about them, and the answers it gives."""
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from OcrModule.OcrSchema import OcrResultBlock, OcrResultBlockText
 
-from .LevelerSchema import HeadingLevels
+from .LevelerSchema import HeadingLevel
 
 # The block_type of a block that opens a section.
 HEADING_BLOCK_TYPE = "heading"
@@ -88,7 +89,7 @@ def format_level(level: float) -> int | float:
 
 
 def apply_levels(
-    heading_levels: HeadingLevels,
+    answered: Sequence[HeadingLevel],
     headings: list[Heading],
     levels: dict[int, float],
 ) -> list[str]:
@@ -97,7 +98,7 @@ def apply_levels(
     asked_ids = {heading.block_index for heading in headings}
     problems: list[str] = []
 
-    for level in heading_levels.levels:
+    for level in answered:
         if level.target_block_id not in asked_ids:
             problems.append(
                 f"Block {level.target_block_id} is not one of the headings you "
