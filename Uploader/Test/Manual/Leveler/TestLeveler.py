@@ -51,8 +51,10 @@ from OcrModule.OcrSchema import (  # noqa: E402
     OcrResult,
     OcrResultBlock,
     OcrResultBlockFigure,
+    OcrResultBlockTableOfContents,
     OcrResultBlockText,
     OcrResultSection,
+    TableOfContentsEntry,
 )
 from UsageCost import PageUsage, format_report  # noqa: E402
 
@@ -124,11 +126,28 @@ def load_block(data: dict[str, Any]) -> OcrResultBlock:
             bounding_box=tuple(data["bounding_box"]),
             caption=data["caption"],
         )
+    if data["block_type"] == "table_of_contents":
+        return OcrResultBlockTableOfContents(
+            block_type="table_of_contents",
+            existing_pages=data["existing_pages"],
+            block_index=data["block_index"],
+            entries=[load_entry(entry) for entry in data["entries"]],
+        )
     return OcrResultBlockText(
         block_type=data["block_type"],
         existing_pages=data["existing_pages"],
         block_index=data["block_index"],
         text=data["text"],
+    )
+
+
+def load_entry(data: dict[str, Any]) -> TableOfContentsEntry:
+    """One table of contents entry read back from its asdict() JSON, with its children."""
+    return TableOfContentsEntry(
+        section_number=data["section_number"],
+        title=data["title"],
+        page_number=data["page_number"],
+        children=[load_entry(child) for child in data["children"]],
     )
 
 
