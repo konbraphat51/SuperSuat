@@ -160,7 +160,9 @@ character bigrams the answer and the reference share, letters and digits only, s
 Markdown syntax nor the order of paragraphs counts, while invented, repeated or missing
 text does. With an `Escalation`, a page whose answer agrees less than `min_agreement`
 (0.95 by default) is written again by the escalation model, and whichever answer agrees
-more is kept.
+more is kept. A page whose reference has fewer than `min_reference_letters` (200) letters
+is never escalated: on a page of figures, the reference is only a caption or a side tab,
+and the agreement with it says nothing.
 
 ## Page turns
 

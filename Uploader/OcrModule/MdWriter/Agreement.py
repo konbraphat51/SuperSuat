@@ -36,6 +36,11 @@ def agreement(markdown: str, reference: str) -> float:
     return 2 * shared / (sum(written.values()) + sum(read.values()))
 
 
+def letter_count(text: str) -> int:
+    """How many letters and digits the text has, as agreement() compares them."""
+    return len(_letters(text))
+
+
 def _letters(text: str) -> str:
     """The text reduced to its letters and digits."""
     text = _LATEX_COMMAND.sub("", _FIGURE.sub(r"\1", _COMMENT.sub("", text)))

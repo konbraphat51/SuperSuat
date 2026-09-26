@@ -16,7 +16,7 @@ from ...LlmHelper import (
     page_to_base64,
     strip_code_fence,
 )
-from ..Agreement import agreement
+from ..Agreement import agreement, letter_count
 from ..Markers import without_page_markers
 from ..MarkdownValidator import validate_page_output
 from ..Schema import DetectedFigure, PageTask
@@ -33,6 +33,10 @@ MAX_ATTEMPT_COUNT = 3
 # Agreement with the reference below which a page is taken as misread.
 DEFAULT_MIN_AGREEMENT = 0.95
 
+# Shortest reference, in letters, the agreement with says anything: a page of
+# figures, whose reference is a caption or a side tab, is never escalated.
+DEFAULT_MIN_REFERENCE_LETTERS = 200
+
 
 @dataclass(frozen=True)
 class Escalation:
@@ -42,10 +46,13 @@ class Escalation:
         model: The multimodal chat model the page is written again with.
         min_agreement: The agreement with the reference text below which the
             first answer is taken as misread (see Agreement.agreement).
+        min_reference_letters: The fewest letters a reference has for the
+            agreement with it to count.
     """
 
     model: BaseChatModel
     min_agreement: float = DEFAULT_MIN_AGREEMENT
+    min_reference_letters: int = DEFAULT_MIN_REFERENCE_LETTERS
 
 
 class PageTranscriber:
@@ -122,7 +129,11 @@ class PageTranscriber:
         ]
         markdown = self._transcribe(self.model, "write", task, list(messages), figures)
 
-        if reference is None or self.escalation is None:
+        if (
+            reference is None
+            or self.escalation is None
+            or letter_count(reference) < self.escalation.min_reference_letters
+        ):
             return markdown
 
         score = agreement(markdown, reference)

@@ -108,9 +108,9 @@ def test_a_page_agreeing_with_its_reference_is_not_escalated():
     model = RecordingFakeModel.replying("文章の続き")
     stronger = RecordingFakeModel.replying()
 
-    markdown = PageTranscriber(model, escalation=Escalation(stronger)).transcribe(
-        PageTask(0, 1), PAGES, [], reference="文章の続き"
-    )
+    markdown = PageTranscriber(
+        model, escalation=Escalation(stronger, min_reference_letters=0)
+    ).transcribe(PageTask(0, 1), PAGES, [], reference="文章の続き")
 
     assert markdown == "文章の続き"
     assert stronger.requests == []
@@ -120,9 +120,9 @@ def test_a_misread_page_is_written_again_by_the_stronger_model():
     model = RecordingFakeModel.replying("まったく違う文")
     stronger = RecordingFakeModel.replying("文章の続き")
 
-    markdown = PageTranscriber(model, escalation=Escalation(stronger)).transcribe(
-        PageTask(0, 1), PAGES, [], reference="文章の続き"
-    )
+    markdown = PageTranscriber(
+        model, escalation=Escalation(stronger, min_reference_letters=0)
+    ).transcribe(PageTask(0, 1), PAGES, [], reference="文章の続き")
 
     assert markdown == "文章の続き"
     assert len(stronger.requests) == 1
@@ -132,8 +132,20 @@ def test_the_first_answer_is_kept_when_the_stronger_one_agrees_less():
     model = RecordingFakeModel.replying("文章の")
     stronger = RecordingFakeModel.replying("無関係")
 
-    markdown = PageTranscriber(model, escalation=Escalation(stronger)).transcribe(
-        PageTask(0, 1), PAGES, [], reference="文章の続き"
-    )
+    markdown = PageTranscriber(
+        model, escalation=Escalation(stronger, min_reference_letters=0)
+    ).transcribe(PageTask(0, 1), PAGES, [], reference="文章の続き")
 
     assert markdown == "文章の"
+
+
+def test_a_page_with_too_short_a_reference_is_not_escalated():
+    model = RecordingFakeModel.replying("まったく違う文")
+    stronger = RecordingFakeModel.replying()
+    escalation = Escalation(stronger, min_reference_letters=100)
+
+    PageTranscriber(model, escalation=escalation).transcribe(
+        PageTask(0, 1), PAGES, [], reference="図1 猫"
+    )
+
+    assert stronger.requests == []
