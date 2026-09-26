@@ -46,7 +46,10 @@ from OcrModule.MdWriter.FigureDetector import FigureDetector  # noqa: E402
 from OcrModule.MdWriter.MdWriterOcr import MdWriterOcr  # noqa: E402
 from OcrModule.MdWriter.PageJoin import JoinJudge  # noqa: E402
 from OcrModule.MdWriter.MarkdownParser import parse_markdown  # noqa: E402
+from OcrModule.MdWriter.ReferenceReader import ReferenceReader  # noqa: E402
 from OcrModule.MdWriter.Transcriber.PageTranscriber import (  # noqa: E402
+    DEFAULT_MIN_AGREEMENT,
+    Escalation,
     PageTranscriber,
 )
 from UsageCost import UsageRecorder, format_report  # noqa: E402
@@ -56,6 +59,7 @@ OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
 
 PROVIDERS = ("openai", "bedrock")
 DETECTORS = ("doclayout", "yomitoku", "ppstructure")
+REFERENCES = ("none", "yomitoku")
 
 DEFAULT_PROVIDER = "openai"
 DEFAULT_MODEL_IDS = {
@@ -120,6 +124,16 @@ def build_detector(name: str) -> FigureDetector:
     if name == "ppstructure":
         return detectors.PpStructureFigureDetector()
     return detectors.DocLayoutYoloFigureDetector()
+
+
+def build_reference_reader(name: str) -> ReferenceReader | None:
+    """The reference reader named on the command line, or None for none."""
+    if name == "none":
+        return None
+
+    from OcrModule.MdWriter import ReferenceReader as readers
+
+    return readers.YomitokuReferenceReader()
 
 
 def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Any]:
@@ -246,6 +260,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--join-reasoning-effort", default=None)
     parser.add_argument(
+        "--reference",
+        choices=REFERENCES,
+        default="none",
+        help="Local OCR whose text the model checks its characters against.",
+    )
+    parser.add_argument(
+        "--escalate-model",
+        default=None,
+        help="Model a page is written again with when it agrees too little with its reference.",
+    )
+    parser.add_argument("--min-agreement", type=float, default=DEFAULT_MIN_AGREEMENT)
+    parser.add_argument(
         "--run-name",
         default=None,
         help="Output folder under Output/<detector>/, to keep variants apart. Defaults to the model id.",
@@ -303,7 +329,16 @@ def main() -> int:
         transcriber=PageTranscriber(
             build_model(args, recorder, args.model, args.reasoning_effort),
             image_max_edge=args.image_max_edge,
+            escalation=(
+                Escalation(
+                    build_model(args, recorder, args.escalate_model, None),
+                    args.min_agreement,
+                )
+                if args.escalate_model
+                else None
+            ),
         ),
+        reference_reader=build_reference_reader(args.reference),
         join_judge=JoinJudge(
             build_model(args, recorder, args.join_model, args.join_reasoning_effort)
         ),
