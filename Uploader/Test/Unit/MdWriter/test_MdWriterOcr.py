@@ -7,7 +7,7 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from PIL import Image
+from PIL import Image, ImageDraw
 from PIL.Image import Image as PilImage
 
 from OcrModule.MdWriter.FigureDetector import FigureDetector
@@ -69,7 +69,15 @@ def texts(messages: list[BaseMessage]) -> list[str]:
 
 def pages(count: int) -> list[PilImage]:
     # the width says which page it is, and odd pages hold a figure
-    return [Image.new("RGB", (40 + index, 40), "white") for index in range(count)]
+    return [
+        printed(Image.new("RGB", (40 + index, 40), "white")) for index in range(count)
+    ]
+
+
+def printed(page: PilImage) -> PilImage:
+    """The page with a block of print away from the figure box, so it is not blank."""
+    ImageDraw.Draw(page).rectangle((20, 20, 30, 30), fill="black")
+    return page
 
 
 def build() -> tuple[MdWriterOcr, PageEchoModel]:

@@ -11,7 +11,9 @@ from PIL import Image
 from OcrModule.MdWriter.Schema import DetectedFigure, PageTask
 from OcrModule.MdWriter.Transcriber.PageTranscriber import Escalation, PageTranscriber
 
-PAGES = [Image.new("RGB", (20, 20), "white") for _ in range(5)]
+# black all over, so no page is taken as blank
+PAGES = [Image.new("RGB", (20, 20), "black") for _ in range(5)]
+BLANK = [Image.new("RGB", (20, 20), "white")]
 FIGURES = [DetectedFigure(block_id=0, page_index=2, bounding_box=(0, 0, 5, 5))]
 TASK = PageTask(page_index=2, page_count=5)
 
@@ -83,7 +85,7 @@ def test_a_page_that_never_checks_out_stops_the_run():
 
 def test_a_page_is_sent_no_larger_than_the_set_size():
     model = RecordingFakeModel.replying("a")
-    big = [Image.new("RGB", (400, 200), "white")]
+    big = [Image.new("RGB", (400, 200), "black")]
 
     PageTranscriber(model, image_max_edge=100).transcribe(PageTask(0, 1), big, [])
 
@@ -149,3 +151,21 @@ def test_a_page_with_too_short_a_reference_is_not_escalated():
     )
 
     assert stronger.requests == []
+
+
+def test_a_blank_page_is_written_empty_without_asking_the_model():
+    model = RecordingFakeModel.replying()
+
+    markdown = PageTranscriber(model).transcribe(PageTask(0, 1), BLANK, [])
+
+    assert markdown == ""
+    assert model.requests == []
+
+
+def test_a_blank_page_with_a_figure_is_still_sent_to_the_model():
+    model = RecordingFakeModel.replying("![](figure:0)")
+    figure = DetectedFigure(block_id=0, page_index=0, bounding_box=(0, 0, 5, 5))
+
+    PageTranscriber(model).transcribe(PageTask(0, 1), BLANK, [figure])
+
+    assert len(model.requests) == 1

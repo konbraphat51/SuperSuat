@@ -17,6 +17,7 @@ from ...LlmHelper import (
     strip_code_fence,
 )
 from .Agreement import agreement, letter_count
+from .BlankPage import BlankPageDetector
 from ..Syntax.Markers import without_page_markers
 from .MarkdownValidator import validate_page_output
 from ..Schema import DetectedFigure, PageTask
@@ -65,7 +66,8 @@ class PageTranscriber:
     Given a page's reference text, the model is shown it to check the
     characters it writes; and with an escalation, a page whose answer agrees
     too little with it is written again by the stronger model, keeping
-    whichever answer agrees more. Every request carries the page's index and
+    whichever answer agrees more. A page with neither figures nor ink is
+    written as empty without asking the model at all. Every request carries the page's index and
     kind in its run metadata, so a callback can tell what each request cost."""
 
     def __init__(
@@ -74,6 +76,7 @@ class PageTranscriber:
         max_attempt_count: int = MAX_ATTEMPT_COUNT,
         image_max_edge: int = MODEL_IMAGE_MAX_EDGE,
         escalation: Escalation | None = None,
+        blank_page_detector: BlankPageDetector | None = None,
     ) -> None:
         """
         Args:
@@ -84,11 +87,14 @@ class PageTranscriber:
                 size, for more input tokens.
             escalation: The model a misread page is written again with, if
                 any; only used for a page given a reference.
+            blank_page_detector: Tells the blank pages, which the model is
+                not asked to write.
         """
         self.model = model
         self.max_attempt_count = max_attempt_count
         self.image_max_edge = image_max_edge
         self.escalation = escalation
+        self.blank_page_detector = blank_page_detector or BlankPageDetector()
 
     def transcribe(
         self,
@@ -108,10 +114,17 @@ class PageTranscriber:
         Raises:
             RuntimeError: No answer checked out in max_attempt_count attempts.
         """
+        page = rendered_pages[task.page_index]
+        if not _figure_ids(task.page_index, figures) and (
+            self.blank_page_detector.is_blank(page)
+        ):
+            logger.info("page %d is blank; not sent to the model", task.page_index)
+            return ""
+
         content: Content = [
             *build_image_message(
                 f"{_page_label(task, figures)}:",
-                page_to_base64(rendered_pages[task.page_index], self.image_max_edge),
+                page_to_base64(page, self.image_max_edge),
             )
         ]
         if reference is not None:
