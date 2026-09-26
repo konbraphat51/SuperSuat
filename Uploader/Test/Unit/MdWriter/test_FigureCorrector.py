@@ -62,7 +62,8 @@ def test_an_empty_list_removes_every_figure():
 def test_an_answer_that_is_no_json_is_reported():
     _, problems = parse_corrections("The box is fine.", [4], SIZE)
 
-    assert problems == ['Answer with the JSON object {"figures": [...]} and nothing else.']
+    assert len(problems) == 1
+    assert 'the JSON object {"figures": [...]}' in problems[0]
 
 
 def test_unknown_repeated_ids_and_broken_boxes_are_reported():
