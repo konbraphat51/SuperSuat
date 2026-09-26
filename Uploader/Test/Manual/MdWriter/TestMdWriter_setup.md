@@ -1,8 +1,8 @@
 # TestMdWriter 実行手順
 
 `Test/Manual/Ocr/Sample/` のPDFを `MdWriterOcr` にかけ、書き下したMarkdown・解析した文書ツリー・
-ページごとのトークン数とコスト・図を描き込んだページ画像を `Test/Manual/MdWriter/Output/<detector>/<model>/`
-に書き出す手動テストです。
+ページごとのトークン数とコスト・図を描き込んだページ画像を `Test/Manual/MdWriter/Output/<detector>/<実行名>/`
+（`--run-name` がなければモデルID）に書き出す手動テストです。
 
 English version: [TestMdWriter_setup.en.md](TestMdWriter_setup.en.md)
 
@@ -55,10 +55,17 @@ uv run python Test/Manual/MdWriter/TestMdWriter.py
 | `--max-parallel N` | `8` | 同時に送るページの最大数 |
 | `--max-pages N` | 全ページ | 各PDFの先頭Nページだけ読む |
 | `--dpi N` | `200` | ページ画像のレンダリング解像度 |
+| `--image-max-edge N` | `1568` | モデルに送るページ画像の長辺。小さな文字には `--dpi` と一緒に上げる（例: `--dpi 300 --image-max-edge 3508`） |
 | `--provider NAME` | `OCR_PROVIDER` | `openai` / `bedrock` |
 | `--model ID` | `OCR_MODEL_ID` | モデルID |
 | `--max-tokens N` | `16000` | 1回の応答の最大トークン数（推論トークンを含む） |
 | `--reasoning-effort LEVEL` | `OPENAI_REASONING_EFFORT` | OpenAIの推論モデルの推論量 |
+| `--join-model ID` | `--model` | 2ページの判断が食い違う変わり目を判定するモデル（テキストのみ） |
+| `--join-reasoning-effort LEVEL` | モデルの既定値 | その推論量 |
+| `--reference NAME` | `none` | `yomitoku`: 各ページをyomitokuで読み、そのテキストを参照としてモデルに渡す |
+| `--escalate-model ID` | なし | `--reference` と一緒に使う。参照テキストとの一致度が低いページを、このモデルで書き直す |
+| `--min-agreement F` | `0.95` | エスカレーションする一致度のしきい値 |
+| `--run-name NAME` | モデルID | `Output/<detector>/` の下の出力フォルダ名。設定の違う実行を分けて残す |
 | `--log-level LEVEL` | `INFO` | ログの詳細度 |
 | `--log-file PATH` | `Output/TestMdWriter.log` | ログの出力先（実行ごとに上書き） |
 
@@ -93,6 +100,27 @@ Test/Manual/MdWriter/Output/
 - `.md` で、ページの変わり目の前後で文が重複したり抜けたりしていないこと
 - `.json` の `existing_pages` と、図の `bounding_box` が正しいこと
 - ログの `WARNING` に、検証エラーによる再試行が出ていないか（出ていれば、どの規則でつまずいたか）
+
+## 5. 正解データとの比較
+
+`GroundTruth/<stem>/page_<N>.txt` に、サンプルページの正しいテキストがあります。
+Seaman.pdfは全ページで、[BuildGroundTruth.py](BuildGroundTruth.py) がテキストレイヤーから取り出したものです
+（ToUnicodeマップが壊れているので、グリフをAdobe-Japan1の文字コレクションで復号し、柱と図の枠内の文字は除いています）。
+tate.pdfの全ページと、shido_math.pdfの3・12・17ページは、スキャン画像から手で書き起こしたものです。
+
+```bash
+uv run python Test/Manual/MdWriter/Evaluate.py --pages Test/Manual/MdWriter/Output/yomitoku/gpt-6-luna Test/Manual/MdWriter/Output/yomitoku/gpt-6-sol
+```
+
+どちらも先に文字と数字だけにするので、Markdownの記法・句読点・改行は数えません。
+
+| 列 | 意味 |
+| --- | --- |
+| `CER` | 編集距離を正解の文字数で割ったもの。読み順も数える |
+| `prec` | 出力の文字バイグラムのうち、正解にあるものの割合。捏造や重複があると下がる |
+| `recall` | 正解の文字バイグラムのうち、出力にあるものの割合。脱落があると下がる |
+
+gpt-6-lunaは同じ設定でも実行ごとのばらつきが大きいので、設定の比較は複数回の実行で行ってください。
 
 ## トラブルシューティング
 
