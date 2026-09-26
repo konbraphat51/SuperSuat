@@ -1,4 +1,4 @@
-"""Tests for the fences of the note blocks being checked and joined."""
+"""Tests for the fences of the note and table of contents blocks being checked and joined."""
 
 from OcrModule.MdWriter.Containers import (
     closing_container,
@@ -32,3 +32,10 @@ def test_the_block_a_text_starts_by_opening_is_found():
 def test_the_fences_at_a_join_are_dropped():
     assert drop_closing_fence(":::column\na\n:::\n") == ":::column\na"
     assert drop_opening_fence("\n:::column\nb\n:::") == "b\n:::"
+
+
+def test_a_table_of_contents_block_is_fenced_like_a_note():
+    assert fence_problems(":::toc\n- 1 | A | 3\n:::") == []
+    assert "never nest" in fence_problems(":::toc\n:::column\n:::")[0]
+    assert closing_container(":::toc\n- 1 | A | 3\n:::") == "toc"
+    assert opening_container(":::toc\n- 2 | B | 9\n:::") == "toc"

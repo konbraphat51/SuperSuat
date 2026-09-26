@@ -1,16 +1,22 @@
-"""The `:::name` blocks the model writes notes in: checking and joining their fences."""
+"""The `:::name` blocks the model writes notes and tables of contents in: checking and joining their fences."""
 
 import re
 
 # The block containers the model writes notes in (see Docs/MarkdownSyntax.md).
 NOTE_CONTAINERS = ("sidenote", "column")
 
-# A line opening a note block, as `:::sidenote`.
+# The block container the model writes a table of contents in.
+TABLE_OF_CONTENTS_CONTAINER = "toc"
+
+# Every block container the model writes.
+CONTAINERS = (*NOTE_CONTAINERS, TABLE_OF_CONTENTS_CONTAINER)
+
+# A line opening a block, as `:::sidenote`.
 OPEN_FENCE_PATTERN = re.compile(
-    rf"^[ \t]*:::[ \t]*({'|'.join(NOTE_CONTAINERS)})[ \t]*$", re.MULTILINE
+    rf"^[ \t]*:::[ \t]*({'|'.join(CONTAINERS)})[ \t]*$", re.MULTILINE
 )
 
-# A line closing the note block open, as `:::`.
+# A line closing the block open, as `:::`.
 CLOSE_FENCE_PATTERN = re.compile(r"^[ \t]*:::[ \t]*$", re.MULTILINE)
 
 # Either kind of fence line, in the order they appear.
@@ -20,7 +26,7 @@ _FENCE_PATTERN = re.compile(
 
 
 def fence_problems(text: str) -> list[str]:
-    """What is wrong with the note blocks' fences, as one line per problem for the model."""
+    """What is wrong with the blocks' fences, as one line per problem for the model."""
     problems: list[str] = []
     open_name: str | None = None
 
@@ -47,7 +53,7 @@ def fence_problems(text: str) -> list[str]:
 
 
 def closing_container(text: str) -> str | None:
-    """The name of the note block the text ends by closing, or None."""
+    """The name of the block the text ends by closing, or None."""
     stripped = text.rstrip()
     closes = [m for m in CLOSE_FENCE_PATTERN.finditer(stripped)]
 
@@ -59,7 +65,7 @@ def closing_container(text: str) -> str | None:
 
 
 def opening_container(text: str) -> str | None:
-    """The name of the note block the text starts by opening, or None."""
+    """The name of the block the text starts by opening, or None."""
     match = OPEN_FENCE_PATTERN.match(text.lstrip("\n"))
     return match.group(1) if match else None
 
