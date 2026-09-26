@@ -3,8 +3,8 @@
 from collections import Counter
 from collections.abc import Collection
 
-from .Syntax.Containers import CLOSE_FENCE_PATTERN, OPEN_FENCE_PATTERN, fence_problems
-from .Syntax.Markers import (
+from ..Syntax.Containers import CLOSE_FENCE_PATTERN, OPEN_FENCE_PATTERN, fence_problems
+from ..Syntax.Markers import (
     CONTINUED_BY_NEXT_MARKER,
     CONTINUED_BY_NEXT_PATTERN,
     CONTINUES_PREVIOUS_MARKER,
@@ -13,7 +13,7 @@ from .Syntax.Markers import (
     find_figure_references,
     split_continuation,
 )
-from .Syntax.TableOfContents import entry_problems
+from ..Syntax.TableOfContents import entry_problems
 
 # Shortest paragraph a repeat of is taken as the page transcribed twice, not a
 # phrase the document itself repeats.

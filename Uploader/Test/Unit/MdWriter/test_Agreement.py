@@ -1,6 +1,6 @@
 """Tests for a page's Markdown being compared with its reference text."""
 
-from OcrModule.MdWriter.Agreement import agreement
+from OcrModule.MdWriter.Transcriber.Agreement import agreement
 
 
 def test_markdown_syntax_and_punctuation_do_not_count():

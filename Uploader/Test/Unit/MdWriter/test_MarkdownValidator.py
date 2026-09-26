@@ -1,6 +1,6 @@
 """Tests for a page's Markdown being checked before it is used."""
 
-from OcrModule.MdWriter.MarkdownValidator import validate_page_output
+from OcrModule.MdWriter.Transcriber.MarkdownValidator import validate_page_output
 
 
 def test_a_complete_page_passes():

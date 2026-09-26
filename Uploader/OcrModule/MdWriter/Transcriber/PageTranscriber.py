@@ -16,9 +16,9 @@ from ...LlmHelper import (
     page_to_base64,
     strip_code_fence,
 )
-from ..Agreement import agreement, letter_count
+from .Agreement import agreement, letter_count
 from ..Syntax.Markers import without_page_markers
-from ..MarkdownValidator import validate_page_output
+from .MarkdownValidator import validate_page_output
 from ..Schema import DetectedFigure, PageTask
 from .prompt import PROMPT, PROMPT_WITH_REFERENCE
 
