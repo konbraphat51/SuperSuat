@@ -32,12 +32,17 @@ Every pipeline implements `Ocr` ([Ocr.py](OcrModule/Ocr.py)).
 Layout model weights are downloaded on first use and cached (`~/.cache/huggingface/`,
 `~/.paddlex/official_models/`).
 
+## Heading leveler
+
+`Leveler` ranks the headings of a finished `OcrResult`, from any pipeline, and nests
+its tree to match: [Leveler/Docs/Leveler.md](Leveler/Docs/Leveler.md).
+
 ## Checks
 
 ```bash
 uv run pytest        # unit tests
 uv run mypy          # strict type check of the newer modules
-uv run black --check OcrModule Test
+uv run black --check OcrModule Leveler Test
 ```
 
 ## Manual tests

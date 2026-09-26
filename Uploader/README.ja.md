@@ -31,12 +31,17 @@ APIキーは `.env` に書きます。`template.env` を参照してください
 レイアウトモデルの重みは、初回使用時にダウンロードされてキャッシュされます
 （`~/.cache/huggingface/`、`~/.paddlex/official_models/`）。
 
+## 見出しレベル付け
+
+`Leveler` は、どのパイプラインの出力でも完成した `OcrResult` の見出しにレベルを付け、
+それに合わせて木を入れ子にします: [Leveler/Docs/Leveler.ja.md](Leveler/Docs/Leveler.ja.md)。
+
 ## チェック
 
 ```bash
 uv run pytest        # 単体テスト
 uv run mypy          # 新しいモジュールの厳格な型チェック
-uv run black --check OcrModule Test
+uv run black --check OcrModule Leveler Test
 ```
 
 ## 手動テスト

@@ -24,9 +24,6 @@ The work splits by what a decision needs to see:
   the rest of the document, so this runs once, after every page has been classified,
   and sees every page that holds a heading at the same time.
 
-`Leveler/` also holds `OcrResultLeveler`, which ranks the headings of a document
-already read into an `OcrResult` (see [below](#leveling-a-transcribed-ocrresult)).
-
 `Organizer` runs the two in that order, and later — once the Transcriber has read the
 blocks — hands the finished blocks to `DataExporter`.
 
@@ -272,67 +269,6 @@ within it consistent. A level below 1, or one for a `block_id` that was not aske
 about, is not written down and comes back to the model along with the headings still
 unleveled. A heading still without a level after `MAX_ATTEMPT_COUNT` attempts ends
 the run rather than leaving the document's hierarchy half guessed.
-
-### Leveling a transcribed OcrResult
-
-`OcrResultLeveler` is the same ranking done on a document that has already been read
-into an `OcrResult`, whatever pipeline produced it — for example MdWriter, whose
-headings all sit one level deep. It is not wired into `Organizer`; a caller runs it on
-a finished tree.
-
-```mermaid
-classDiagram
-    class OcrResultLeveler {
-        -leveler_model: Runnable
-        +level_ocr_result(all_page_images, ocr_result) OcrResult
-        -_level_part(all_page_images, part, settled, levels, part_number)
-        -_request_levels(messages, part_number, attempt) HeadingLevels
-    }
-    class SectionNester {
-        <<module>>
-        +flatten_blocks(section) list~OcrResultBlock~
-        +nest_by_levels(root_block_index, blocks, heading_levels) OcrResultSection
-    }
-    OcrResultLeveler ..> SectionNester
-    OcrResultLeveler ..> HeadingLevels
-    OcrResultLeveler ..> OcrResult
-```
-
-```mermaid
-sequenceDiagram
-    participant Caller
-    participant OcrResultLeveler
-    participant SectionNester
-    participant Model
-    Caller->>OcrResultLeveler: level_ocr_result(all_page_images, ocr_result)
-    OcrResultLeveler->>SectionNester: flatten_blocks(root_section)
-    SectionNester-->>OcrResultLeveler: every non-section block, in document order
-    OcrResultLeveler->>OcrResultLeveler: collect the "heading" text blocks, split into parts
-    loop each part, in document order
-        OcrResultLeveler->>Model: invoke(prompt + example pages + settled levels + pages + headings as JSON)
-        Model-->>OcrResultLeveler: HeadingLevels (retried as in Leveler)
-    end
-    OcrResultLeveler->>SectionNester: nest_by_levels(root block_index, blocks, levels)
-    SectionNester-->>OcrResultLeveler: new root section
-    OcrResultLeveler-->>Caller: new OcrResult
-```
-
-It differs from `Leveler` in what it has to work with and what it hands back:
-
-- The tree is flattened first, so every heading is ranked afresh whatever nesting it
-  came in with.
-- The heading's `block_index` is its `block_id` in the JSON, and its page is the first
-  of its `existing_pages`. The JSON also carries the heading's **text**, since it has
-  been read by now: numbering such as `2.1` is the strongest evidence of a level, and
-  the page image still decides where there is none. A heading with no page is listed
-  without an image.
-- Levels are kept in a map rather than on the blocks, since `OcrResultBlockText` has
-  no level field. `nest_by_levels` then rebuilds the tree by the same rule as export
-  below. The given tree is left as it is: the new one holds the same block objects,
-  and each new section takes a `block_index` above every index already in use.
-
-The part size, the attempt limit, the example pages and the retry messages are shared
-with `Leveler`.
 
 ## Export
 
