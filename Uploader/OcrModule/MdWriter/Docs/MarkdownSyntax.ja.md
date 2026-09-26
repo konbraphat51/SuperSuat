@@ -1,6 +1,6 @@
 # Markdownの文法
 
-MdWriterパイプラインでモデルが書くMarkdownと、それを [MarkdownParser](../MarkdownParser.py) が
+MdWriterパイプラインでモデルが書くMarkdownと、それを [MarkdownParser](../Parser/MarkdownParser.py) が
 `OcrResult` に読み戻す方法です。プロンプト（[prompt.py](../Transcriber/prompt.py)）とパーサは
 この1つの仕様に従っています。変えるときは両方を一緒に変えてください。
 
@@ -75,17 +75,17 @@ English version: [MarkdownSyntax.md](MarkdownSyntax.md)
 最初のページと最後のページに付いたマーカーと、`:::toc` ブロックの隣のマーカーは無視します。
 
 続いている段落が囲みの中にある場合は、両方の応答が同じ名前の `:::` ブロックに入れて書きます。
-[Stitcher](../Stitcher.py) が境界の閉じフェンスと開きフェンスを取り除くので、囲みは1つのブロックに戻ります。
+[Stitcher](../Assembly/Stitcher.py) が境界の閉じフェンスと開きフェンスを取り除くので、囲みは1つのブロックに戻ります。
 
 ### ページマーカー
 
-ページマーカーはモデルには書かせません（書いた場合は取り除きます）。[Stitcher](../Stitcher.py) が
+ページマーカーはモデルには書かせません（書いた場合は取り除きます）。[Stitcher](../Assembly/Stitcher.py) が
 各ページのMarkdownの前に `<!--page:N-->`（Nは0始まり）を置きます。そのため、段落がページをまたいで
 結合された所では、マーカーは改行なしで段落の途中に入ります。
 
 ## 検証
 
-[MarkdownValidator](../MarkdownValidator.py) が、各応答を使う前に検証します。問題があれば
+[MarkdownValidator](../Transcriber/MarkdownValidator.py) が、各応答を使う前に検証します。問題があれば
 モデルに送り返し、応答全体を書き直させます。上限は `MAX_ATTEMPT_COUNT`（3回）です。
 
 - そのページにある図がすべて、ちょうど1回ずつ置かれていること。ほかの図が置かれていないこと

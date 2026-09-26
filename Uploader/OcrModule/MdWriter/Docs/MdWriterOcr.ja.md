@@ -96,19 +96,32 @@ classDiagram
     BlockRenderer ..> DetectedFigure : BoxedBlockとして
 ```
 
-残りの段階は、それぞれ独立したモジュールの関数です。
+モジュールは段階ごとに、それぞれ1つのサブディレクトリにまとめています。
+
+| ディレクトリ | 責務 |
+| --- | --- |
+| `MdWriter/` | 入口の `MdWriterOcr` と、段階の間で受け渡すデータ（[Schema.py](../Schema.py)） |
+| [FigureDetector/](../FigureDetector/) | ページの図を見つける |
+| [ReferenceReader/](../ReferenceReader/) | 従来型OCRで各ページのプレーンテキストを読む |
+| [Transcriber/](../Transcriber/) | 1ページをMarkdownに書き起こし、応答を検証する |
+| [Assembly/](../Assembly/) | ページの変わり目を決め、各ページを1つの文書に結合する |
+| [Parser/](../Parser/) | 文書を `OcrResult` のツリーに読み戻す |
+| [Syntax/](../Syntax/) | [Markdownの文法](MarkdownSyntax.ja.md) そのもの。上の各段階が共有する |
+
+図の検出と参照テキスト以降の段階は、ふつうの関数です。
 
 | モジュール | 関数 | 責務 |
 | --- | --- | --- |
-| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`、`PROMPT_WITH_REFERENCE`、`JOIN_PROMPT` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
-| [MarkdownValidator.py](../MarkdownValidator.py) | `validate_page_output` | 応答の問題点を、モデルが直せる形の文で返す |
-| [Agreement.py](../Agreement.py) | `agreement` | 応答がそのページの参照テキストとどれだけ一致するか |
-| [PageJoin.py](../PageJoin.py) | `decide_joins` | どのページの変わり目で段落が分かれているかを決める |
-| [Markers.py](../Markers.py) | `strip_page_markers`、`split_continuation` など | ページマーカーと継続マーカーを見つけて取り除く |
-| [Containers.py](../Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンス（注と目次）を検証し、ページの変わり目で分かれた囲みをつなぐ |
-| [TableOfContents.py](../TableOfContents.py) | `parse_entries`、`entry_problems` | `:::toc` ブロックの項目を字下げで入れ子にした木として読み、検証する |
-| [Stitcher.py](../Stitcher.py) | `stitch` | 各ページを1つの文書に結合する |
-| [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | 文書を `OcrResult` のツリーに読み込む |
+| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`、`PROMPT_WITH_REFERENCE` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
+| [Transcriber/MarkdownValidator.py](../Transcriber/MarkdownValidator.py) | `validate_page_output` | 応答の問題点を、モデルが直せる形の文で返す |
+| [Transcriber/Agreement.py](../Transcriber/Agreement.py) | `agreement` | 応答がそのページの参照テキストとどれだけ一致するか |
+| [Assembly/PageJoin.py](../Assembly/PageJoin.py) | `decide_joins` | どのページの変わり目で段落が分かれているかを決める |
+| [Assembly/prompt.py](../Assembly/prompt.py) | `JOIN_PROMPT` | `JoinJudge` への指示 |
+| [Assembly/Stitcher.py](../Assembly/Stitcher.py) | `stitch` | 各ページを1つの文書に結合する |
+| [Parser/MarkdownParser.py](../Parser/MarkdownParser.py) | `parse_markdown` | 文書を `OcrResult` のツリーに読み込む |
+| [Syntax/Markers.py](../Syntax/Markers.py) | `strip_page_markers`、`split_continuation` など | ページマーカーと継続マーカーを見つけて取り除く |
+| [Syntax/Containers.py](../Syntax/Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンス（注と目次）を検証し、ページの変わり目で分かれた囲みをつなぐ |
+| [Syntax/TableOfContents.py](../Syntax/TableOfContents.py) | `parse_entries`、`entry_problems` | `:::toc` ブロックの項目を字下げで入れ子にした木として読み、検証する |
 
 OCRモジュールのほかの部分と共有しているもの: `run_parallel`（[PageParallel.py](../../Blocked/PageParallel.py)）、
 `BlockRenderer`（[BlockRenderer.py](../../Blocked/Blocker/BlockRenderer.py)）、`join_texts` /

@@ -1,7 +1,7 @@
 # Markdown syntax
 
 The Markdown the model writes in the MdWriter pipeline, and how
-[MarkdownParser](../MarkdownParser.py) reads it back into an `OcrResult`. The
+[MarkdownParser](../Parser/MarkdownParser.py) reads it back into an `OcrResult`. The
 prompts ([prompt.py](../Transcriber/prompt.py)) and the parser follow this one
 specification; change them together.
 
@@ -81,19 +81,19 @@ together decide it (see [MdWriterOcr.md](MdWriterOcr.md#page-turns)). A marker o
 first or the last page is ignored, and so is one next to a `:::toc` block.
 
 Where such a paragraph is inside a box, both answers hold it in a `:::` block of the
-same name; the [Stitcher](../Stitcher.py) drops the closing and reopening fences at
+same name; the [Stitcher](../Assembly/Stitcher.py) drops the closing and reopening fences at
 the join, so the box becomes one block again.
 
 ### Page markers
 
 The model writes no page markers; any it writes are taken out. The
-[Stitcher](../Stitcher.py) puts `<!--page:N-->` (N 0-indexed) before the Markdown of
+[Stitcher](../Assembly/Stitcher.py) puts `<!--page:N-->` (N 0-indexed) before the Markdown of
 every page, so where a paragraph is joined across a page turn, the marker ends up
 inside it, on the same line.
 
 ## How it is checked
 
-[MarkdownValidator](../MarkdownValidator.py) checks each answer before it is used. A
+[MarkdownValidator](../Transcriber/MarkdownValidator.py) checks each answer before it is used. A
 problem is sent back to the model, which writes the whole answer again, up to
 `MAX_ATTEMPT_COUNT` (3) times:
 

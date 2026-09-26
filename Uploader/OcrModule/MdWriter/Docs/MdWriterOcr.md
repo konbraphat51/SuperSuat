@@ -99,19 +99,32 @@ classDiagram
     BlockRenderer ..> DetectedFigure : as BoxedBlock
 ```
 
-The remaining stages are plain functions, each in a module of its own:
+The modules are grouped by stage, one subdirectory each:
+
+| Directory | Responsibility |
+| --- | --- |
+| `MdWriter/` | The entry point `MdWriterOcr`, and the data the stages hand each other ([Schema.py](../Schema.py)) |
+| [FigureDetector/](../FigureDetector/) | Finding the figures on the pages |
+| [ReferenceReader/](../ReferenceReader/) | Reading each page's plain text with a conventional OCR |
+| [Transcriber/](../Transcriber/) | Writing one page as Markdown, and checking the answer |
+| [Assembly/](../Assembly/) | Deciding the page turns, and stitching the pages into one document |
+| [Parser/](../Parser/) | Reading the document back into the `OcrResult` tree |
+| [Syntax/](../Syntax/) | The [Markdown syntax](MarkdownSyntax.md) itself, shared by the stages above |
+
+The stages past the figure detection and the reference text are plain functions:
 
 | Module | Function | Responsibility |
 | --- | --- | --- |
-| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`, `PROMPT_WITH_REFERENCE`, `JOIN_PROMPT` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
-| [MarkdownValidator.py](../MarkdownValidator.py) | `validate_page_output` | What is wrong with an answer, as lines the model can act on |
-| [Agreement.py](../Agreement.py) | `agreement` | How well an answer agrees with the page's reference text |
-| [PageJoin.py](../PageJoin.py) | `decide_joins` | Which page turns split a paragraph |
-| [Markers.py](../Markers.py) | `strip_page_markers`, `split_continuation`, … | Finding and taking out the page and continuation markers |
-| [Containers.py](../Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences (notes and the table of contents), and joining a box split at a page turn |
-| [TableOfContents.py](../TableOfContents.py) | `parse_entries`, `entry_problems` | Reading the entries of a `:::toc` block into a tree nested by indentation, and checking them |
-| [Stitcher.py](../Stitcher.py) | `stitch` | The pages joined into one document |
-| [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | The document read into the `OcrResult` tree |
+| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`, `PROMPT_WITH_REFERENCE` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
+| [Transcriber/MarkdownValidator.py](../Transcriber/MarkdownValidator.py) | `validate_page_output` | What is wrong with an answer, as lines the model can act on |
+| [Transcriber/Agreement.py](../Transcriber/Agreement.py) | `agreement` | How well an answer agrees with the page's reference text |
+| [Assembly/PageJoin.py](../Assembly/PageJoin.py) | `decide_joins` | Which page turns split a paragraph |
+| [Assembly/prompt.py](../Assembly/prompt.py) | `JOIN_PROMPT` | What the `JoinJudge` is told |
+| [Assembly/Stitcher.py](../Assembly/Stitcher.py) | `stitch` | The pages joined into one document |
+| [Parser/MarkdownParser.py](../Parser/MarkdownParser.py) | `parse_markdown` | The document read into the `OcrResult` tree |
+| [Syntax/Markers.py](../Syntax/Markers.py) | `strip_page_markers`, `split_continuation`, … | Finding and taking out the page and continuation markers |
+| [Syntax/Containers.py](../Syntax/Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences (notes and the table of contents), and joining a box split at a page turn |
+| [Syntax/TableOfContents.py](../Syntax/TableOfContents.py) | `parse_entries`, `entry_problems` | Reading the entries of a `:::toc` block into a tree nested by indentation, and checking them |
 
 Shared with the rest of the OCR module: `run_parallel` ([PageParallel.py](../../Blocked/PageParallel.py)),
 `BlockRenderer` ([BlockRenderer.py](../../Blocked/Blocker/BlockRenderer.py)), `join_texts` /
