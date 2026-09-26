@@ -34,12 +34,16 @@ Every answer is complete Markdown on its own: a `:::` block is closed before the
 answer ends, even when the box carries on past the page, and reopened at the start
 of an answer whose page begins inside the box. Blocks never nest.
 
-### Continuation markers (fill pages only)
+### Continuation markers
 
 | Marker | Where | Meaning |
 | --- | --- | --- |
 | `<!--continues-previous-->` | The very start of the answer | Its first paragraph is the rest of the previous page's last paragraph |
 | `<!--continued-by-next-->` | The very end of the answer | Its last paragraph carries on into the next page's first paragraph |
+
+Every page may write either, judging from its own image; the two pages of a turn
+together decide it (see [MdWriterOcr.md](MdWriterOcr.md#page-turns)). A marker on the
+first or the last page is ignored.
 
 Where such a paragraph is inside a box, both answers hold it in a `:::` block of the
 same name; the [Stitcher](../Stitcher.py) drops the closing and reopening fences at
@@ -62,8 +66,7 @@ problem is sent back to the model, which writes the whole answer again, up to
 - Every figure is a paragraph of its own: on a line by itself, with no text on the
   line before or after it (a `:::` fence may be), since the parser would otherwise
   read it as part of a paragraph
-- The continuation markers are only in a fill page's answer, only at the start and
-  the end, and `<!--continued-by-next-->` only when a page follows
+- The continuation markers are only at the very start and the very end, once each
 - The `:::` fences are balanced and not nested
 - No paragraph of 40 characters or more is written twice, which is what a page
   read twice looks like

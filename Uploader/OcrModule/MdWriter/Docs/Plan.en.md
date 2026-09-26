@@ -7,11 +7,13 @@
 
 2. Hand the page images to an LLM and have it convert them into Markdown
 
-- Each request has the LLM transcribe one page only
-  1. First half: the odd pages (the 1st, 3rd, 5th, … page; even indices, counting from 0) are each given to the LLM on their own to transcribe (in parallel)
-  2. Second half: the even pages (the 2nd, 4th, … page) are given to the LLM with the Markdown of the pages either side (from step 1), to be transcribed as the fill between them (in parallel)
-  - In the second half, the only image sent is the target page's; the neighbouring pages are sent as Markdown only
-  - A second-half page writes its output so that "previous page + its output + next page" reads as one document. Where a paragraph runs over a page turn, it says so with a continuation marker
+- Each request has the LLM transcribe one page only, every page at once in a single pass
+  - Each page says with continuation markers whether its start continues the previous page's paragraph and whether its end runs on, judging from its own image
+  - Only where two neighbouring pages disagree is the LLM given the paragraphs either side, as text only, to decide
+  - (This was a two-pass scheme before: the odd pages first, then the even pages filled in with the Markdown either side. Waiting on the first pass made it slower, and it decided the joins about the same, so it became one pass.)
+- Optionally, each page's text as read by a conventional OCR such as Yomitoku is given to the LLM as a reference
+  - The characters are taken from the reference, the structure from the image
+  - A page that agrees too little with its reference (the F1 of their character bigrams) is written again by a stronger model
 - Define special syntax for footnotes, sidenotes, columns and the like, and have the LLM use it ([MarkdownSyntax.md](MarkdownSyntax.md))
   - Footnotes in GFM style (`[^n]` / `[^n]: …`), sidenotes and columns as `:::sidenote` / `:::column` blocks
   - `<!--page:N-->` is put before each page's Markdown (by the stitching, not the LLM), which records the pages a block is on

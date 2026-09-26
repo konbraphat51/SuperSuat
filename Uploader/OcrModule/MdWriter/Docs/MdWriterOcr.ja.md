@@ -1,10 +1,12 @@
 # MdWriterOcr
 
 MdWriterのOCRパイプラインです（[Plan.md](Plan.md) を参照）。レイアウトモデルは図だけを検出し、
-その枠とIDをページに描き込みます。続いてマルチモーダルモデルが、1回のリクエストで1ページずつMarkdownに
-書き下し、図はIDで配置します。最後にそのMarkdownを `OcrResult` に読み込みます。
-2つのページに挟まれたページは最後に、前後のページのMarkdownを見ながら書くので、
-ページをまたぐ文章も1つの段落につながります。
+その枠とIDをページに描き込みます。続いてマルチモーダルモデルが、1回のリクエストで1ページずつ、
+全ページを同時にMarkdownに書き下し、図はIDで配置します。最後にそのMarkdownを `OcrResult` に読み込みます。
+各ページは、自分の端で文章がページをまたぐかどうかを自分で示すので、ページの変わり目で分かれた段落は1つにつながります。
+
+オプションで、従来型のOCRを *参照テキスト* として加えられます。各ページのプレーンテキストをモデルに見せて
+文字をそこから取らせ、参照テキストとの一致度が低すぎるページは、より強いモデルで書き直します。
 
 English version: [MdWriterOcr.md](MdWriterOcr.md)
 
@@ -19,6 +21,8 @@ classDiagram
     class MdWriterOcr {
         +figure_detector: FigureDetector
         +transcriber: PageTranscriber
+        +join_judge: JoinJudge | None
+        +reference_reader: ReferenceReader | None
         +max_parallel_pages: int
         +renderer: BlockRenderer
         +ocr(all_page_images: list[Image]) OcrResult
@@ -33,11 +37,27 @@ classDiagram
     class DocLayoutYoloFigureDetector
     class YomitokuFigureDetector
     class PpStructureFigureDetector
+    class ReferenceReader {
+        <<abstract>>
+        +MAX_PARALLEL_PAGES: int
+        +read(pages: list[Image]) list[str]
+        #_read_page(page: Image) str*
+    }
+    class YomitokuReferenceReader
     class PageTranscriber {
         +model: BaseChatModel
         +max_attempt_count: int
-        +write(task, rendered_pages, figures) str
-        +fill(task, rendered_pages, figures, previous_markdown, next_markdown) str
+        +image_max_edge: int
+        +escalation: Escalation | None
+        +transcribe(task, rendered_pages, figures, reference) str
+    }
+    class Escalation {
+        +model: BaseChatModel
+        +min_agreement: float
+    }
+    class JoinJudge {
+        +model: BaseChatModel
+        +judge(page_index, end_of_page, start_of_next) bool
     }
     class BlockRenderer {
         +render_page(page: Image, blocks: Sequence[BoxedBlock]) Image
@@ -49,7 +69,9 @@ classDiagram
     }
     class PageTask {
         +page_index: int
-        +kind: PageKind
+        +page_count: int
+        +has_previous: bool
+        +has_next: bool
     }
     class MarkdownDraft {
         +markdown: str
@@ -60,9 +82,13 @@ classDiagram
     FigureDetector <|-- DocLayoutYoloFigureDetector
     FigureDetector <|-- YomitokuFigureDetector
     FigureDetector <|-- PpStructureFigureDetector
+    ReferenceReader <|-- YomitokuReferenceReader
     MdWriterOcr o-- FigureDetector
+    MdWriterOcr o-- ReferenceReader
     MdWriterOcr o-- PageTranscriber
+    MdWriterOcr o-- JoinJudge
     MdWriterOcr o-- BlockRenderer
+    PageTranscriber o-- Escalation
     MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
@@ -74,11 +100,13 @@ classDiagram
 
 | モジュール | 関数 | 責務 |
 | --- | --- | --- |
-| [Transcriber/prompt.py](../Transcriber/prompt.py) | `WRITE_PROMPT`、`FILL_PROMPT` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
+| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`、`PROMPT_WITH_REFERENCE`、`JOIN_PROMPT` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
 | [MarkdownValidator.py](../MarkdownValidator.py) | `validate_page_output` | 応答の問題点を、モデルが直せる形の文で返す |
+| [Agreement.py](../Agreement.py) | `agreement` | 応答がそのページの参照テキストとどれだけ一致するか |
+| [PageJoin.py](../PageJoin.py) | `decide_joins` | どのページの変わり目で段落が分かれているかを決める |
 | [Markers.py](../Markers.py) | `strip_page_markers`、`split_continuation` など | ページマーカーと継続マーカーを見つけて取り除く |
-| [Containers.py](../Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンスを検証し、ページの境界で分かれた囲みをつなぐ |
-| [Stitcher.py](../Stitcher.py) | `stitch` | 各パートを1つの文書に結合する |
+| [Containers.py](../Containers.py) | `fence_problems`、`closing_container` など | `:::` フェンスを検証し、ページの変わり目で分かれた囲みをつなぐ |
+| [Stitcher.py](../Stitcher.py) | `stitch` | 各ページを1つの文書に結合する |
 | [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | 文書を `OcrResult` のツリーに読み込む |
 
 OCRモジュールのほかの部分と共有しているもの: `run_parallel`（[PageParallel.py](../../Blocked/PageParallel.py)）、
@@ -107,31 +135,49 @@ OCRモジュールのほかの部分と共有しているもの: `run_parallel`�
 表と数式は検出しません。モデルがMarkdownの表とKaTeXで書き下します。
 すべてのクラスラベルを意図的に捨てている `Blocker` のオプションにはせず、検出器を `MdWriter/` の下に別に置いています。
 
-## パス
+## 参照テキスト
 
-1ページを1リクエストで書きます。偶数インデックスのページ（1・3・5…ページ目）が *write* ページで、
-1パス目にそれぞれ単独で送ります。その間のページが *fill* ページで、2パス目に、前後のwriteページが
-返したMarkdownと一緒に送ります。5ページの場合:
+`ReferenceReader` は、各ページのプレーンテキストを従来型のOCRで読みます。読むのはスキャンしたままのページ
+（図の枠を描く前）です。`YomitokuReferenceReader` はyomitokuの `DocumentAnalyzer` を使い、段落と表を
+yomitokuの読み順で並べます（縦書きも含む）。柱・ページ番号・図の中の文字は含めません。
+1ページずつ読み（`MAX_PARALLEL_PAGES = 1`）、GPUで1ページあたり1〜2秒です。
+
+この種のOCRは文字を非常に忠実に読みますが、Markdownの構造は分かりません。そこで両者を組み合わせます。
+モデルにはページ画像の後に参照テキストを渡し、`PROMPT_WITH_REFERENCE` で、文字は参照テキストから、
+構造（見出し・表・数式・囲み・図・読み順）は画像から取るよう指示します。
+
+参照テキストは、誤読したページを見分けるのにも使います。`agreement()` は、応答と参照テキストが共有する
+文字バイグラムのF1スコアです。文字と数字だけを比べるので、Markdownの記法や段落の順序は数えず、
+捏造・重複・脱落した文字は数えます。`Escalation` を指定すると、一致度が `min_agreement`（既定は0.95）
+を下回るページをエスカレーション先のモデルで書き直し、一致度の高いほうの応答を残します。
+
+## ページの変わり目
+
+各ページは単独で書くので、ページをまたぐ段落は、両方のページが半分ずつ持つことになります。
+各ページは、自分のページ画像だけから判断して、自分の端についてそれを示します。
+最初の文章が段落の途中（文の途中から始まる、または段落の字下げがない）なら先頭に `<!--continues-previous-->`、
+最後の段落が次へ続く（文の途中で終わる、または最後の行が行末まで埋まり文末の句読点がない）なら末尾に
+`<!--continued-by-next-->` を書かせます。最初のページや最後のページに付いたマーカーは意味がないので捨てます。
+
+そのうえで `decide_joins()` が、両側の図を飛ばしながら、各変わり目を決めます。
 
 ```mermaid
-flowchart LR
-    subgraph first["1パス目（write、並列）"]
-        p0[0]
-        p2[2]
-        p4[4]
-    end
-    subgraph second["2パス目（fill、並列）"]
-        p1[1]
-        p3[3]
-    end
-    p0 -. Markdown .-> p1
-    p2 -. Markdown .-> p1
-    p2 -. Markdown .-> p3
-    p4 -. Markdown .-> p3
+flowchart TD
+    A["ページNの終わり、ページN+1の始まり"] --> B{"どちらかが見出し、または空?"}
+    B -- はい --> Break["分ける"]
+    B -- いいえ --> C{"2ページの判断が一致?"}
+    C -- はい --> D["その判断に従う"]
+    C -- いいえ --> E{"JoinJudgeあり?"}
+    E -- はい --> F["判定役が2つの段落をテキストだけで読む"]
+    E -- いいえ --> G{"ページNの段落が文末で終わる?"}
+    G -- はい --> Break
+    G -- いいえ --> Join["つなぐ"]
 ```
 
-fillページに送る画像は自分のページだけです。前後のページはテキストとして渡し、段落がどこで
-途切れているかを示します。1ページだけの文書には2パス目がなく、文書の最後のfillページには次のページがありません。
+ページマーカーはモデルには書かせません。Stitcherが各ページのMarkdownの前に `<!--page:N-->` を置きます
+（モデルが書いたものは先に取り除きます）。つなぐ所では2つの半分を1つの段落にし（空白を入れるのは
+`join_texts` と同じく両側がASCIIの場合だけ）、間にあった図は段落の後ろへ移し、両方のページが同じ囲みに
+入れていればそのブロックも1つにします。それ以外の所は空行で区切ります。
 
 ## 処理の流れ
 
@@ -140,59 +186,62 @@ sequenceDiagram
     participant Caller as 呼び出し側
     participant L as MdWriterOcr
     participant D as FigureDetector
-    participant R as BlockRenderer
+    participant X as ReferenceReader
     participant T as PageTranscriber
     participant M as チャットモデル
+    participant E as エスカレーション先
+    participant J as JoinJudge
     Caller->>L: ocr(pages)
     L->>D: detect(pages)
     D-->>L: figures
-    L->>R: ページごとに render_page(page, そのページの図)
-    R-->>L: 描画済みページ
-    par すべてのwriteページ
-        L->>T: write(task, rendered, figures)
+    L->>L: ページごとに render_page(page, そのページの図)
+    opt 参照テキストの読み取り器あり
+        L->>X: read(pages)
+        X-->>L: ページごとの参照テキスト
+    end
+    par すべてのページ
+        L->>T: transcribe(task, rendered, figures, reference)
         loop 検証を通るまで（最大3回）
-            T->>M: 図のIDを添えたページ画像
+            T->>M: 位置と図のIDを添えたページ画像、参照テキスト
             M-->>T: Markdown
             T->>T: validate_page_output
         end
-        T-->>L: ページのMarkdown
-    end
-    par すべてのfillページ
-        L->>T: fill(task, rendered, figures, previous, next)
-        loop 検証を通るまで（最大3回）
-            T->>M: 前のページのMarkdown、ページ画像、次のページのMarkdown
-            M-->>T: ページのMarkdown
-            T->>T: validate_page_output
+        opt エスカレーションあり、かつ一致度がmin_agreement未満
+            T->>E: 同じリクエスト
+            E-->>T: Markdown
+            T->>T: 一致度の高い応答を残す
         end
         T-->>L: ページのMarkdown
     end
-    L->>L: stitch(ページ順のパート)
+    L->>L: decide_joins(pages)
+    opt 2ページの判断が食い違う変わり目
+        L->>J: judge(ページの終わり, 次ページの始まり)
+        J-->>L: つなぐ / 分ける
+    end
+    L->>L: stitch(pages, joins)
     L->>L: parse_markdown(markdown, figures)
     L-->>Caller: OcrResult
 ```
 
-どちらのパスも `run_parallel` を通し、`max_parallel_pages` ページずつ並列に処理します。
-最初の失敗で全体を止めます。`max_attempt_count` 回試しても検証を通らないページは `RuntimeError` を出します。
-各リクエストの実行メタデータには `page_index` と `page_kind` を入れるので、コールバック側で
-どのリクエスト（とそのトークン使用量）がどのページのものかを区別できます。
+ページは `run_parallel` を通し、`max_parallel_pages` ページずつ並列に処理します。最初の失敗で全体を止めます。
+`max_attempt_count` 回試しても検証を通らないページは `RuntimeError` を出します。各リクエストの実行メタデータには
+`page_index` と `page_kind`（`write`・`escalate`・`join`）を入れるので、コールバック側で、どのリクエスト
+（とそのトークン使用量）がどのページのものかを区別できます。
 
-fillページには、自分の応答が前後のページの間にそのまま挿入されることを伝えます。そのためモデルは、
-前のページで途切れた段落を最初から書き直さず、その続きを書きます。そのことは `<!--continues-previous-->` で示させます。
-自分の最後の段落が次のページへ続く場合は `<!--continued-by-next-->` で示させます。
-ページマーカーはモデルには書かせません。Stitcherが各ページのMarkdownの前に `<!--page:N-->` を置きます
-（モデルが書いたものは先に取り除きます）。継続マーカーのある所では2つの半分を1つの段落に結合し、
-空白を入れるのは `join_texts` と同じく両側がASCIIの場合だけです。それ以外の境界は空行でつなぎます。
-writeページ同士が隣り合うことはないので、つなぎ方はすべて間にあるfillページが決めます。
+`PageTranscriber.image_max_edge` は、ページを送るときの長辺です（既定は1568px）。OpenAIのモデルは送った
+画素をすべて読み、入力トークンはページの面積に比例して増えます。そのため、高いDPIで描画したページほど
+小さな文字をよく読めます。その分入力トークンは増えますが、安いモデルでは出力に比べて小さなコストです。
 
 `write_markdown()` はパースの手前で止まり、Markdownと図、描画済みのページを返します。
 それらを確認したい呼び出し側のためのものです。
 
 ## テスト
 
-- 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。マーカーとフェンス、
-  検証、結合、パーサ、決まった応答を返す偽モデルを使った書き下し（再試行とその上限を含む）、
-  偽の検出器とリクエストの内容から応答する偽モデルを使ったパイプライン全体。
-- 本物の検出器とモデルでサンプルPDFを読み、ページごとのトークン数とコストを出す手動テスト:
+- 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。マーカーとフェンス、検証、一致度、
+  ページの変わり目の判定、結合、パーサ、決まった応答を返す偽モデルを使った書き下し（再試行・参照テキスト・
+  エスカレーションを含む）、偽の検出器・偽の読み取り器・リクエストの内容から応答する偽モデルを使ったパイプライン全体。
+- 本物の検出器とモデルでサンプルPDFを読み、ページごとのトークン数とコストを出す手動テストと、
+  その出力を正解データと比べて採点するスクリプト:
   [TestMdWriter_setup.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.md)。
 
 ```bash

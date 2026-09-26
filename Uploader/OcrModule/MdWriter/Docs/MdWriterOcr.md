@@ -2,10 +2,14 @@
 
 The MdWriter OCR pipeline (see [Plan.en.md](Plan.en.md)). A layout model finds only the
 figures, which are drawn onto the pages with their ids; a multimodal model then writes
-the pages out as Markdown, one page per request, placing each figure by id, and the
-Markdown is read into an `OcrResult`. A page between two others is written last, with
-the Markdown of both in view, so that text running over a page turn joins into one
-paragraph.
+the pages out as Markdown, one page per request and every page at once, placing each
+figure by id, and the Markdown is read into an `OcrResult`. Each page says of its own
+ends whether its text runs over the page turn, so that a paragraph split by a page turn
+is joined into one.
+
+A conventional OCR can be added as a *reference*: its plain text of each page is shown to
+the model to take the characters from, and a page whose answer agrees too little with it
+is written again by a stronger model.
 
 日本語版: [MdWriterOcr.ja.md](MdWriterOcr.ja.md)
 
@@ -20,6 +24,8 @@ classDiagram
     class MdWriterOcr {
         +figure_detector: FigureDetector
         +transcriber: PageTranscriber
+        +join_judge: JoinJudge | None
+        +reference_reader: ReferenceReader | None
         +max_parallel_pages: int
         +renderer: BlockRenderer
         +ocr(all_page_images: list[Image]) OcrResult
@@ -34,11 +40,27 @@ classDiagram
     class DocLayoutYoloFigureDetector
     class YomitokuFigureDetector
     class PpStructureFigureDetector
+    class ReferenceReader {
+        <<abstract>>
+        +MAX_PARALLEL_PAGES: int
+        +read(pages: list[Image]) list[str]
+        #_read_page(page: Image) str*
+    }
+    class YomitokuReferenceReader
     class PageTranscriber {
         +model: BaseChatModel
         +max_attempt_count: int
-        +write(task, rendered_pages, figures) str
-        +fill(task, rendered_pages, figures, previous_markdown, next_markdown) str
+        +image_max_edge: int
+        +escalation: Escalation | None
+        +transcribe(task, rendered_pages, figures, reference) str
+    }
+    class Escalation {
+        +model: BaseChatModel
+        +min_agreement: float
+    }
+    class JoinJudge {
+        +model: BaseChatModel
+        +judge(page_index, end_of_page, start_of_next) bool
     }
     class BlockRenderer {
         +render_page(page: Image, blocks: Sequence[BoxedBlock]) Image
@@ -50,7 +72,9 @@ classDiagram
     }
     class PageTask {
         +page_index: int
-        +kind: PageKind
+        +page_count: int
+        +has_previous: bool
+        +has_next: bool
     }
     class MarkdownDraft {
         +markdown: str
@@ -61,9 +85,13 @@ classDiagram
     FigureDetector <|-- DocLayoutYoloFigureDetector
     FigureDetector <|-- YomitokuFigureDetector
     FigureDetector <|-- PpStructureFigureDetector
+    ReferenceReader <|-- YomitokuReferenceReader
     MdWriterOcr o-- FigureDetector
+    MdWriterOcr o-- ReferenceReader
     MdWriterOcr o-- PageTranscriber
+    MdWriterOcr o-- JoinJudge
     MdWriterOcr o-- BlockRenderer
+    PageTranscriber o-- Escalation
     MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
@@ -75,11 +103,13 @@ The remaining stages are plain functions, each in a module of its own:
 
 | Module | Function | Responsibility |
 | --- | --- | --- |
-| [Transcriber/prompt.py](../Transcriber/prompt.py) | `WRITE_PROMPT`, `FILL_PROMPT` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
+| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`, `PROMPT_WITH_REFERENCE`, `JOIN_PROMPT` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
 | [MarkdownValidator.py](../MarkdownValidator.py) | `validate_page_output` | What is wrong with an answer, as lines the model can act on |
+| [Agreement.py](../Agreement.py) | `agreement` | How well an answer agrees with the page's reference text |
+| [PageJoin.py](../PageJoin.py) | `decide_joins` | Which page turns split a paragraph |
 | [Markers.py](../Markers.py) | `strip_page_markers`, `split_continuation`, … | Finding and taking out the page and continuation markers |
-| [Containers.py](../Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences, and joining a box split at a page boundary |
-| [Stitcher.py](../Stitcher.py) | `stitch` | The parts joined into one document |
+| [Containers.py](../Containers.py) | `fence_problems`, `closing_container`, … | Checking the `:::` fences, and joining a box split at a page turn |
+| [Stitcher.py](../Stitcher.py) | `stitch` | The pages joined into one document |
 | [MarkdownParser.py](../MarkdownParser.py) | `parse_markdown` | The document read into the `OcrResult` tree |
 
 Shared with the rest of the OCR module: `run_parallel` ([PageParallel.py](../../Blocked/PageParallel.py)),
@@ -112,33 +142,56 @@ Tables and formulas are not detected: the model writes them as Markdown tables a
 The detectors live under `MdWriter/` rather than as an option of the `Blocker`, which
 deliberately drops every class label.
 
-## Passes
+## Reference text
 
-Every page is one request. The pages at even indices (the 1st, 3rd, 5th, … page) are the
-*write* pages: the first pass sends each of them on its own. The pages between them are
-the *fill* pages: the second pass sends each with the Markdown the write pages either
-side of it came back as. With 5 pages:
+A `ReferenceReader` reads each page's plain text with a conventional OCR, from the page as
+scanned (before the figure boxes are drawn). `YomitokuReferenceReader` uses yomitoku's
+`DocumentAnalyzer`: its paragraphs and tables in its reading order, vertical text
+included, without the running heads, page numbers, and the text inside figures. It reads
+one page at a time (`MAX_PARALLEL_PAGES = 1`), on the GPU about 1-2 s a page.
+
+Such an OCR reads characters very faithfully but knows nothing of Markdown, so the two
+are combined: the model is given the reference after the page image, with
+`PROMPT_WITH_REFERENCE` telling it to take the characters from the reference and the
+structure (headings, tables, math, boxes, figures, reading order) from the image.
+
+The reference also tells a misread page apart. `agreement()` is the F1 score of the
+character bigrams the answer and the reference share, letters and digits only, so neither
+Markdown syntax nor the order of paragraphs counts, while invented, repeated or missing
+text does. With an `Escalation`, a page whose answer agrees less than `min_agreement`
+(0.95 by default) is written again by the escalation model, and whichever answer agrees
+more is kept.
+
+## Page turns
+
+Every page is written on its own, so where a paragraph runs over a page turn each page
+holds half of it. Each page says so of its own ends, judging from its own image:
+`<!--continues-previous-->` first when its first text is the middle of a paragraph (it
+starts mid-sentence, or without the paragraph indent), `<!--continued-by-next-->` last
+when its last paragraph runs on (it stops mid-sentence, or its last line runs to the end
+with no sentence-ending punctuation). A marker on the first or last page means nothing
+and is dropped.
+
+`decide_joins()` then decides every turn, looking past a figure at either side:
 
 ```mermaid
-flowchart LR
-    subgraph first["pass 1 (write, in parallel)"]
-        p0[0]
-        p2[2]
-        p4[4]
-    end
-    subgraph second["pass 2 (fill, in parallel)"]
-        p1[1]
-        p3[3]
-    end
-    p0 -. Markdown .-> p1
-    p2 -. Markdown .-> p1
-    p2 -. Markdown .-> p3
-    p4 -. Markdown .-> p3
+flowchart TD
+    A["page N ends, page N+1 starts"] --> B{"either side a heading, or empty?"}
+    B -- yes --> Break
+    B -- no --> C{"do the two pages agree?"}
+    C -- yes --> D["as they both say"]
+    C -- no --> E{"JoinJudge given?"}
+    E -- yes --> F["the judge reads the two paragraphs, text only"]
+    E -- no --> G{"does page N's paragraph end a sentence?"}
+    G -- yes --> Break
+    G -- no --> Join
 ```
 
-A fill page is sent its own image only; the neighbours are there as text, to show where
-their paragraphs break off. A one-page document has no second pass, and a fill page that
-ends the document has no next page.
+The model writes no page markers: the stitcher puts `<!--page:N-->` before every page's
+Markdown (any the model wrote are taken out first), and at a join puts the two halves
+into one paragraph — with a space only between two ASCII characters, as `join_texts` does
+— moving a figure that stood between them after the paragraph, and merging a note block
+both pages hold it in. Everywhere else, pages are separated by a blank line.
 
 ## Flow
 
@@ -147,62 +200,66 @@ sequenceDiagram
     participant Caller
     participant L as MdWriterOcr
     participant D as FigureDetector
-    participant R as BlockRenderer
+    participant X as ReferenceReader
     participant T as PageTranscriber
     participant M as Chat model
+    participant E as Escalation model
+    participant J as JoinJudge
     Caller->>L: ocr(pages)
     L->>D: detect(pages)
     D-->>L: figures
-    L->>R: render_page(page, figures of the page), per page
-    R-->>L: rendered pages
-    par every write page
-        L->>T: write(task, rendered, figures)
+    L->>L: render_page(page, figures of the page), per page
+    opt reference reader given
+        L->>X: read(pages)
+        X-->>L: reference text per page
+    end
+    par every page
+        L->>T: transcribe(task, rendered, figures, reference)
         loop until the answer checks out, at most 3 times
-            T->>M: the page, labeled with its figures
+            T->>M: the page labeled with its place and figures, and its reference
             M-->>T: Markdown
             T->>T: validate_page_output
         end
-        T-->>L: Markdown of the page
-    end
-    par every fill page
-        L->>T: fill(task, rendered, figures, previous, next)
-        loop until the answer checks out, at most 3 times
-            T->>M: previous page's Markdown, the page, next page's Markdown
-            M-->>T: Markdown of the page
-            T->>T: validate_page_output
+        opt escalation given and agreement below min_agreement
+            T->>E: the same request
+            E-->>T: Markdown
+            T->>T: keep the answer that agrees more
         end
         T-->>L: Markdown of the page
     end
-    L->>L: stitch(parts in page order)
+    L->>L: decide_joins(pages)
+    opt two pages disagree on a turn
+        L->>J: judge(end of page, start of next)
+        J-->>L: join or break
+    end
+    L->>L: stitch(pages, joins)
     L->>L: parse_markdown(markdown, figures)
     L-->>Caller: OcrResult
 ```
 
-Both passes go through `run_parallel`, `max_parallel_pages` pages at a time. The first
-failure ends the run: a page that still does not check out after `max_attempt_count`
-attempts raises `RuntimeError`. Every request carries `page_index` and `page_kind` in its
-run metadata, so a callback can tell which page a request, and its token usage, was for.
+The pages go through `run_parallel`, `max_parallel_pages` at a time. The first failure
+ends the run: a page that still does not check out after `max_attempt_count` attempts
+raises `RuntimeError`. Every request carries `page_index` and `page_kind` (`write`,
+`escalate` or `join`) in its run metadata, so a callback can tell which page a request,
+and its token usage, was for.
 
-A fill page is told that its answer goes verbatim between its two neighbours, so it
-writes the rest of a paragraph the previous page broke off rather than starting it again,
-and says so with `<!--continues-previous-->`; a paragraph of its own that the next page
-carries on is marked with `<!--continued-by-next-->`. The model writes no page markers:
-the stitcher puts `<!--page:N-->` before every page's Markdown (any the model wrote are
-taken out first), and joins the two halves of a paragraph at a continuation marker — with
-a space only between two ASCII characters, as `join_texts` does — and blank lines
-everywhere else. Two write pages are never next to each other, so every join is decided
-by the fill page between them.
+`PageTranscriber.image_max_edge` is the longest side a page is sent at (1568 px by
+default). The OpenAI models read every pixel sent, their input tokens growing with the
+page's area, so small print is read better from a page rendered at a higher DPI — at more
+input tokens, which on a cheap model cost little next to its output.
 
 `write_markdown()` stops before parsing and returns the Markdown with the figures and the
 rendered pages, for a caller that wants to look at them.
 
 ## Tests
 
-- Unit tests in [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/): the markers and fences, the validator, the stitcher, the parser, the transcriber against a
-  scripted fake model (retry and its limit included), and the whole pipeline against a
-  fake detector and a fake model that answers from the request.
+- Unit tests in [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/): the markers and
+  fences, the validator, the agreement, the page joins, the stitcher, the parser, the
+  transcriber against a scripted fake model (retry, reference and escalation included),
+  and the whole pipeline against a fake detector, a fake reader and a fake model that
+  answers from the request.
 - A manual run over the sample PDFs, with a real detector and model, reporting every
-  page's tokens and cost:
+  page's tokens and cost, and a script scoring its output against ground truth:
   [TestMdWriter_setup.en.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.en.md).
 
 ```bash
