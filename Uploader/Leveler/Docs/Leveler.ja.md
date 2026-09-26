@@ -7,7 +7,8 @@ English version: [Leveler.md](Leveler.md)
 セクションを開くよう木を組み直す。入力はどのパイプラインの出力でもよい。例えば
 MdWriter の出力では見出しがすべて1段になっている。
 
-どのパイプラインからも呼ばれない。呼び出し側が完成した木に対して実行する。
+どのパイプラインからも呼ばれない。呼び出し側が完成した木に対して実行する。サンプル PDF で
+試して評価する手順は [TestLeveler_setup.md](../../Test/Manual/Leveler/TestLeveler_setup.md) を参照。
 
 | ファイル | 責務 |
 | --- | --- |

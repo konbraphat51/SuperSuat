@@ -7,7 +7,8 @@
 that each heading opens a section nested by its level. The input can come from any
 pipeline. MdWriter's output is one example: all of its headings sit one level deep.
 
-No pipeline calls it. A caller runs it on a finished tree.
+No pipeline calls it. A caller runs it on a finished tree. To try it on the sample
+PDFs and score it, see [TestLeveler_setup.en.md](../../Test/Manual/Leveler/TestLeveler_setup.en.md).
 
 | File | Responsibility |
 | --- | --- |
