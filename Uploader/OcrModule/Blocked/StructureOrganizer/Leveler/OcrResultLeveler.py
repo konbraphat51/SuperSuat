@@ -14,7 +14,7 @@ from ....OcrSchema import OcrResult, OcrResultBlock, OcrResultBlockText
 from .Leveler import MAX_ATTEMPT_COUNT, MAX_PAGES_PER_REQUEST, TOP_HEADING_LEVEL
 from .LevelerSchema import HeadingLevels
 from .prompt import OCR_RESULT_LEVELER_SYSTEM_PROMPT
-from .SectionNester import flatten_blocks, nest_by_levels
+from Leveler.SectionNester import flatten_blocks, nest_by_levels
 
 logger = logging.getLogger(__name__)
 

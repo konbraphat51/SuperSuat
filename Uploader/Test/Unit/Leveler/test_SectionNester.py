@@ -1,9 +1,6 @@
 """Tests for a document tree being flattened and nested again by heading level."""
 
-from OcrModule.Blocked.StructureOrganizer.Leveler.SectionNester import (
-    flatten_blocks,
-    nest_by_levels,
-)
+from Leveler.SectionNester import flatten_blocks, nest_by_levels
 from OcrModule.OcrSchema import OcrResultBlock, OcrResultBlockText, OcrResultSection
 
 

@@ -1,6 +1,6 @@
 """Flattening a document tree into its blocks, and nesting them again by heading level."""
 
-from ....OcrSchema import OcrResultBlock, OcrResultSection
+from OcrModule.OcrSchema import OcrResultBlock, OcrResultSection
 
 # The level the root section sits at, below every heading.
 ROOT_HEADING_LEVEL = 0
