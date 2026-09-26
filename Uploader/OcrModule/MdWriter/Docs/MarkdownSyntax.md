@@ -22,6 +22,7 @@ Each answer is the Markdown of one page.
 | Footnote | `[^n]` in the body, `[^n]: text` as a paragraph | n is the printed mark. Two pages may reuse a label |
 | Sidenote | `:::sidenote` … `:::` | Text in the margin, placed after the paragraph it sits beside |
 | Column | `:::column` … `:::` | A box, sidebar or column set apart from the main text |
+| Table of contents | `:::toc` … `:::`, one entry per line | See [Table of contents](#table-of-contents) |
 
 Not written: page numbers, running heads and running footers, and the red boxes
 and id labels drawn on the pages.
@@ -34,6 +35,40 @@ Every answer is complete Markdown on its own: a `:::` block is closed before the
 answer ends, even when the box carries on past the page, and reopened at the start
 of an answer whose page begins inside the box. Blocks never nest.
 
+### Table of contents
+
+A table of contents goes in a `:::toc` block: the `:::toc` line marks where it
+starts, the `:::` line where it ends. Every line inside is one entry:
+
+```markdown
+## Contents
+
+:::toc
+- | Preface | iv
+- 1 | Introduction | 1
+  - 1.1 | Background | 3
+    - 1.1.1 | History | 4
+- 2 | Method | 11
+:::
+```
+
+| Part | Syntax | Notes |
+| --- | --- | --- |
+| Entry | `- number \| title \| page` | `*` or `+` may stand for `-`. Dot leaders are left out |
+| Section number | first field | As printed (`1.2`, `Chapter 3`, `第3章`); empty if unnumbered |
+| Title | middle field | Never empty. A `\|` in it is written `\\|` |
+| Page number | last field | As printed (`12`, `iv`); empty if not printed |
+| Hierarchy | indentation | Two spaces deeper than the entry it belongs under (a tab counts as four) |
+
+The entries are not headings; the table's own title ("Contents") is, and goes
+before the block.
+
+A table of contents running over a page turn is closed at the end of one answer
+and opened again at the start of the next, taking no continuation marker; the next
+page indents its entries as deep as they stand in the whole table. The page turn is
+never joined, since a joined paragraph would run two entries into one line: the
+parser merges the two blocks instead.
+
 ### Continuation markers
 
 | Marker | Where | Meaning |
@@ -43,7 +78,7 @@ of an answer whose page begins inside the box. Blocks never nest.
 
 Every page may write either, judging from its own image; the two pages of a turn
 together decide it (see [MdWriterOcr.md](MdWriterOcr.md#page-turns)). A marker on the
-first or the last page is ignored.
+first or the last page is ignored, and so is one next to a `:::toc` block.
 
 Where such a paragraph is inside a box, both answers hold it in a `:::` block of the
 same name; the [Stitcher](../Stitcher.py) drops the closing and reopening fences at
@@ -68,6 +103,7 @@ problem is sent back to the model, which writes the whole answer again, up to
   read it as part of a paragraph
 - The continuation markers are only at the very start and the very end, once each
 - The `:::` fences are balanced and not nested
+- Every line inside a `:::toc` block is an entry, as `- number | title | page` with a title
 - No paragraph of 40 characters or more is written twice, which is what a page
   read twice looks like
 
@@ -86,6 +122,12 @@ with it, so a paragraph is not split either.
 | table | `table` |
 | `:::sidenote`, `:::column` | `note` (the inner text); a figure paragraph inside it becomes an `OcrResultBlockFigure` right after the note |
 | a paragraph of one `figure:ID` image | `OcrResultBlockFigure`: box and page from the detection, caption from the alt text |
+| `:::toc` | `OcrResultBlockTableOfContents`: its entries as a tree of `TableOfContentsEntry` (`section_number`, `title`, `page_number`, `children`), an empty field as `None` |
+
+`:::toc` blocks with nothing but page markers between them are one table of
+contents, their entries read as one list. An entry indented deeper than the one
+before it is nested under it, and one indented under nothing is outermost; a line
+that is not an entry is skipped.
 
 A block's text is its Markdown source, as written. Link reference definitions are
 turned off, since `[^1]: note` would otherwise be read as one and disappear.
