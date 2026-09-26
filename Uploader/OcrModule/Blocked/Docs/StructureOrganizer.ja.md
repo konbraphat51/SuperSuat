@@ -22,6 +22,9 @@ English version: [StructureOrganizer.md](StructureOrganizer.md)
   持たないため、全ページの分類が終わった後に一度だけ実行し、見出しを含むページを
   まとめて見る。
 
+`Leveler/` には、既に `OcrResult` として読み終えた文書の見出しを順位付けする
+`OcrResultLeveler` もある（[後述](#転写済み-ocrresult-の見出しレベル付け)）。
+
 `Organizer` はこの順に2段階を実行し、Transcriberがブロックを読み終えた後に、確定した
 ブロックを `DataExporter` へ渡す。
 
@@ -258,6 +261,63 @@ sequenceDiagram
 レベルや、質問対象でない `block_id` に対する回答は書き込まず、レベル未設定の見出しと
 併せてモデルへ差し戻す。`MAX_ATTEMPT_COUNT` 回試してもレベルの付かない見出しが残る場合は
 実行を終了する。階層が半ば当て推量の文書を書き出すよりは止める。
+
+### 転写済み OcrResult の見出しレベル付け
+
+`OcrResultLeveler` は同じ順位付けを、既に `OcrResult` として読み終えた文書に対して行う。
+どのパイプラインの出力でもよく、例えば見出しがすべて1段の MdWriter の出力に使える。
+`Organizer` には組み込まれておらず、呼び出し側が完成した木に対して実行する。
+
+```mermaid
+classDiagram
+    class OcrResultLeveler {
+        -leveler_model: Runnable
+        +level_ocr_result(all_page_images, ocr_result) OcrResult
+        -_level_part(all_page_images, part, settled, levels, part_number)
+        -_request_levels(messages, part_number, attempt) HeadingLevels
+    }
+    class SectionNester {
+        <<module>>
+        +flatten_blocks(section) list~OcrResultBlock~
+        +nest_by_levels(root_block_index, blocks, heading_levels) OcrResultSection
+    }
+    OcrResultLeveler ..> SectionNester
+    OcrResultLeveler ..> HeadingLevels
+    OcrResultLeveler ..> OcrResult
+```
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant OcrResultLeveler
+    participant SectionNester
+    participant Model
+    Caller->>OcrResultLeveler: level_ocr_result(all_page_images, ocr_result)
+    OcrResultLeveler->>SectionNester: flatten_blocks(root_section)
+    SectionNester-->>OcrResultLeveler: セクション以外の全ブロック（文書順）
+    OcrResultLeveler->>OcrResultLeveler: "heading" のテキストブロックを集め、部に分割
+    loop 各部（文書順）
+        OcrResultLeveler->>Model: invoke(プロンプト + 例のページ + 確定済みレベル + ページ + 見出しのJSON)
+        Model-->>OcrResultLeveler: HeadingLevels（再試行は Leveler と同じ）
+    end
+    OcrResultLeveler->>SectionNester: nest_by_levels(ルートの block_index, blocks, levels)
+    SectionNester-->>OcrResultLeveler: 新しいルートセクション
+    OcrResultLeveler-->>Caller: 新しい OcrResult
+```
+
+`Leveler` との違いは、使える情報と返すもの:
+
+- 最初に木を平坦化するので、元の入れ子に関係なく全見出しを改めて順位付けする。
+- JSON 上の `block_id` は見出しの `block_index`、ページは `existing_pages` の最初のページ。
+  この時点では読み終えているので、JSON には見出しの**テキスト**も含める。`2.1` のような
+  番号付けがレベルの最も強い根拠で、番号がない場合はページ画像で判断する。ページを
+  持たない見出しは画像なしで列挙する。
+- `OcrResultBlockText` にはレベルのフィールドがないため、レベルはブロックではなく辞書に
+  保持する。その後 `nest_by_levels` が下記エクスポートと同じ規則で木を組み直す。
+  渡された木は変更しない。新しい木は同じブロックオブジェクトを保持し、新しい各セクション
+  は既存のどの index よりも大きい `block_index` を取る。
+
+部の大きさ、試行回数の上限、例のページ、再試行メッセージは `Leveler` と共通。
 
 ## エクスポート
 
