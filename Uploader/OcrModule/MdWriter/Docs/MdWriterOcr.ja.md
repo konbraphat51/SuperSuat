@@ -8,6 +8,9 @@ MdWriterのOCRパイプラインです（[Plan.md](Plan.md) を参照）。レ�
 オプションで、従来型のOCRを *参照テキスト* として加えられます。各ページのプレーンテキストをモデルに見せて
 文字をそこから取らせ、参照テキストとの一致度が低すぎるページは、より強いモデルで書き直します。
 
+ページを書き下すモデルは、誤っていると判断した図の枠を、`correct_figures` ツールを呼んで描き直させることもできます。
+呼び出しの中でグラウンディングモデル（Qwen3-VL）がそのページの枠を描き直し、ページはその枠で書き下されます。
+
 English version: [MdWriterOcr.md](MdWriterOcr.md)
 
 ## 構成
@@ -50,7 +53,33 @@ classDiagram
         +image_max_edge: int
         +escalation: Escalation | None
         +blank_page_detector: BlankPageDetector
-        +transcribe(task, rendered_pages, figures, reference) str
+        +figure_correction: FigureCorrectionTool | None
+        +transcribe(task, board, reference) str
+    }
+    class FigureBoard {
+        +figures: list[DetectedFigure]
+        +page(page_index) Image
+        +figures_on(page_index) list[DetectedFigure]
+        +rendered(page_index) Image
+        +replace(page_index, corrections) list[DetectedFigure]
+    }
+    class FigureCorrectionTool {
+        +corrector: FigureCorrector
+        +max_call_count: int
+        +definition: dict
+        +session(page_index, board) CorrectionSession
+    }
+    class CorrectionSession {
+        +exhausted: bool
+        +call(name, args) CorrectionOutcome
+    }
+    class FigureCorrector {
+        +model: BaseChatModel
+        +correct(page_index, board, instruction) list[CorrectedFigure]
+    }
+    class CorrectedFigure {
+        +block_id: int | None
+        +bounding_box: tuple[int, int, int, int]
     }
     class BlankPageDetector {
         +max_ink_ratio: float
@@ -95,6 +124,15 @@ classDiagram
     MdWriterOcr o-- BlockRenderer
     PageTranscriber o-- Escalation
     PageTranscriber o-- BlankPageDetector
+    PageTranscriber o-- FigureCorrectionTool
+    PageTranscriber ..> FigureBoard
+    FigureCorrectionTool o-- FigureCorrector
+    FigureCorrectionTool ..> CorrectionSession
+    CorrectionSession ..> FigureBoard : replace
+    FigureCorrector ..> CorrectedFigure
+    MdWriterOcr ..> FigureBoard
+    FigureBoard o-- BlockRenderer
+    FigureBoard o-- DetectedFigure
     MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
@@ -106,8 +144,9 @@ classDiagram
 
 | ディレクトリ | 責務 |
 | --- | --- |
-| `MdWriter/` | 入口の `MdWriterOcr` と、段階の間で受け渡すデータ（[Schema.py](../Schema.py)） |
+| `MdWriter/` | 入口の `MdWriterOcr`、段階の間で受け渡すデータ（[Schema.py](../Schema.py)）、ページを書き下すときの図と描画済みのページ（[FigureBoard.py](../FigureBoard.py)） |
 | [FigureDetector/](../FigureDetector/) | ページの図を見つける |
+| [FigureCorrector/](../FigureCorrector/) | 書き下すモデルの依頼に応じて、書き下しの途中でページの図の枠を描き直す |
 | [ReferenceReader/](../ReferenceReader/) | 従来型OCRで各ページのプレーンテキストを読む |
 | [Transcriber/](../Transcriber/) | 1ページをMarkdownに書き起こし、応答を検証する |
 | [Assembly/](../Assembly/) | ページの変わり目を決め、各ページを1つの文書に結合する |
@@ -118,7 +157,9 @@ classDiagram
 
 | モジュール | 関数 | 責務 |
 | --- | --- | --- |
-| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`、`PROMPT_WITH_REFERENCE` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
+| [Transcriber/prompt.py](../Transcriber/prompt.py) | `build_prompt` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
+| [FigureCorrector/prompt.py](../FigureCorrector/prompt.py) | `CORRECTION_PROMPT` | グラウンディングモデルへの指示 |
+| [FigureCorrector/FigureCorrector.py](../FigureCorrector/FigureCorrector.py) | `parse_corrections`、`to_normalized` | グラウンディングモデルの枠を読み、枠を0〜1000との間で変換する |
 | [Transcriber/MarkdownValidator.py](../Transcriber/MarkdownValidator.py) | `validate_page_output` | 応答の問題点を、モデルが直せる形の文で返す |
 | [Transcriber/Agreement.py](../Transcriber/Agreement.py) | `agreement` | 応答がそのページの参照テキストとどれだけ一致するか |
 | [Transcriber/BlankPage.py](../Transcriber/BlankPage.py) | `BlankPageDetector`、`ink_ratio` | 画像から白紙のページを見分け、モデルに書かせないようにする |
@@ -155,6 +196,56 @@ OCRモジュールのほかの部分と共有しているもの: `run_parallel`�
 
 表と数式は検出しません。モデルがMarkdownの表とKaTeXで書き下します。
 すべてのクラスラベルを意図的に捨てている `Blocker` のオプションにはせず、検出器を `MdWriter/` の下に別に置いています。
+
+## 図の枠の修正
+
+レイアウト検出器はときどき図を誤ります。枠がグラフの下端を切る、隣の本文を含む、表を囲む、図に枠がない、
+といったものです。ページを書き下すモデルはページを見ているので、これに気づけます。`FigureCorrectionTool` を
+渡すと、書き下し側はモデルに `correct_figures` ツール（とプロンプトの `FIGURE_CORRECTION_RULES`）を渡し、
+モデルは何が誤っているか（例: 「図3の枠が下のx軸ラベルを切っている」）を添えてこれを呼びます。
+
+呼び出しは、その呼び出しの中ですべて実行されます。
+
+```mermaid
+sequenceDiagram
+    participant M as 書き下すモデル
+    participant T as PageTranscriber
+    participant S as CorrectionSession
+    participant C as FigureCorrector
+    participant G as グラウンディングモデル（Qwen3-VL）
+    participant B as FigureBoard
+    M-->>T: correct_figures(instruction)
+    T->>S: call(name, args)
+    S->>C: correct(page_index, board, instruction)
+    C->>G: 枠を描いたページ、スキャンしたままのページ、枠の一覧、依頼
+    G-->>C: {"figures": [{"id", "bbox_2d"}, ...]}
+    C->>C: parse_corrections。検証を通るまで問題点を添えて差し戻す
+    C-->>S: 修正後の図
+    S->>B: replace(page_index, corrections)
+    B-->>S: そのページの図（新しい図には番号を振る）
+    S-->>T: 何が変わったか
+    T->>M: ToolMessageと、新しい枠で描き直したページ
+```
+
+- `FigureBoard` は文書のすべての図を持ち、各ページにそのページの図を描きます。ページは複数のスレッドで
+  同時に書き下すので、図の読み出しと置き換えは1つのロックの下でここだけで行います。修正したページは
+  次に求められたときに描き直し、文書は最終的な図でパースします。
+- `FigureCorrector` はQwen3-VL（手動テストではAmazon Bedrock上）向けです。Qwen3-VLは枠を、画像の
+  0〜1000に正規化した `bbox_2d` [x1, y1, x2, y2] で返すので、ページを送るサイズに左右されません。
+  応答にはそのページのすべての図を並べます。`id` は今の枠を残すか描き直すもの、`null` は検出器が
+  見落とした図の追加で、並べなかった枠は削除です。JSONでない、今の枠にないIDや同じIDを重ねて使っている、
+  枠が壊れている、といった応答は問題点を添えて最大 `max_attempt_count`（3）回差し戻します。
+  ページからはみ出た角はページの内側に寄せます。
+- 描き直した枠はIDをそのまま引き継ぎ、新しい図には文書中でまだ使われていないIDを振ります。そのため、
+  モデルが見たIDの意味は変わりません。モデルには、今のページの図と、どれが新しくどれが削除されたか
+  （削除された枠の中身は本文・表・数式として書き下すよう）を伝え、続けて新しい枠を描いたページ画像を送ります。
+  応答はその図に対して検証します。
+- 1ページが呼べるのは `max_call_count`（2）回までです。それを超えた呼び出しには、これ以上は修正できないと
+  答え、失敗した試行として数えます。そのため、呼び出しを繰り返し続けることはできません。
+  修正に失敗したとき（グラウンディングモデルが使える枠を返さない、リクエスト自体が失敗する）は図をそのまま残し、
+  モデルにはそのまま書き下すよう伝えます。
+- 書き下すモデルはツール呼び出しに対応している必要があります。修正のリクエストは、実行メタデータの
+  `page_kind` に `correct-figures` を入れます。
 
 ## 参照テキスト
 
@@ -234,20 +325,25 @@ sequenceDiagram
     Caller->>L: ocr(pages)
     L->>D: detect(pages)
     D-->>L: figures
-    L->>L: ページごとに render_page(page, そのページの図)
+    L->>L: FigureBoard(pages, figures)
     opt 参照テキストの読み取り器あり
         L->>X: read(pages)
         X-->>L: ページごとの参照テキスト
     end
     par すべてのページ
-        L->>T: transcribe(task, rendered, figures, reference)
+        L->>T: transcribe(task, board, reference)
         opt 図がなく白紙
             T-->>L: 空のMarkdown（リクエストは送らない）
         end
         loop 検証を通るまで（最大3回）
             T->>M: 位置と図のIDを添えたページ画像、参照テキスト
+            opt 図の修正ツールあり、かつ枠が誤っている
+                M-->>T: correct_figures(instruction)
+                T->>T: 呼び出しを実行し、ページを描き直す（「図の枠の修正」を参照）
+                T->>M: ツールの結果と、新しい枠を描いたページ
+            end
             M-->>T: Markdown
-            T->>T: validate_page_output
+            T->>T: その時点の図に対して validate_page_output
         end
         opt エスカレーションあり、かつ一致度がmin_agreement未満
             T->>E: 同じリクエスト
@@ -268,21 +364,21 @@ sequenceDiagram
 
 ページは `run_parallel` を通し、`max_parallel_pages` ページずつ並列に処理します。最初の失敗で全体を止めます。
 `max_attempt_count` 回試しても検証を通らないページは `RuntimeError` を出します。各リクエストの実行メタデータには
-`page_index` と `page_kind`（`write`・`escalate`・`join`）を入れるので、コールバック側で、どのリクエスト
+`page_index` と `page_kind`（`write`・`escalate`・`correct-figures`・`join`）を入れるので、コールバック側で、どのリクエスト
 （とそのトークン使用量）がどのページのものかを区別できます。
 
 `PageTranscriber.image_max_edge` は、ページを送るときの長辺です（既定は1568px）。OpenAIのモデルは送った
 画素をすべて読み、入力トークンはページの面積に比例して増えます。そのため、高いDPIで描画したページほど
 小さな文字をよく読めます。その分入力トークンは増えますが、安いモデルでは出力に比べて小さなコストです。
 
-`write_markdown()` はパースの手前で止まり、Markdownと図、描画済みのページを返します。
+`write_markdown()` はパースの手前で止まり、Markdownと図、描画済みのページ（修正を含む）を返します。
 それらを確認したい呼び出し側のためのものです。
 
 ## テスト
 
 - 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。マーカーとフェンス、検証、一致度、白紙の判定、
-  ページの変わり目の判定、結合、パーサ、決まった応答を返す偽モデルを使った書き下し（再試行・参照テキスト・
-  エスカレーションを含む）、偽の検出器・偽の読み取り器・リクエストの内容から応答する偽モデルを使ったパイプライン全体。
+  ページの変わり目の判定、結合、パーサ、図のボード、図の枠の修正とそのツール、決まった応答を返す偽モデルを使った書き下し（再試行・参照テキスト・
+  エスカレーション・ツール呼び出しを含む）、偽の検出器・偽の読み取り器・リクエストの内容から応答する偽モデルを使ったパイプライン全体。
 - 本物の検出器とモデルでサンプルPDFを読み、ページごとのトークン数とコストを出す手動テストと、
   その出力を正解データと比べて採点するスクリプト:
   [TestMdWriter_setup.md](../../../Test/Manual/Ocr/MdWriter/TestMdWriter_setup.md)。

@@ -14,6 +14,7 @@
 - Optionally, each page's text as read by a conventional OCR such as Yomitoku is given to the LLM as a reference
   - The characters are taken from the reference, the structure from the image
   - A page that agrees too little with its reference (the F1 of their character bigrams) is written again by a stronger model
+- When the LLM finds a figure box wrong, it calls the `correct_figures` tool; within the call a grounding model (Qwen3-VL on Bedrock) redraws the page's boxes, and the page is written against them
 - Define special syntax for footnotes, sidenotes, columns and the like, and have the LLM use it ([MarkdownSyntax.md](MarkdownSyntax.md))
   - Footnotes in GFM style (`[^n]` / `[^n]: …`), sidenotes and columns as `:::sidenote` / `:::column` blocks
   - A table of contents as a `:::toc` block of `- number | title | page` entries, nested by indentation

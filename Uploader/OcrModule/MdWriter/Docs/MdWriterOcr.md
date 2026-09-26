@@ -11,6 +11,10 @@ A conventional OCR can be added as a *reference*: its plain text of each page is
 the model to take the characters from, and a page whose answer agrees too little with it
 is written again by a stronger model.
 
+The model writing a page may also have a figure box it finds wrong redrawn, by calling
+the `correct_figures` tool; a grounding model (Qwen3-VL) redraws the page's boxes
+within the call, and the page is written against them.
+
 日本語版: [MdWriterOcr.ja.md](MdWriterOcr.ja.md)
 
 ## Structure
@@ -53,7 +57,33 @@ classDiagram
         +image_max_edge: int
         +escalation: Escalation | None
         +blank_page_detector: BlankPageDetector
-        +transcribe(task, rendered_pages, figures, reference) str
+        +figure_correction: FigureCorrectionTool | None
+        +transcribe(task, board, reference) str
+    }
+    class FigureBoard {
+        +figures: list[DetectedFigure]
+        +page(page_index) Image
+        +figures_on(page_index) list[DetectedFigure]
+        +rendered(page_index) Image
+        +replace(page_index, corrections) list[DetectedFigure]
+    }
+    class FigureCorrectionTool {
+        +corrector: FigureCorrector
+        +max_call_count: int
+        +definition: dict
+        +session(page_index, board) CorrectionSession
+    }
+    class CorrectionSession {
+        +exhausted: bool
+        +call(name, args) CorrectionOutcome
+    }
+    class FigureCorrector {
+        +model: BaseChatModel
+        +correct(page_index, board, instruction) list[CorrectedFigure]
+    }
+    class CorrectedFigure {
+        +block_id: int | None
+        +bounding_box: tuple[int, int, int, int]
     }
     class BlankPageDetector {
         +max_ink_ratio: float
@@ -98,6 +128,15 @@ classDiagram
     MdWriterOcr o-- BlockRenderer
     PageTranscriber o-- Escalation
     PageTranscriber o-- BlankPageDetector
+    PageTranscriber o-- FigureCorrectionTool
+    PageTranscriber ..> FigureBoard
+    FigureCorrectionTool o-- FigureCorrector
+    FigureCorrectionTool ..> CorrectionSession
+    CorrectionSession ..> FigureBoard : replace
+    FigureCorrector ..> CorrectedFigure
+    MdWriterOcr ..> FigureBoard
+    FigureBoard o-- BlockRenderer
+    FigureBoard o-- DetectedFigure
     MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
@@ -109,8 +148,9 @@ The modules are grouped by stage, one subdirectory each:
 
 | Directory | Responsibility |
 | --- | --- |
-| `MdWriter/` | The entry point `MdWriterOcr`, and the data the stages hand each other ([Schema.py](../Schema.py)) |
+| `MdWriter/` | The entry point `MdWriterOcr`, the data the stages hand each other ([Schema.py](../Schema.py)), and the figures and drawn pages the pages are written against ([FigureBoard.py](../FigureBoard.py)) |
 | [FigureDetector/](../FigureDetector/) | Finding the figures on the pages |
+| [FigureCorrector/](../FigureCorrector/) | Redrawing a page's figure boxes while it is written, as the writing model asks |
 | [ReferenceReader/](../ReferenceReader/) | Reading each page's plain text with a conventional OCR |
 | [Transcriber/](../Transcriber/) | Writing one page as Markdown, and checking the answer |
 | [Assembly/](../Assembly/) | Deciding the page turns, and stitching the pages into one document |
@@ -121,7 +161,9 @@ The stages past the figure detection and the reference text are plain functions:
 
 | Module | Function | Responsibility |
 | --- | --- | --- |
-| [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`, `PROMPT_WITH_REFERENCE` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
+| [Transcriber/prompt.py](../Transcriber/prompt.py) | `build_prompt` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
+| [FigureCorrector/prompt.py](../FigureCorrector/prompt.py) | `CORRECTION_PROMPT` | What the grounding model is told |
+| [FigureCorrector/FigureCorrector.py](../FigureCorrector/FigureCorrector.py) | `parse_corrections`, `to_normalized` | Reading the grounding model's boxes, and scaling boxes to and from 0-1000 |
 | [Transcriber/MarkdownValidator.py](../Transcriber/MarkdownValidator.py) | `validate_page_output` | What is wrong with an answer, as lines the model can act on |
 | [Transcriber/Agreement.py](../Transcriber/Agreement.py) | `agreement` | How well an answer agrees with the page's reference text |
 | [Transcriber/BlankPage.py](../Transcriber/BlankPage.py) | `BlankPageDetector`, `ink_ratio` | Telling a blank page from its image, so the model is not asked to write it |
@@ -162,6 +204,60 @@ another.
 Tables and formulas are not detected: the model writes them as Markdown tables and KaTeX.
 The detectors live under `MdWriter/` rather than as an option of the `Blocker`, which
 deliberately drops every class label.
+
+## Figure correction
+
+A layout detector gets a figure wrong now and then: a box cuts off the bottom of a plot,
+holds the text beside it, marks a table, or a diagram gets no box. The model writing the
+page sees the page and so notices it; given a `FigureCorrectionTool`, the transcriber
+offers it the `correct_figures` tool (and `FIGURE_CORRECTION_RULES` in its prompt), which
+it calls with what is wrong, such as "Figure 3 cuts off the x-axis labels below it".
+
+The call is carried out whole within the call:
+
+```mermaid
+sequenceDiagram
+    participant M as Writing model
+    participant T as PageTranscriber
+    participant S as CorrectionSession
+    participant C as FigureCorrector
+    participant G as Grounding model (Qwen3-VL)
+    participant B as FigureBoard
+    M-->>T: correct_figures(instruction)
+    T->>S: call(name, args)
+    S->>C: correct(page_index, board, instruction)
+    C->>G: the page with its boxes, the page as scanned, the boxes, the request
+    G-->>C: {"figures": [{"id", "bbox_2d"}, ...]}
+    C->>C: parse_corrections, sent back with its problems until it checks out
+    C-->>S: corrected figures
+    S->>B: replace(page_index, corrections)
+    B-->>S: the page's figures, new ones numbered
+    S-->>T: what changed
+    T->>M: ToolMessage, then the page drawn again with the new boxes
+```
+
+- `FigureBoard` holds every figure of the document and draws each page with its own. The
+  pages are written at once on several threads, so the figures are only read and replaced
+  there, under one lock; a corrected page is drawn again the next time it is asked for,
+  and the document is parsed with the figures as they end up.
+- `FigureCorrector` is built for Qwen3-VL (on Amazon Bedrock in the manual test), which
+  grounds boxes as `bbox_2d` [x1, y1, x2, y2] scaled to 0-1000 of the image, so the size
+  the page is sent at does not matter. It answers every figure of the page: an `id` keeps
+  or redraws a current box, `null` adds a figure the detector missed, and a box left out
+  is removed. An answer that is no such JSON, names an id that is no current box, repeats
+  one or holds a broken box is sent back with what is wrong, up to `max_attempt_count` (3)
+  times; a corner off the page is moved onto it.
+- A redrawn box keeps its id, and a new figure takes an id no figure of the document has
+  had, so an id the model has seen never changes meaning. The model is told the page's
+  figures now, which are new and which are removed (whose content it then transcribes as
+  text, tables or math), and the page image follows with the new boxes; its answer is
+  validated against those figures.
+- A page may call `max_call_count` (2) times. A call past it is answered that no more
+  corrections can be made, and counts as a failed attempt, so a page cannot keep calling.
+  A correction that fails (the grounding model never answers usable boxes, or the request
+  itself fails) leaves the figures as they were, and the model is told to carry on.
+- The writing model has to support tool calling; the corrector's requests carry
+  `page_kind` `correct-figures` in their run metadata.
 
 ## Reference text
 
@@ -251,20 +347,25 @@ sequenceDiagram
     Caller->>L: ocr(pages)
     L->>D: detect(pages)
     D-->>L: figures
-    L->>L: render_page(page, figures of the page), per page
+    L->>L: FigureBoard(pages, figures)
     opt reference reader given
         L->>X: read(pages)
         X-->>L: reference text per page
     end
     par every page
-        L->>T: transcribe(task, rendered, figures, reference)
+        L->>T: transcribe(task, board, reference)
         opt no figures and blank
             T-->>L: empty Markdown, no request sent
         end
         loop until the answer checks out, at most 3 times
             T->>M: the page labeled with its place and figures, and its reference
+            opt figure correction given and a box is wrong
+                M-->>T: correct_figures(instruction)
+                T->>T: the call is run and the page redrawn (see Figure correction)
+                T->>M: the tool result and the page with the new boxes
+            end
             M-->>T: Markdown
-            T->>T: validate_page_output
+            T->>T: validate_page_output, against the figures as they are now
         end
         opt escalation given and agreement below min_agreement
             T->>E: the same request
@@ -286,7 +387,7 @@ sequenceDiagram
 The pages go through `run_parallel`, `max_parallel_pages` at a time. The first failure
 ends the run: a page that still does not check out after `max_attempt_count` attempts
 raises `RuntimeError`. Every request carries `page_index` and `page_kind` (`write`,
-`escalate` or `join`) in its run metadata, so a callback can tell which page a request,
+`escalate`, `correct-figures` or `join`) in its run metadata, so a callback can tell which page a request,
 and its token usage, was for.
 
 `PageTranscriber.image_max_edge` is the longest side a page is sent at (1568 px by
@@ -295,13 +396,14 @@ page's area, so small print is read better from a page rendered at a higher DPI 
 input tokens, which on a cheap model cost little next to its output.
 
 `write_markdown()` stops before parsing and returns the Markdown with the figures and the
-rendered pages, for a caller that wants to look at them.
+rendered pages, corrections included, for a caller that wants to look at them.
 
 ## Tests
 
 - Unit tests in [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/): the markers and
   fences, the validator, the agreement, the blank page detection, the page joins, the stitcher, the parser, the
-  transcriber against a scripted fake model (retry, reference and escalation included),
+  figure board, the figure corrector and its tool, the
+  transcriber against a scripted fake model (retry, reference, escalation and tool calls included),
   and the whole pipeline against a fake detector, a fake reader and a fake model that
   answers from the request.
 - A manual run over the sample PDFs, with a real detector and model, reporting every
