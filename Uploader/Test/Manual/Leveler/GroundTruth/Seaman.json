@@ -1,0 +1,9 @@
+{
+  "notes": [
+    "The 特集 banner and the Japanese title are both top level; the English title is the Japanese one's translation, under it.",
+    "The numbered sections sit under the Japanese title."
+  ],
+  "levels": {
+    "2": 1, "4": 1, "6": 2, "11": 2, "15": 2, "34": 2, "56": 2, "73": 2, "84": 2
+  }
+}

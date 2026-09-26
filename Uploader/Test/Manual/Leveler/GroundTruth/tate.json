@@ -1,0 +1,9 @@
+{
+  "notes": [
+    "質問第一号, the cover's title and the title repeated on page 3 are all top level.",
+    "二 三 四 are the numbered questions, under the repeated title; 一 and 五 were transcribed as paragraphs."
+  ],
+  "levels": {
+    "2": 1, "4": 1, "10": 1, "16": 2, "19": 2, "22": 2
+  }
+}

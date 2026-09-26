@@ -1,0 +1,19 @@
+{
+  "notes": [
+    "Levels as printed: 章 1, 節 2, numbered heading (1 性格) 3, a heading under it 4.",
+    "No 第1章 heading is transcribed (it is only a side tab), so 第2節 opens the tree.",
+    "The boxed quotation under 1 理数科改訂の趣旨 continues below it: 4 理科 is 4, (2) 5, ① ② 6, ⅰ) ⅱ) 7.",
+    "The quotation's first headings (3 算数・数学, its (2) and ①) were not transcribed, so ② on page 2 closes up under 1.",
+    "理科の科目と理数科の科目との関係 titles a chart under 2 科目の履修.",
+    "（内容の取扱い） and the bold (1) 数と式 ... are all headings under 3 内容とその取扱い."
+  ],
+  "levels": {
+    "2": 2, "4": 3, "9": 6, "11": 7, "16": 7,
+    "22": 4, "24": 5, "26": 6, "28": 7, "35": 7, "40": 6, "42": 7, "46": 7,
+    "54": 3, "65": 2, "74": 2, "77": 3, "88": 3, "94": 4,
+    "100": 1, "102": 2, "104": 3, "108": 3, "113": 3, "117": 4,
+    "120": 4, "125": 4, "130": 4, "138": 4, "143": 4, "149": 4,
+    "154": 2, "156": 3, "160": 3, "164": 3, "168": 4,
+    "171": 4, "176": 4, "181": 4, "187": 4, "193": 4, "197": 4, "201": 4, "206": 4
+  }
+}
