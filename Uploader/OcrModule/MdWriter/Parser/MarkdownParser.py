@@ -22,7 +22,7 @@ from ...OcrSchema import (
     OcrResultSection,
 )
 from ..Syntax.Containers import CONTAINERS, NOTE_CONTAINERS, TABLE_OF_CONTENTS_CONTAINER
-from ..Syntax.Markers import PageMark, strip_page_markers
+from ..Syntax.Markers import FIGURE_REFERENCE_PATTERN, PageMark, strip_page_markers
 from ..Schema import DetectedFigure
 from ..Syntax.TableOfContents import parse_entries
 
@@ -39,7 +39,7 @@ FIGURE_SOURCE_PATTERN = re.compile(r"^figure:(\d+)$")
 
 # A line holding one figure and nothing else, taken out of the box it sits in.
 FIGURE_LINE_PATTERN = re.compile(
-    r"^[ \t]*!\[[^\]]*\]\(\s*figure:\d+\s*\)[ \t]*(?:\n|$)", re.MULTILINE
+    rf"^[ \t]*{FIGURE_REFERENCE_PATTERN.pattern}[ \t]*(?:\n|$)", re.MULTILINE
 )
 
 # A footnote's definition, `[^n]: note text`, opening a paragraph.

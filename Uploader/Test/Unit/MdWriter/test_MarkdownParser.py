@@ -204,6 +204,17 @@ def test_a_figure_inside_a_box_is_placed_right_after_the_box():
     ]
 
 
+def test_a_figure_with_a_bracketed_caption_inside_a_box_is_taken_out_of_it():
+    markdown = "<!--page:0-->:::column\n![the interval [a, b]](figure:3)\n\nnote\n:::"
+
+    root = parse_markdown(markdown, [figure(3, 0)]).root_section
+
+    assert summary(root) == [
+        ("note", "note", [0]),
+        ("figure", "the interval [a, b]", [0]),
+    ]
+
+
 def test_a_table_of_contents_is_read_as_its_nested_entries():
     markdown = (
         "<!--page:0-->## Contents\n\n"
