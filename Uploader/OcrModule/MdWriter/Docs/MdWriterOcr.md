@@ -52,7 +52,12 @@ classDiagram
         +max_attempt_count: int
         +image_max_edge: int
         +escalation: Escalation | None
+        +blank_page_detector: BlankPageDetector
         +transcribe(task, rendered_pages, figures, reference) str
+    }
+    class BlankPageDetector {
+        +max_ink_ratio: float
+        +is_blank(page: Image) bool
     }
     class Escalation {
         +model: BaseChatModel
@@ -92,6 +97,7 @@ classDiagram
     MdWriterOcr o-- JoinJudge
     MdWriterOcr o-- BlockRenderer
     PageTranscriber o-- Escalation
+    PageTranscriber o-- BlankPageDetector
     MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
@@ -118,6 +124,7 @@ The stages past the figure detection and the reference text are plain functions:
 | [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`, `PROMPT_WITH_REFERENCE` | What the model is told, the [Markdown syntax](MarkdownSyntax.md) included |
 | [Transcriber/MarkdownValidator.py](../Transcriber/MarkdownValidator.py) | `validate_page_output` | What is wrong with an answer, as lines the model can act on |
 | [Transcriber/Agreement.py](../Transcriber/Agreement.py) | `agreement` | How well an answer agrees with the page's reference text |
+| [Transcriber/BlankPage.py](../Transcriber/BlankPage.py) | `BlankPageDetector`, `ink_ratio` | Telling a blank page from its image, so the model is not asked to write it |
 | [Assembly/PageJoin.py](../Assembly/PageJoin.py) | `decide_joins` | Which page turns split a paragraph |
 | [Assembly/prompt.py](../Assembly/prompt.py) | `JOIN_PROMPT` | What the `JoinJudge` is told |
 | [Assembly/Stitcher.py](../Assembly/Stitcher.py) | `stitch` | The pages joined into one document |
@@ -178,6 +185,22 @@ more is kept. A page whose reference has fewer than `min_reference_letters` (200
 is never escalated: on a page of figures, the reference is only a caption or a side tab,
 and the agreement with it says nothing.
 
+## Blank pages
+
+A blank page, such as the back of a title page, must come out empty, not as a model's
+note that it is blank. Two things see to it:
+
+- Before any request, a page with no figures whose share of ink pixels (grey level below
+  128) is at most `max_ink_ratio` (0.0001 by default) is written as empty and never sent
+  to the model. A line of print is far above it (a page of text holds about 1%), while
+  scanner specks and a lone page number stay under it.
+- A page that has some ink but nothing to transcribe (only running heads or a page
+  number, or a note that it is left blank) is answered with `<!--blank-page-->` alone,
+  as the prompt tells the model, and written as empty too (see
+  [MarkdownSyntax.md](MarkdownSyntax.md#blank-page-marker)).
+
+An empty page never takes part in a join: every turn next to it is a break.
+
 ## Page turns
 
 Every page is written on its own, so where a paragraph runs over a page turn each page
@@ -235,6 +258,9 @@ sequenceDiagram
     end
     par every page
         L->>T: transcribe(task, rendered, figures, reference)
+        opt no figures and blank
+            T-->>L: empty Markdown, no request sent
+        end
         loop until the answer checks out, at most 3 times
             T->>M: the page labeled with its place and figures, and its reference
             M-->>T: Markdown
@@ -274,7 +300,7 @@ rendered pages, for a caller that wants to look at them.
 ## Tests
 
 - Unit tests in [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/): the markers and
-  fences, the validator, the agreement, the page joins, the stitcher, the parser, the
+  fences, the validator, the agreement, the blank page detection, the page joins, the stitcher, the parser, the
   transcriber against a scripted fake model (retry, reference and escalation included),
   and the whole pipeline against a fake detector, a fake reader and a fake model that
   answers from the request.

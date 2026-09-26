@@ -84,6 +84,12 @@ Where such a paragraph is inside a box, both answers hold it in a `:::` block of
 same name; the [Stitcher](../Assembly/Stitcher.py) drops the closing and reopening fences at
 the join, so the box becomes one block again.
 
+### Blank page marker
+
+A page that holds nothing to transcribe (it is blank, or shows only running heads, page
+numbers, or a note that it is left blank) is answered with `<!--blank-page-->` and
+nothing else, rather than a sentence saying so. The page is then written as empty.
+
 ### Page markers
 
 The model writes no page markers; any it writes are taken out. The
@@ -102,6 +108,8 @@ problem is sent back to the model, which writes the whole answer again, up to
   line before or after it (a `:::` fence may be), since the parser would otherwise
   read it as part of a paragraph
 - The continuation markers are only at the very start and the very end, once each
+- `<!--blank-page-->`, if written, stands alone; on a page with figures, it leaves them
+  unplaced, which is reported as above
 - The `:::` fences are balanced and not nested
 - Every line inside a `:::toc` block is an entry, as `- number | title | page` with a title
 - No paragraph of 40 characters or more is written twice, which is what a page

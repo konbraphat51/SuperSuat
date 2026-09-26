@@ -49,7 +49,12 @@ classDiagram
         +max_attempt_count: int
         +image_max_edge: int
         +escalation: Escalation | None
+        +blank_page_detector: BlankPageDetector
         +transcribe(task, rendered_pages, figures, reference) str
+    }
+    class BlankPageDetector {
+        +max_ink_ratio: float
+        +is_blank(page: Image) bool
     }
     class Escalation {
         +model: BaseChatModel
@@ -89,6 +94,7 @@ classDiagram
     MdWriterOcr o-- JoinJudge
     MdWriterOcr o-- BlockRenderer
     PageTranscriber o-- Escalation
+    PageTranscriber o-- BlankPageDetector
     MdWriterOcr ..> PageTask
     MdWriterOcr ..> MarkdownDraft
     FigureDetector ..> DetectedFigure
@@ -115,6 +121,7 @@ classDiagram
 | [Transcriber/prompt.py](../Transcriber/prompt.py) | `PROMPT`、`PROMPT_WITH_REFERENCE` | モデルへの指示。[Markdownの文法](MarkdownSyntax.ja.md) を含む |
 | [Transcriber/MarkdownValidator.py](../Transcriber/MarkdownValidator.py) | `validate_page_output` | 応答の問題点を、モデルが直せる形の文で返す |
 | [Transcriber/Agreement.py](../Transcriber/Agreement.py) | `agreement` | 応答がそのページの参照テキストとどれだけ一致するか |
+| [Transcriber/BlankPage.py](../Transcriber/BlankPage.py) | `BlankPageDetector`、`ink_ratio` | 画像から白紙のページを見分け、モデルに書かせないようにする |
 | [Assembly/PageJoin.py](../Assembly/PageJoin.py) | `decide_joins` | どのページの変わり目で段落が分かれているかを決める |
 | [Assembly/prompt.py](../Assembly/prompt.py) | `JOIN_PROMPT` | `JoinJudge` への指示 |
 | [Assembly/Stitcher.py](../Assembly/Stitcher.py) | `stitch` | 各ページを1つの文書に結合する |
@@ -166,6 +173,20 @@ yomitokuの読み順で並べます（縦書きも含む）。柱・ページ番
 を下回るページをエスカレーション先のモデルで書き直し、一致度の高いほうの応答を残します。
 参照テキストの文字数が `min_reference_letters`（200）未満のページはエスカレーションしません。
 図ばかりのページでは参照テキストがキャプションや見出しタブだけになり、一致度が意味を持たないからです。
+
+## 白紙のページ
+
+扉の裏のような白紙のページは、モデルの「このページは白紙です」といった説明ではなく、空として出力しなければなりません。
+そのために次の2つを行います。
+
+- リクエストの前に、図がなく、インクの画素（濃さ128未満）の割合が `max_ink_ratio`（既定は0.0001）以下のページは、
+  モデルに送らずに空として書きます。1行でも文字があればこれを大きく上回り（本文のページは約1%）、
+  スキャンのごみやノンブルだけならこれを下回ります。
+- インクはあるが書き起こすものがないページ（柱やノンブルだけ、白紙である旨の注記だけ）には、
+  プロンプトの指示に従ってモデルが `<!--blank-page-->` だけを返し、これも空として書きます
+  （[MarkdownSyntax.ja.md](MarkdownSyntax.ja.md#白紙ページマーカー) を参照）。
+
+空のページは結合に加わりません。その両側の変わり目は常に段落の区切りになります。
 
 ## ページの変わり目
 
@@ -220,6 +241,9 @@ sequenceDiagram
     end
     par すべてのページ
         L->>T: transcribe(task, rendered, figures, reference)
+        opt 図がなく白紙
+            T-->>L: 空のMarkdown（リクエストは送らない）
+        end
         loop 検証を通るまで（最大3回）
             T->>M: 位置と図のIDを添えたページ画像、参照テキスト
             M-->>T: Markdown
@@ -256,7 +280,7 @@ sequenceDiagram
 
 ## テスト
 
-- 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。マーカーとフェンス、検証、一致度、
+- 単体テスト: [Test/Unit/MdWriter/](../../../Test/Unit/MdWriter/)。マーカーとフェンス、検証、一致度、白紙の判定、
   ページの変わり目の判定、結合、パーサ、決まった応答を返す偽モデルを使った書き下し（再試行・参照テキスト・
   エスカレーションを含む）、偽の検出器・偽の読み取り器・リクエストの内容から応答する偽モデルを使ったパイプライン全体。
 - 本物の検出器とモデルでサンプルPDFを読み、ページごとのトークン数とコストを出す手動テストと、
