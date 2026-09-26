@@ -1,6 +1,6 @@
 .claude/**
 .env
 Test/Manual/Ocr/Output/
-Test/Manual/Blocked/Output/
-Test/Manual/MdWriter/Output/
+Test/Manual/Ocr/Blocked/Output/
+Test/Manual/Ocr/MdWriter/Output/
 Test/Manual/Leveler/Output/

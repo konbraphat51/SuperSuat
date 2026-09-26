@@ -39,7 +39,7 @@ from PIL import Image
 # `Uploader` directory has to be on sys.path no matter where this is run from.
 UPLOADER_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(UPLOADER_ROOT))
-sys.path.insert(0, str(UPLOADER_ROOT / "Test" / "Manual" / "MdWriter"))
+sys.path.insert(0, str(UPLOADER_ROOT / "Test" / "Manual" / "Ocr" / "MdWriter"))
 
 from dotenv import load_dotenv  # noqa: E402
 from langchain_core.callbacks import BaseCallbackHandler  # noqa: E402

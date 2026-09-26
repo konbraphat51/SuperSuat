@@ -7,9 +7,9 @@ every layout model runs locally, on the GPU when there is one.
 
 Usage (from the `Uploader` directory):
 
-    uv run python Test/Manual/Blocked/TestBlocker.py
-    uv run python Test/Manual/Blocked/TestBlocker.py --blocker yomitoku --pdf tate.pdf
-    uv run python Test/Manual/Blocked/TestBlocker.py --blocker ppstructure --no-render
+    uv run python Test/Manual/Ocr/Blocked/TestBlocker.py
+    uv run python Test/Manual/Ocr/Blocked/TestBlocker.py --blocker yomitoku --pdf tate.pdf
+    uv run python Test/Manual/Ocr/Blocked/TestBlocker.py --blocker ppstructure --no-render
 
 See TestBlocker_setup.md for the setup this needs.
 """
@@ -26,13 +26,13 @@ from PIL import Image
 
 # The OCR module is imported as a top-level package (`OcrModule.…`), so the
 # `Uploader` directory has to be on sys.path no matter where this is run from.
-UPLOADER_ROOT = Path(__file__).resolve().parents[3]
+UPLOADER_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(UPLOADER_ROOT))
 
 from OcrModule.Blocked.Blocker.Blocker import Blocker  # noqa: E402
 from OcrModule.Blocked.Blocker.BlockRenderer import BlockRenderer  # noqa: E402
 
-SAMPLE_DIR = Path(__file__).resolve().parents[1] / "Ocr" / "Sample"
+SAMPLE_DIR = Path(__file__).resolve().parents[1] / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
 
 # 200 DPI, as in TestLinear: the layout models see the same page images the

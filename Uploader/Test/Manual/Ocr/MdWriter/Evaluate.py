@@ -15,9 +15,9 @@ kept.
 
 Usage (from the `Uploader` directory):
 
-    uv run python Test/Manual/MdWriter/Evaluate.py \
-        Test/Manual/MdWriter/Output/yomitoku/gpt-6-luna \
-        Test/Manual/MdWriter/Output/yomitoku/gpt-6-sol
+    uv run python Test/Manual/Ocr/MdWriter/Evaluate.py \
+        Test/Manual/Ocr/MdWriter/Output/yomitoku/gpt-6-luna \
+        Test/Manual/Ocr/MdWriter/Output/yomitoku/gpt-6-sol
 """
 
 import argparse

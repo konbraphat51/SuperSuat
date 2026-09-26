@@ -11,8 +11,8 @@ top of each page, and anything inside a detected figure box.
 
 Usage (from the `Uploader` directory):
 
-    uv run python Test/Manual/MdWriter/BuildGroundTruth.py --pdf Seaman.pdf \
-        --figures Test/Manual/MdWriter/Output/yomitoku/gpt-6-sol/Seaman.json
+    uv run python Test/Manual/Ocr/MdWriter/BuildGroundTruth.py --pdf Seaman.pdf \
+        --figures Test/Manual/Ocr/MdWriter/Output/yomitoku/gpt-6-sol/Seaman.json
 """
 
 import argparse
@@ -28,7 +28,7 @@ from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
 
 MANUAL_DIR = Path(__file__).resolve().parent
-SAMPLE_DIR = MANUAL_DIR.parents[1] / "Manual" / "Ocr" / "Sample"
+SAMPLE_DIR = MANUAL_DIR.parent / "Sample"
 GROUND_TRUTH_DIR = MANUAL_DIR / "GroundTruth"
 
 # Share of the page height at the top that holds the running head.

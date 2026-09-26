@@ -6,8 +6,8 @@ Writes one PNG into `Output/render/`.
 
 Usage (from the `Uploader` directory):
 
-    uv run python Test/Manual/Blocked/TestBlockRenderer.py
-    uv run python Test/Manual/Blocked/TestBlockRenderer.py --pdf tate.pdf
+    uv run python Test/Manual/Ocr/Blocked/TestBlockRenderer.py
+    uv run python Test/Manual/Ocr/Blocked/TestBlockRenderer.py --pdf tate.pdf
 """
 
 import argparse
@@ -19,13 +19,13 @@ from PIL import Image
 
 # The OCR module is imported as a top-level package (`OcrModule.…`), so the
 # `Uploader` directory has to be on sys.path no matter where this is run from.
-UPLOADER_ROOT = Path(__file__).resolve().parents[3]
+UPLOADER_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(UPLOADER_ROOT))
 
 from OcrModule.Blocked.Blocker.BlockRenderer import BlockRenderer  # noqa: E402
 from OcrModule.Blocked.Schema import Block, BlockerResult  # noqa: E402
 
-SAMPLE_DIR = Path(__file__).resolve().parents[1] / "Ocr" / "Sample"
+SAMPLE_DIR = Path(__file__).resolve().parents[1] / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output" / "render"
 
 DEFAULT_PDF = "Seaman.pdf"
