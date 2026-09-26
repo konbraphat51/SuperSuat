@@ -18,6 +18,54 @@ uv sync
 
 APIキーは `.env` に書きます。`template.env` を参照してください。
 
+## 文書ツリー
+
+```mermaid
+classDiagram
+    class OcrResult {
+        +root_section: OcrResultSection
+    }
+    class OcrResultBlock {
+        +block_type: str
+        +existing_pages: list[int]
+        +block_index: int
+    }
+    class OcrResultBlockText {
+        +text: str
+    }
+    class OcrResultBlockFigure {
+        +page_index: int
+        +bounding_box: tuple[int, int, int, int]
+        +caption: str
+    }
+    class OcrResultBlockTableOfContents {
+        +entries: list[TableOfContentsEntry]
+    }
+    class TableOfContentsEntry {
+        +section_number: str | None
+        +title: str
+        +page_number: str | None
+        +children: list[TableOfContentsEntry]
+    }
+    class OcrResultSection {
+        +section_content: list[OcrResultBlock]
+        +recompute_existing_pages() list[int]
+    }
+    OcrResultBlock <|-- OcrResultBlockText
+    OcrResultBlock <|-- OcrResultBlockFigure
+    OcrResultBlock <|-- OcrResultBlockTableOfContents
+    OcrResultBlock <|-- OcrResultSection
+    OcrResult *-- OcrResultSection
+    OcrResultSection o-- OcrResultBlock
+    OcrResultBlockTableOfContents *-- TableOfContentsEntry
+    TableOfContentsEntry *-- TableOfContentsEntry : children
+```
+
+テキストブロックの種類は `paragraph`・`heading`・`document_index`・`note`・`code`・`math`・
+`table` のいずれかです。目次ブロックは、印刷された目次を項目の木として持ち、各項目は
+セクション番号とページ番号を印刷どおりに持ちます（印刷されていなければ `None`）。
+今のところ目次ブロックを書くのはMdWriterだけです。
+
 ## OCRパイプライン
 
 どのパイプラインも `Ocr`（[Ocr.py](OcrModule/Ocr.py)）を実装しています。

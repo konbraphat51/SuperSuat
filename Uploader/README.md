@@ -19,6 +19,54 @@ uv sync
 
 API keys go in `.env`; see `template.env`.
 
+## Document tree
+
+```mermaid
+classDiagram
+    class OcrResult {
+        +root_section: OcrResultSection
+    }
+    class OcrResultBlock {
+        +block_type: str
+        +existing_pages: list[int]
+        +block_index: int
+    }
+    class OcrResultBlockText {
+        +text: str
+    }
+    class OcrResultBlockFigure {
+        +page_index: int
+        +bounding_box: tuple[int, int, int, int]
+        +caption: str
+    }
+    class OcrResultBlockTableOfContents {
+        +entries: list[TableOfContentsEntry]
+    }
+    class TableOfContentsEntry {
+        +section_number: str | None
+        +title: str
+        +page_number: str | None
+        +children: list[TableOfContentsEntry]
+    }
+    class OcrResultSection {
+        +section_content: list[OcrResultBlock]
+        +recompute_existing_pages() list[int]
+    }
+    OcrResultBlock <|-- OcrResultBlockText
+    OcrResultBlock <|-- OcrResultBlockFigure
+    OcrResultBlock <|-- OcrResultBlockTableOfContents
+    OcrResultBlock <|-- OcrResultSection
+    OcrResult *-- OcrResultSection
+    OcrResultSection o-- OcrResultBlock
+    OcrResultBlockTableOfContents *-- TableOfContentsEntry
+    TableOfContentsEntry *-- TableOfContentsEntry : children
+```
+
+A text block is one of `paragraph`, `heading`, `document_index`, `note`, `code`, `math`
+and `table`. A table of contents block holds the printed table of contents as a tree
+of entries, each with its section number and page number as printed (`None` when not
+printed); only MdWriter writes one so far.
+
 ## OCR pipelines
 
 Every pipeline implements `Ocr` ([Ocr.py](OcrModule/Ocr.py)).
