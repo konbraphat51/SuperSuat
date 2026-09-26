@@ -1,5 +1,7 @@
 """Flattening a document tree into its blocks, and nesting them again by heading level."""
 
+from collections.abc import Mapping
+
 from OcrModule.OcrSchema import OcrResultBlock, OcrResultSection
 
 # The level the root section sits at, below every heading.
@@ -26,7 +28,7 @@ def flatten_blocks(section: OcrResultSection) -> list[OcrResultBlock]:
 def nest_by_levels(
     root_block_index: int,
     blocks: list[OcrResultBlock],
-    heading_levels: dict[int, int],
+    heading_levels: Mapping[int, float],
 ) -> OcrResultSection:
     """The blocks as a tree, each heading opening a section nested by its level.
 
@@ -38,14 +40,15 @@ def nest_by_levels(
     Args:
         root_block_index: The block_index the root section is given.
         blocks: Every block of the document, in document order, none a section.
-        heading_levels: The level of each heading, keyed by block_index. A
-            block missing from it opens no section.
+        heading_levels: The level of each heading, keyed by block_index; a
+            level between two others, such as 2.5, nests between them. A block
+            missing from it opens no section.
     """
     next_block_index = max([root_block_index, *(b.block_index for b in blocks)]) + 1
 
     root = _new_section(root_block_index)
     # the sections currently open, outermost first, as (heading level, section)
-    open_sections: list[tuple[int, OcrResultSection]] = [(ROOT_HEADING_LEVEL, root)]
+    open_sections: list[tuple[float, OcrResultSection]] = [(ROOT_HEADING_LEVEL, root)]
 
     for block in blocks:
         heading_level = heading_levels.get(block.block_index)

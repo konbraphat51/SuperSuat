@@ -78,3 +78,11 @@ def test_new_sections_take_indices_above_every_block_and_pages_are_recomputed():
     assert opened.block_index == 12
     assert opened.existing_pages == [2, 3]
     assert root.existing_pages == [2, 3]
+
+
+def test_a_level_between_two_others_nests_between_them():
+    blocks = [text(1, "heading"), text(2, "heading"), text(3, "heading"), text(4)]
+
+    root = nest_by_levels(0, blocks, {1: 2, 2: 2.5, 3: 3})
+
+    assert shape(root) == [[1, [2, [3, 4]]]]
