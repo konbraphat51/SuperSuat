@@ -13,9 +13,11 @@ the headings, and the token usage and cost into `Test/Manual/Leveler/Output/<run
 
 ## 1. Input
 
-`Input/` holds the three sample PDFs as read by
+`Input/` holds the sample PDFs as read by
 [TestMdWriter.py](../Ocr/MdWriter/TestMdWriter.py). They are MdWriter's output, so every
-heading sits one level deep.
+heading sits one level deep. Seaman, shido_math and tate were made with the command
+below; Probability (284 pages, with a table of contents for the whole book and one per
+chapter) is a copy of the all-page run in `Output/doclayout/gpt-6-luna/`.
 
 ```bash
 uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol --run-name leveler-input
@@ -27,7 +29,8 @@ uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --pro
 | `<stem>.md` | The Markdown the model wrote, to read the headings in |
 
 Making the input again changes the `block_index` of the headings, so `GroundTruth/` has
-to be written again too.
+to be written again too. Only the pages the leveler asks for are rendered, so a long
+document does not fill the memory.
 
 ## 2. Run
 
@@ -62,15 +65,21 @@ Test/Manual/Leveler/Output/
 └── gpt-6-sol/
     ├── shido_math.json         # the nested OcrResult
     ├── shido_math.outline.txt  # the headings indented by level, and the score
-    └── shido_math.usage.txt    # tokens and cost
+    └── shido_math.usage.txt    # requests, page images, tokens and cost
 ```
 
 Each outline line reads `[block_index] p<page> L<level> heading`. The level is the depth
 in the output tree, so a level the model skips (1 → 3) closes up (1 → 2).
 
-Where `GroundTruth/<stem>.json` exists, the result is compared with its `levels`
-(`block_index` → the right depth). A line that differs from it is marked
-`<-- expected N`.
+Where `GroundTruth/<stem>.json` exists, its `levels` (`block_index` → the level as
+printed) are closed up into depths as the output is, and compared with it. A line that
+differs from it is marked `<-- expected N`. A heading whose level is `null` (the
+`Example` headings of Probability, or math taken for a heading) is not scored. The
+`notes` of each file say what the levels were judged by.
+
+The `requests` line of `usage.txt` counts the requests sent, those carrying page images,
+and the images. The skeleton request is text only, so the requests with images are the
+ones that decided the headings the text left open.
 
 | Metric | Meaning |
 | --- | --- |

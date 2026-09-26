@@ -6,8 +6,8 @@ headings, and writes into `Output/<run name>/` (the model id by default):
 
 - `<stem>.json`: the nested OcrResult
 - `<stem>.outline.txt`: every heading, indented by its level, with its page
-- `<stem>.usage.txt`: the tokens the run used and, for a model in
-  UsageCost.PRICING, what they cost
+- `<stem>.usage.txt`: the requests and page images the run sent, the tokens
+  they used and, for a model in UsageCost.PRICING, what they cost
 
 Where `GroundTruth/<stem>.json` exists, the levels are scored against it.
 
@@ -27,9 +27,10 @@ import sys
 import threading
 import time
 import traceback
+from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 from uuid import UUID
 
 import fitz  # PyMuPDF
@@ -73,12 +74,23 @@ DEFAULT_MAX_TOKENS = 16000
 
 
 class UsageTotal(BaseCallbackHandler):
-    """Adds up the usage of every chat model request, all as one row."""
+    """Adds up the usage of every chat model request, all as one row, and
+    counts the requests and the page images they carry."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._models: dict[UUID, str] = {}
         self.usage = PageUsage()
+        self.requests = 0
+        self.image_requests = 0
+        self.images = 0
+
+    def reset(self) -> None:
+        """Forgets every request, for the next document."""
+        with self._lock:
+            self._models.clear()
+            self.usage = PageUsage()
+            self.requests = self.image_requests = self.images = 0
 
     def on_chat_model_start(
         self,
@@ -88,10 +100,14 @@ class UsageTotal(BaseCallbackHandler):
         run_id: UUID,
         **kwargs: Any,
     ) -> None:
-        """Notes which model a request goes to."""
+        """Notes which model a request goes to, and how many images it carries."""
         params = kwargs.get("invocation_params") or {}
+        images = sum(_image_count(message) for message in messages[0])
         with self._lock:
             self._models[run_id] = str(params.get("model") or "?")
+            self.requests += 1
+            self.image_requests += images > 0
+            self.images += images
 
     def on_llm_end(self, response: LLMResult, *, run_id: UUID, **kwargs: Any) -> None:
         """Counts a finished request's usage in."""
@@ -106,6 +122,48 @@ class UsageTotal(BaseCallbackHandler):
                         and message.usage_metadata
                     ):
                         self.usage.add(model, dict(message.usage_metadata))
+
+    def summary(self) -> str:
+        """The requests and images counted, as one line."""
+        return (
+            f"requests: {self.requests} "
+            f"({self.image_requests} with page images, {self.images} image(s))"
+        )
+
+
+def _image_count(message: BaseMessage) -> int:
+    """How many images a message carries."""
+    if isinstance(message.content, str):
+        return 0
+    return sum(
+        1
+        for part in message.content
+        if isinstance(part, dict) and part.get("type") in ("image", "image_url")
+    )
+
+
+class LazyPages(Sequence[Any]):
+    """The pages of a PDF, each rendered only when it is read, so that a long
+    document does not hold every page image at once."""
+
+    def __init__(self, pdf_path: Path, dpi: int) -> None:
+        self._document = fitz.open(pdf_path)
+        self._dpi = dpi
+
+    def __len__(self) -> int:
+        return len(self._document)
+
+    @overload
+    def __getitem__(self, index: int) -> Any: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> list[Any]: ...
+
+    def __getitem__(self, index: int | slice) -> Any:
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        pixmap = self._document[index].get_pixmap(dpi=self._dpi)
+        return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
 
 
 def load_block(data: dict[str, Any]) -> OcrResultBlock:
@@ -247,28 +305,19 @@ def load_truth(stem: str) -> dict[int, int] | None:
     """The expected depth of every heading, by block index, if written down.
 
     The ground truth holds the levels as printed; they are closed up into
-    depths, as the output tree holds them.
+    depths, as the output tree holds them. A heading whose level is null is
+    left out, and so not scored.
     """
     path = GROUND_TRUTH_DIR / f"{stem}.json"
     if not path.is_file():
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
-    levels = sorted((int(index), level) for index, level in data["levels"].items())
+    levels = sorted(
+        (int(index), level)
+        for index, level in data["levels"].items()
+        if level is not None
+    )
     return {index: depth for index, (_, depth) in nest(levels).items()}
-
-
-def pdf_to_images(pdf_path: Path, dpi: int) -> list[Any]:
-    """Every page of the PDF rendered to an RGB PIL image."""
-    images = []
-
-    with fitz.open(pdf_path) as document:
-        for page in document:
-            pixmap = page.get_pixmap(dpi=dpi)
-            images.append(
-                Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
-            )
-
-    return images
 
 
 def run_one(
@@ -279,10 +328,10 @@ def run_one(
 ) -> None:
     """Levels one saved OcrResult and writes the tree, outline, usage and score."""
     print(f"\n=== {stem} ===", flush=True)
-    usage.usage = PageUsage()
+    usage.reset()
 
     ocr_result = load_ocr_result(INPUT_DIR / f"{stem}.json")
-    images = pdf_to_images(SAMPLE_DIR / f"{stem}.pdf", args.dpi)
+    images = LazyPages(SAMPLE_DIR / f"{stem}.pdf", args.dpi)
     truth = load_truth(stem)
 
     started_at = time.monotonic()
@@ -293,7 +342,7 @@ def run_one(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     outline = format_outline(leveled, truth)
-    report = format_report({0: usage.usage})
+    report = f"{usage.summary()}\n{format_report({0: usage.usage})}"
     scored = score(leveled, truth) if truth else "no ground truth"
 
     (output_dir / f"{stem}.json").write_text(

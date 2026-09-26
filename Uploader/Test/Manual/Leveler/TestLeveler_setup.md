@@ -11,8 +11,10 @@ English version: [TestLeveler_setup.en.md](TestLeveler_setup.en.md)
 
 ## 1. 入力
 
-`Input/` には、3つのサンプル PDF を [TestMdWriter.py](../Ocr/MdWriter/TestMdWriter.py) で読んだ結果を
-保存してあります。MdWriter の出力なので、見出しはすべて1段です。
+`Input/` には、サンプル PDF を [TestMdWriter.py](../Ocr/MdWriter/TestMdWriter.py) で読んだ結果を
+保存してあります。MdWriter の出力なので、見出しはすべて1段です。Seaman・shido_math・tate は次の
+コマンドで作ったもの、Probability（284ページ、全体の目次と章ごとの目次あり）は
+`Output/doclayout/gpt-6-luna/` の全ページの結果をコピーしたものです。
 
 ```bash
 uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol --run-name leveler-input
@@ -24,6 +26,7 @@ uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --pro
 | `<stem>.md` | モデルが書いた Markdown。見出しの確認用 |
 
 入力を作り直すと `block_index` が変わるため、`GroundTruth/` も書き直す必要があります。
+ページ画像は Leveler が必要としたページだけを描くので、長い文書でもメモリを食いません。
 
 ## 2. 実行
 
@@ -58,14 +61,19 @@ Test/Manual/Leveler/Output/
 └── gpt-6-sol/
     ├── shido_math.json         # 入れ子にした OcrResult
     ├── shido_math.outline.txt  # 見出しをレベルで字下げしたアウトラインと評価
-    └── shido_math.usage.txt    # トークン数とコスト
+    └── shido_math.usage.txt    # リクエスト数・画像枚数・トークン数・コスト
 ```
 
 アウトラインの各行は `[block_index] p<ページ> L<レベル> 見出し` です。レベルは出力ツリーでの
 深さなので、モデルがレベルを飛ばしても（1 → 3）深さは詰まります（1 → 2）。
 
-`GroundTruth/<stem>.json` があれば、その `levels`（`block_index` → 正しい深さ）と比べます。
-正解と違う行には `<-- expected N` が付きます。
+`GroundTruth/<stem>.json` があれば、その `levels`（`block_index` → 印刷どおりのレベル）を
+出力と同じく深さに詰めて比べます。正解と違う行には `<-- expected N` が付きます。
+レベルが `null` の見出し（Probability の `Example` 見出しや、見出しと誤認された数式など）は採点しません。
+各ファイルの `notes` に、判断の根拠を書いてあります。
+
+`usage.txt` の `requests` 行は、送ったリクエスト数、そのうちページ画像を含むもの、画像の枚数です。
+骨組みの段はテキストだけなので、画像を含むリクエストは確信のない見出しを判断した分です。
 
 | 指標 | 意味 |
 | --- | --- |
