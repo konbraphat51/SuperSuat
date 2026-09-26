@@ -23,6 +23,20 @@ class DetectedFigure:
 
 
 @dataclass(frozen=True)
+class CorrectedFigure:
+    """One figure of a page as a correction redraws it.
+
+    Attributes:
+        block_id: The id of the detected figure this box replaces, or None
+            for a figure the detector missed, which is given a new id.
+        bounding_box: The figure's box in (x, y, width, height) format.
+    """
+
+    block_id: int | None
+    bounding_box: tuple[int, int, int, int]
+
+
+@dataclass(frozen=True)
 class PageTask:
     """One page sent to the model in one request.
 
