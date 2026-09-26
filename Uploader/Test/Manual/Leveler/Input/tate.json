@@ -1,0 +1,232 @@
+{
+  "root_section": {
+    "block_type": "section",
+    "existing_pages": [
+      0,
+      2,
+      3,
+      4
+    ],
+    "block_index": 0,
+    "section_content": [
+      {
+        "block_type": "section",
+        "existing_pages": [
+          0
+        ],
+        "block_index": 1,
+        "section_content": [
+          {
+            "block_type": "heading",
+            "existing_pages": [
+              0
+            ],
+            "block_index": 2,
+            "text": "質問第一号"
+          }
+        ]
+      },
+      {
+        "block_type": "section",
+        "existing_pages": [
+          0
+        ],
+        "block_index": 3,
+        "section_content": [
+          {
+            "block_type": "heading",
+            "existing_pages": [
+              0
+            ],
+            "block_index": 4,
+            "text": "点字版選挙公報の遅延及び投票環境の不備に関する質問主意書"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              0
+            ],
+            "block_index": 5,
+            "text": "右の質問主意書を国会法第七十四条によって提出する。"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              0
+            ],
+            "block_index": 6,
+            "text": "令和八年二月二十日"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              0
+            ],
+            "block_index": 7,
+            "text": "石垣のりこ"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              0
+            ],
+            "block_index": 8,
+            "text": "参議院議長　関口昌一殿"
+          }
+        ]
+      },
+      {
+        "block_type": "section",
+        "existing_pages": [
+          2,
+          3
+        ],
+        "block_index": 9,
+        "section_content": [
+          {
+            "block_type": "heading",
+            "existing_pages": [
+              2
+            ],
+            "block_index": 10,
+            "text": "点字版選挙公報の遅延及び投票環境の不備に関する質問主意書"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              2
+            ],
+            "block_index": 11,
+            "text": "令和八年二月八日執行の第五十一回衆議院議員総選挙（以下「総選挙」という。）において、視覚障害者向けの点字版選挙公報の作成・配布が大幅に遅れ、期日前投票期間中に有権者が情報を得られない事態が発生したと報じられている。"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              2
+            ],
+            "block_index": 12,
+            "text": "主権者たる国民が等しく参政権を行使するためには、政見放送や選挙公報を通じた情報の裏付けが不可欠である。特に、障害を理由とする差別の解消の推進に関する法律（平成二十五年法律第六十五号。以下「障害者差別解消法」という。）に基づき、行政機関には合理的な配慮の提供が法的義務として課されている。総選挙における対応が日本国憲法に定められている参政権の保障に照らして適切であったか、疑念を抱かざるを得ない。"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              2
+            ],
+            "block_index": 13,
+            "text": "以上を踏まえて、以下質問する。"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              2,
+              3
+            ],
+            "block_index": 14,
+            "text": "一　総選挙において、点字版選挙公報（点字による「選挙のお知らせ版」等を含む）が全市区町村の期日前投票所に備え付けられた正確な日時、視覚障害のある有権者の手元に届いた正確な日時を政府は把握しているか示されたい。把握している場合、期日前投票開始日までに間に合わなかった選挙区・市町村数及びその理由をそれぞれ示されたい。"
+          }
+        ]
+      },
+      {
+        "block_type": "section",
+        "existing_pages": [
+          3
+        ],
+        "block_index": 15,
+        "section_content": [
+          {
+            "block_type": "heading",
+            "existing_pages": [
+              3
+            ],
+            "block_index": 16,
+            "text": "二"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              3
+            ],
+            "block_index": 17,
+            "text": "一部の市町村で視覚障害者用の点字投票用紙が十分に用意されなかった事例や誤って交付された事例が発生したと報じられている。全国の投票所における点字投票用紙の備付状況及び視覚障害者が円滑に投票できる体制（点字投票の補助具の配備等）の確保状況について、政府として実態調査を行うべきと考えるが、見解を示されたい。"
+          }
+        ]
+      },
+      {
+        "block_type": "section",
+        "existing_pages": [
+          3
+        ],
+        "block_index": 18,
+        "section_content": [
+          {
+            "block_type": "heading",
+            "existing_pages": [
+              3
+            ],
+            "block_index": 19,
+            "text": "三"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              3
+            ],
+            "block_index": 20,
+            "text": "障害者差別解消法第七条第二項において、行政機関等は、障害者から社会的障壁の除去を必要としている旨の意思表明があった場合、合理的な配慮を提供しなければならない旨規定されている。選挙期日の決定に当たって、合理的な配慮の観点から、点字版選挙公報の作成・発送に要する物理的な時間や、視覚障害者が情報を精査して投票先を決定するために必要な期間等を考慮して選挙日程の妥当性を検討したか示されたい。また、検討していない場合、障害者差別解消法の趣旨に反していると考えるが、政府の見解を示されたい。"
+          }
+        ]
+      },
+      {
+        "block_type": "section",
+        "existing_pages": [
+          3,
+          4
+        ],
+        "block_index": 21,
+        "section_content": [
+          {
+            "block_type": "heading",
+            "existing_pages": [
+              3
+            ],
+            "block_index": 22,
+            "text": "四"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              3,
+              4
+            ],
+            "block_index": 23,
+            "text": "衆議院解散から投開票までの期間が極めて短い、いわゆる「超短期決戦」の場合、点字版選挙公報の作成等の事務が物理的に間に合わないリスクが存在する。政府は、いかなる選挙日程であっても視覚障害者の参政権が侵害されないよう、今後の選挙においてはデジタル技術の活用や作成体制の抜本的強化を図る必要があると考えるが、具体的な計画を有するか示されたい。"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              4
+            ],
+            "block_index": 24,
+            "text": "五　総選挙時の対応により、公的な情報提供がないまま投票を余儀なくされた視覚障害者又は公的な情報提供がないため投票を断念した視覚障害者が存在することについて、政府の責任に係る認識を示されたい。"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              4
+            ],
+            "block_index": 25,
+            "text": "また、参政権の行使における格差を是正するため、政府として地方公共団体への指導や法改正を含めた対策を講ずる意思があるか示されたい。"
+          },
+          {
+            "block_type": "paragraph",
+            "existing_pages": [
+              4
+            ],
+            "block_index": 26,
+            "text": "右質問する。"
+          }
+        ]
+      }
+    ]
+  }
+}
