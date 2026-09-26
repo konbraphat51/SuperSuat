@@ -2,7 +2,7 @@
 
 A manual test that runs the PDFs in `Test/Manual/Ocr/Sample/` through the
 `Blocker` implementations (layout analysis only) and writes the detected blocks
-into `Test/Manual/Blocked/Output/<blocker>/`.
+into `Test/Manual/Ocr/Blocked/Output/<blocker>/`.
 
 日本語版: [TestBlocker_setup.md](TestBlocker_setup.md)
 
@@ -43,13 +43,13 @@ authentication is needed; an offline machine fails.
 cd Uploader
 
 # Every blocker over every PDF in Sample/
-uv run python Test/Manual/Blocked/TestBlocker.py
+uv run python Test/Manual/Ocr/Blocked/TestBlocker.py
 
 # One blocker, one page
-uv run python Test/Manual/Blocked/TestBlocker.py --blocker doclayout --max-pages 1
+uv run python Test/Manual/Ocr/Blocked/TestBlocker.py --blocker doclayout --max-pages 1
 
 # One blocker, one PDF, no PNGs
-uv run python Test/Manual/Blocked/TestBlocker.py --blocker ppstructure --pdf tate.pdf --no-render
+uv run python Test/Manual/Ocr/Blocked/TestBlocker.py --blocker ppstructure --pdf tate.pdf --no-render
 ```
 
 ### Options
@@ -66,7 +66,7 @@ uv run python Test/Manual/Blocked/TestBlocker.py --blocker ppstructure --pdf tat
 ## 4. Output
 
 ```
-Test/Manual/Blocked/Output/
+Test/Manual/Ocr/Blocked/Output/
 ├── doclayout/
 │   ├── tate.json       # the BlockerResult, as JSON
 │   ├── tate_p0.png     # page image with the detected blocks drawn on it
@@ -93,7 +93,7 @@ image=green, table=orange). The number on a box is its position within the page
 
 > With `yomitoku`, `block_type` is rarely `math`: its default layout model has no
 > formula category. The other two blockers do have one. See
-> [Blocker.md](../../../OcrModule/Blocked/Docs/Blocker.md).
+> [Blocker.md](../../../../OcrModule/Blocked/Docs/Blocker.md).
 
 ## Troubleshooting
 

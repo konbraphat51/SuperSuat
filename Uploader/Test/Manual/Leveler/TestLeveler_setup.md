@@ -11,11 +11,11 @@ English version: [TestLeveler_setup.en.md](TestLeveler_setup.en.md)
 
 ## 1. 入力
 
-`Input/` には、3つのサンプル PDF を [TestMdWriter.py](../MdWriter/TestMdWriter.py) で読んだ結果を
+`Input/` には、3つのサンプル PDF を [TestMdWriter.py](../Ocr/MdWriter/TestMdWriter.py) で読んだ結果を
 保存してあります。MdWriter の出力なので、見出しはすべて1段です。
 
 ```bash
-uv run python Test/Manual/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol --run-name leveler-input
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol --run-name leveler-input
 ```
 
 | ファイル | 内容 |

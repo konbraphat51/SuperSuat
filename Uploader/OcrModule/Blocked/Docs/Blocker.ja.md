@@ -159,7 +159,7 @@ Transcriberがブロック単位で読み直すため。`model_name=` を渡せ�
 ページがClassifierへの入力であり、モデルが `block_id` とページ上の矩形を対応づけられる
 のはこの画像のおかげ。`render_page()` は1ページだけを描くもので、Classifierは文書全体の
 注釈付きコピーをメモリに置かずに1ページずつこれを受け取る。`render()` は全ページを描く
-もので、`TestBlocker.py` と `TestBlockRenderer.py`（`Test/Manual/Blocked/` 参照）が
+もので、`TestBlocker.py` と `TestBlockRenderer.py`（`Test/Manual/Ocr/Blocked/` 参照）が
 PNGの書き出しに使う。
 
 ## デバイス

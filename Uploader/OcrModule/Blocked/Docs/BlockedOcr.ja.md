@@ -83,7 +83,7 @@ sequenceDiagram
 uv run pytest
 ```
 
-`Test/Manual/Blocked/` 以下の手動スクリプトはもう一方の担保で、実際のモデルをサンプルPDFに
+`Test/Manual/Ocr/Blocked/` 以下の手動スクリプトはもう一方の担保で、実際のモデルをサンプルPDFに
 対して走らせ、結果を書き出して目視確認するためのもの。
 
 ## 規約

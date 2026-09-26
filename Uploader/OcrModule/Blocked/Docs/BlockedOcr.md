@@ -86,7 +86,7 @@ covered by unit tests in `Test/Unit/Blocked/`, which need no model and no GPU:
 uv run pytest
 ```
 
-The manual scripts under `Test/Manual/Blocked/` are the other half: they run real
+The manual scripts under `Test/Manual/Ocr/Blocked/` are the other half: they run real
 models over the sample PDFs and write out what came back, for eyeballing.
 
 ## Conventions

@@ -3,7 +3,7 @@
 A manual test that runs the PDFs in `Test/Manual/Ocr/Sample/` through `MdWriterOcr`
 and writes the transcribed Markdown, the parsed document tree, every page's token usage
 and cost, and the page images with their figures drawn on into
-`Test/Manual/MdWriter/Output/<detector>/<run name>/` (the model id unless `--run-name` is given).
+`Test/Manual/Ocr/MdWriter/Output/<detector>/<run name>/` (the model id unless `--run-name` is given).
 
 日本語版: [TestMdWriter_setup.md](TestMdWriter_setup.md)
 
@@ -28,7 +28,7 @@ Put these in `Uploader/.env` (see `template.env`).
 | Variable | Used for |
 | --- | --- |
 | `OPENAI_API_KEY` | Transcribing on OpenAI |
-| `AWS_BEDROCK_SHORT_API_KEY` | Transcribing on Bedrock (how to issue one: [TestLinear_setup.md](../Ocr/TestLinear_setup.md)) |
+| `AWS_BEDROCK_SHORT_API_KEY` | Transcribing on Bedrock (how to issue one: [TestLinear_setup.md](../TestLinear_setup.md)) |
 | `OCR_PROVIDER` | `openai` / `bedrock`. Defaults to `openai` |
 | `OCR_MODEL_ID` | Model id. Defaults to one per provider |
 
@@ -38,13 +38,13 @@ Put these in `Uploader/.env` (see `template.env`).
 cd Uploader
 
 # 5 pages only
-uv run python Test/Manual/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --max-pages 5
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --max-pages 5
 
 # gpt-6-sol instead of the default model
-uv run python Test/Manual/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol
 
 # every sample PDF, with the defaults
-uv run python Test/Manual/MdWriter/TestMdWriter.py
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py
 ```
 
 ### Options
@@ -73,7 +73,7 @@ uv run python Test/Manual/MdWriter/TestMdWriter.py
 ## 4. Output
 
 ```
-Test/Manual/MdWriter/Output/
+Test/Manual/Ocr/MdWriter/Output/
 ├── TestMdWriter.log         # model answers, token usage, validation problems and retries
 └── doclayout/
     └── gpt-5.6-luna/
@@ -112,7 +112,7 @@ running heads and the text inside the figure boxes are left out); every page of 
 and pages 3, 12 and 17 of shido_math.pdf, transcribed by hand from the scans.
 
 ```bash
-uv run python Test/Manual/MdWriter/Evaluate.py --pages Test/Manual/MdWriter/Output/yomitoku/gpt-6-luna Test/Manual/MdWriter/Output/yomitoku/gpt-6-sol
+uv run python Test/Manual/Ocr/MdWriter/Evaluate.py --pages Test/Manual/Ocr/MdWriter/Output/yomitoku/gpt-6-luna Test/Manual/Ocr/MdWriter/Output/yomitoku/gpt-6-sol
 ```
 
 Both sides are reduced to letters and digits first, so Markdown syntax, punctuation and

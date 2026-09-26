@@ -14,11 +14,11 @@ the headings, and the token usage and cost into `Test/Manual/Leveler/Output/<run
 ## 1. Input
 
 `Input/` holds the three sample PDFs as read by
-[TestMdWriter.py](../MdWriter/TestMdWriter.py). They are MdWriter's output, so every
+[TestMdWriter.py](../Ocr/MdWriter/TestMdWriter.py). They are MdWriter's output, so every
 heading sits one level deep.
 
 ```bash
-uv run python Test/Manual/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol --run-name leveler-input
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol --run-name leveler-input
 ```
 
 | File | Content |

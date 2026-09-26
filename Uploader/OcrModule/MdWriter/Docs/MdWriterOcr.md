@@ -306,7 +306,7 @@ rendered pages, for a caller that wants to look at them.
   answers from the request.
 - A manual run over the sample PDFs, with a real detector and model, reporting every
   page's tokens and cost, and a script scoring its output against ground truth:
-  [TestMdWriter_setup.en.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.en.md).
+  [TestMdWriter_setup.en.md](../../../Test/Manual/Ocr/MdWriter/TestMdWriter_setup.en.md).
 
 ```bash
 cd Uploader

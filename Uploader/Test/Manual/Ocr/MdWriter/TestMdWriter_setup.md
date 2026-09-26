@@ -1,7 +1,7 @@
 # TestMdWriter 実行手順
 
 `Test/Manual/Ocr/Sample/` のPDFを `MdWriterOcr` にかけ、書き下したMarkdown・解析した文書ツリー・
-ページごとのトークン数とコスト・図を描き込んだページ画像を `Test/Manual/MdWriter/Output/<detector>/<実行名>/`
+ページごとのトークン数とコスト・図を描き込んだページ画像を `Test/Manual/Ocr/MdWriter/Output/<detector>/<実行名>/`
 （`--run-name` がなければモデルID）に書き出す手動テストです。
 
 English version: [TestMdWriter_setup.en.md](TestMdWriter_setup.en.md)
@@ -27,7 +27,7 @@ GPUとモデルの重みについては [TestBlocker_setup.md](../Blocked/TestBl
 | 変数 | 用途 |
 | --- | --- |
 | `OPENAI_API_KEY` | OpenAIで書き下すとき |
-| `AWS_BEDROCK_SHORT_API_KEY` | Bedrockで書き下すとき（発行手順は [TestLinear_setup.md](../Ocr/TestLinear_setup.md)） |
+| `AWS_BEDROCK_SHORT_API_KEY` | Bedrockで書き下すとき（発行手順は [TestLinear_setup.md](../TestLinear_setup.md)） |
 | `OCR_PROVIDER` | `openai` / `bedrock`。既定は `openai` |
 | `OCR_MODEL_ID` | モデルID。未指定ならプロバイダーごとの既定値 |
 
@@ -37,13 +37,13 @@ GPUとモデルの重みについては [TestBlocker_setup.md](../Blocked/TestBl
 cd Uploader
 
 # 5ページだけ
-uv run python Test/Manual/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --max-pages 5
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --pdf shido_math.pdf --detector doclayout --max-pages 5
 
 # 既定のモデルの代わりに gpt-6-sol で
-uv run python Test/Manual/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py --detector yomitoku --provider openai --model gpt-6-sol
 
 # Sample内の全PDFを既定の設定で
-uv run python Test/Manual/MdWriter/TestMdWriter.py
+uv run python Test/Manual/Ocr/MdWriter/TestMdWriter.py
 ```
 
 ### オプション
@@ -72,7 +72,7 @@ uv run python Test/Manual/MdWriter/TestMdWriter.py
 ## 4. 出力
 
 ```
-Test/Manual/MdWriter/Output/
+Test/Manual/Ocr/MdWriter/Output/
 ├── TestMdWriter.log         # モデルの応答・トークン数・検証エラーと再試行
 └── doclayout/
     └── gpt-5.6-luna/
@@ -109,7 +109,7 @@ Seaman.pdfは全ページで、[BuildGroundTruth.py](BuildGroundTruth.py) がテ
 tate.pdfの全ページと、shido_math.pdfの3・12・17ページは、スキャン画像から手で書き起こしたものです。
 
 ```bash
-uv run python Test/Manual/MdWriter/Evaluate.py --pages Test/Manual/MdWriter/Output/yomitoku/gpt-6-luna Test/Manual/MdWriter/Output/yomitoku/gpt-6-sol
+uv run python Test/Manual/Ocr/MdWriter/Evaluate.py --pages Test/Manual/Ocr/MdWriter/Output/yomitoku/gpt-6-luna Test/Manual/Ocr/MdWriter/Output/yomitoku/gpt-6-sol
 ```
 
 どちらも先に文字と数字だけにするので、Markdownの記法・句読点・改行は数えません。

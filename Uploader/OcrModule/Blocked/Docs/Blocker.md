@@ -170,7 +170,7 @@ shown, and is how the model can tell which box on the page a `block_id` names.
 `render_page()` draws one page, which is how the Classifier gets it, one page at a
 time, rather than holding an annotated copy of the whole document in memory;
 `render()` draws them all, which is what `TestBlocker.py` and `TestBlockRenderer.py`
-(see `Test/Manual/Blocked/`) use to write PNGs.
+(see `Test/Manual/Ocr/Blocked/`) use to write PNGs.
 
 ## Device
 

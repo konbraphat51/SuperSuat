@@ -98,5 +98,5 @@ uv run black --check OcrModule Leveler Test
 Each runs the sample PDFs in `Test/Manual/Ocr/Sample/` through real models:
 
 - [TestLinear_setup.md](Test/Manual/Ocr/TestLinear_setup.md) — Linear
-- [TestBlocker_setup.en.md](Test/Manual/Blocked/TestBlocker_setup.en.md) — the Blocked pipeline's layout stage
-- [TestMdWriter_setup.en.md](Test/Manual/MdWriter/TestMdWriter_setup.en.md) — MdWriter
+- [TestBlocker_setup.en.md](Test/Manual/Ocr/Blocked/TestBlocker_setup.en.md) — the Blocked pipeline's layout stage
+- [TestMdWriter_setup.en.md](Test/Manual/Ocr/MdWriter/TestMdWriter_setup.en.md) — MdWriter

@@ -285,7 +285,7 @@ sequenceDiagram
   エスカレーションを含む）、偽の検出器・偽の読み取り器・リクエストの内容から応答する偽モデルを使ったパイプライン全体。
 - 本物の検出器とモデルでサンプルPDFを読み、ページごとのトークン数とコストを出す手動テストと、
   その出力を正解データと比べて採点するスクリプト:
-  [TestMdWriter_setup.md](../../../Test/Manual/MdWriter/TestMdWriter_setup.md)。
+  [TestMdWriter_setup.md](../../../Test/Manual/Ocr/MdWriter/TestMdWriter_setup.md)。
 
 ```bash
 cd Uploader

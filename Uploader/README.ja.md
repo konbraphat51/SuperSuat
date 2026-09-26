@@ -97,5 +97,5 @@ uv run black --check OcrModule Leveler Test
 どれも `Test/Manual/Ocr/Sample/` のサンプルPDFを本物のモデルで読みます。
 
 - [TestLinear_setup.md](Test/Manual/Ocr/TestLinear_setup.md) — Linear
-- [TestBlocker_setup.md](Test/Manual/Blocked/TestBlocker_setup.md) — Blockedパイプラインのレイアウト段階
-- [TestMdWriter_setup.md](Test/Manual/MdWriter/TestMdWriter_setup.md) — MdWriter
+- [TestBlocker_setup.md](Test/Manual/Ocr/Blocked/TestBlocker_setup.md) — Blockedパイプラインのレイアウト段階
+- [TestMdWriter_setup.md](Test/Manual/Ocr/MdWriter/TestMdWriter_setup.md) — MdWriter

@@ -1,7 +1,7 @@
 # TestBlocker 実行手順
 
 `Test/Manual/Ocr/Sample/` のPDFを各 `Blocker` 実装（レイアウト解析のみ）にかけ、
-検出したブロックを `Test/Manual/Blocked/Output/<blocker>/` に書き出す手動テストです。
+検出したブロックを `Test/Manual/Ocr/Blocked/Output/<blocker>/` に書き出す手動テストです。
 
 English version: [TestBlocker_setup.en.md](TestBlocker_setup.en.md)
 
@@ -42,13 +42,13 @@ uv run python -c "import paddle; print(paddle.device.cuda.device_count())"
 cd Uploader
 
 # Sample内の全PDFを全Blockerで
-uv run python Test/Manual/Blocked/TestBlocker.py
+uv run python Test/Manual/Ocr/Blocked/TestBlocker.py
 
 # Blockerを1つ、1ページだけ
-uv run python Test/Manual/Blocked/TestBlocker.py --blocker doclayout --max-pages 1
+uv run python Test/Manual/Ocr/Blocked/TestBlocker.py --blocker doclayout --max-pages 1
 
 # 特定のBlockerと特定のPDFだけ、PNG出力なし
-uv run python Test/Manual/Blocked/TestBlocker.py --blocker ppstructure --pdf tate.pdf --no-render
+uv run python Test/Manual/Ocr/Blocked/TestBlocker.py --blocker ppstructure --pdf tate.pdf --no-render
 ```
 
 ### オプション
@@ -65,7 +65,7 @@ uv run python Test/Manual/Blocked/TestBlocker.py --blocker ppstructure --pdf tat
 ## 4. 出力
 
 ```
-Test/Manual/Blocked/Output/
+Test/Manual/Ocr/Blocked/Output/
 ├── doclayout/
 │   ├── tate.json       # BlockerResult をそのままJSON化したもの
 │   ├── tate_p0.png     # ページ画像に検出ブロックを重ねたもの
@@ -90,7 +90,7 @@ PNGではブロック種別ごとに枠の色が変わります（text=青 / mat
 
 > `yomitoku` の既定のレイアウトモデルには数式カテゴリが無いため、`math` はほぼ現れません。
 > 他の2つには数式クラスがあります。詳細は
-> [Blocker.md](../../../OcrModule/Blocked/Docs/Blocker.md) を参照してください。
+> [Blocker.md](../../../../OcrModule/Blocked/Docs/Blocker.md) を参照してください。
 
 ## トラブルシューティング
 
