@@ -17,14 +17,19 @@ from ..OcrSchema import (
     OcrResult,
     OcrResultBlock,
     OcrResultBlockFigure,
+    OcrResultBlockTableOfContents,
     OcrResultBlockText,
     OcrResultSection,
 )
-from .Containers import NOTE_CONTAINERS
+from .Containers import CONTAINERS, NOTE_CONTAINERS, TABLE_OF_CONTENTS_CONTAINER
 from .Markers import PageMark, strip_page_markers
 from .Schema import DetectedFigure
+from .TableOfContents import parse_entries
 
 logger = logging.getLogger(__name__)
+
+# The token opening a table of contents block.
+TABLE_OF_CONTENTS_OPEN = f"container_{TABLE_OF_CONTENTS_CONTAINER}_open"
 
 # The document itself, which every section hangs under.
 ROOT_BLOCK_INDEX = 0
@@ -63,10 +68,11 @@ class _Entry:
     """One block of the document, before it is given its place in the tree."""
 
     pages: list[int]
-    block_type: TEXT_BLOCK_TYPES | None = None  # None for a figure
+    block_type: TEXT_BLOCK_TYPES | None = None  # None unless a text block
     text: str = ""
     figure: DetectedFigure | None = None
     caption: str = ""
+    table_of_contents: str | None = None  # the entry lines of a table of contents
 
 
 @dataclass
@@ -114,8 +120,10 @@ def parse_markdown(markdown: str, figures: Sequence[DetectedFigure]) -> OcrResul
     """The document tree the Markdown describes.
 
     Every heading opens a section under the root, holding the blocks up to the
-    next heading. A figure the Markdown places is put where it is placed;
-    a detected figure it never places is put after the last block of its page.
+    next heading. Tables of contents with nothing between them, as a page turn
+    leaves one, are read as one. A figure the Markdown places is put where it
+    is placed; a detected figure it never places is put after the last block
+    of its page.
 
     Args:
         markdown: The whole document, as the pages were stitched into.
@@ -124,6 +132,7 @@ def parse_markdown(markdown: str, figures: Sequence[DetectedFigure]) -> OcrResul
     source, marks = strip_page_markers(markdown)
     source_map = _SourceMap(source, marks)
     entries = _read_entries(_parser().parse(source), source_map, figures)
+    entries = _merge_adjacent_tables_of_contents(entries)
     entries = _place_unreferenced_figures(entries, figures)
 
     return OcrResult(root_section=_build_tree(entries))
@@ -142,7 +151,7 @@ def _parser() -> MarkdownIt:
         .disable("reference")
         .use(dollarmath_plugin)
     )
-    for name in NOTE_CONTAINERS:
+    for name in CONTAINERS:
         parser.use(container_plugin, name=name)
     return parser
 
@@ -161,12 +170,19 @@ def _read_entries(
         if token.level != 0 or token.map is None or token.nesting == -1:
             continue
 
+        first, last = token.map
+        pages = source_map.pages(first, last)
+
+        # the lines are kept as written, since their indentation is the nesting
+        if token.type == TABLE_OF_CONTENTS_OPEN:
+            entry_lines = source_map.lines(first + 1, last)
+            entries.append(_Entry(pages=pages, table_of_contents=entry_lines))
+            continue
+
         block_type = BLOCK_TYPES.get(token.type)
         if block_type is None:
             continue
 
-        first, last = token.map
-        pages = source_map.pages(first, last)
         text = _block_text(token, tokens, index, source_map)
 
         if token.type == "html_block" and _is_comment(text):
@@ -300,6 +316,28 @@ def _is_comment(text: str) -> bool:
     return not re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL).strip()
 
 
+def _merge_adjacent_tables_of_contents(entries: list[_Entry]) -> list[_Entry]:
+    """The entries with every run of tables of contents merged into one, their
+    entry lines put together so that the nesting carries on over the join."""
+    merged: list[_Entry] = []
+
+    for entry in entries:
+        previous = merged[-1] if merged else None
+
+        if (
+            previous is not None
+            and previous.table_of_contents is not None
+            and entry.table_of_contents is not None
+        ):
+            previous.table_of_contents += "\n" + entry.table_of_contents
+            previous.pages = sorted(set(previous.pages) | set(entry.pages))
+            continue
+
+        merged.append(entry)
+
+    return merged
+
+
 def _place_unreferenced_figures(
     entries: list[_Entry],
     figures: Sequence[DetectedFigure],
@@ -378,6 +416,14 @@ def _to_block(entry: _Entry, block_indices: Iterator[int]) -> OcrResultBlock:
             page_index=entry.figure.page_index,
             bounding_box=entry.figure.bounding_box,
             caption=entry.caption,
+        )
+
+    if entry.table_of_contents is not None:
+        return OcrResultBlockTableOfContents(
+            block_type="table_of_contents",
+            existing_pages=entry.pages,
+            block_index=next(block_indices),
+            entries=parse_entries(entry.table_of_contents),
         )
 
     assert entry.block_type is not None

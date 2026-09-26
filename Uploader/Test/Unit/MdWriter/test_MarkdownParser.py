@@ -5,8 +5,10 @@ from OcrModule.MdWriter.Schema import DetectedFigure
 from OcrModule.OcrSchema import (
     OcrResultBlock,
     OcrResultBlockFigure,
+    OcrResultBlockTableOfContents,
     OcrResultBlockText,
     OcrResultSection,
+    TableOfContentsEntry,
 )
 
 
@@ -199,4 +201,60 @@ def test_a_figure_inside_a_box_is_placed_right_after_the_box():
         ("note", "about the author", [0]),
         ("figure", "photo", [0]),
         ("paragraph", "after", [0]),
+    ]
+
+
+def test_a_table_of_contents_is_read_as_its_nested_entries():
+    markdown = (
+        "<!--page:0-->## Contents\n\n"
+        ":::toc\n- | Preface | iv\n- 1 | Introduction | 1\n  - 1.1 | Aims | 2\n:::\n\n"
+        "after"
+    )
+
+    root = parse_markdown(markdown, []).root_section
+    section = root.section_content[0]
+
+    assert isinstance(section, OcrResultSection)
+    toc = section.section_content[1]
+    assert isinstance(toc, OcrResultBlockTableOfContents)
+    assert toc.block_type == "table_of_contents"
+    assert toc.existing_pages == [0]
+    assert toc.entries == [
+        TableOfContentsEntry(None, "Preface", "iv"),
+        TableOfContentsEntry(
+            "1", "Introduction", "1", [TableOfContentsEntry("1.1", "Aims", "2")]
+        ),
+    ]
+    assert [b.block_type for b in section.section_content] == [
+        "heading",
+        "table_of_contents",
+        "paragraph",
+    ]
+
+
+def test_a_table_of_contents_over_a_page_turn_is_one_block_nested_across_it():
+    markdown = (
+        "<!--page:0-->:::toc\n- 1 | Introduction | 1\n  - 1.1 | Aims | 2\n:::\n\n"
+        "<!--page:1-->:::toc\n  - 1.2 | Scope | 5\n- 2 | Method | 9\n:::"
+    )
+
+    blocks = flatten(parse_markdown(markdown, []).root_section)
+
+    assert len(blocks) == 1
+    toc = blocks[0]
+    assert isinstance(toc, OcrResultBlockTableOfContents)
+    assert toc.existing_pages == [0, 1]
+    assert [e.title for e in toc.entries] == ["Introduction", "Method"]
+    assert [e.title for e in toc.entries[0].children] == ["Aims", "Scope"]
+
+
+def test_tables_of_contents_apart_are_kept_apart():
+    markdown = ":::toc\n- 1 | A | 1\n:::\n\nbetween\n\n:::toc\n- 2 | B | 2\n:::"
+
+    blocks = flatten(parse_markdown(markdown, []).root_section)
+
+    assert [b.block_type for b in blocks] == [
+        "table_of_contents",
+        "paragraph",
+        "table_of_contents",
     ]
