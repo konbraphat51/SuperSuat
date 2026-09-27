@@ -70,6 +70,7 @@ strict = true
 files = [
     "OcrModule/MdWriter",
     "OcrModule/TextJoin.py",
+    "OcrModule/OcrResultJson.py",
     "Leveler",
 ]
 

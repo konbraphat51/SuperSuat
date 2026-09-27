@@ -28,7 +28,6 @@ import threading
 import time
 import traceback
 from collections.abc import Sequence
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, overload
 from uuid import UUID
@@ -48,14 +47,11 @@ from langchain_core.messages import AIMessage, BaseMessage  # noqa: E402
 from langchain_core.outputs import ChatGeneration, LLMResult  # noqa: E402
 
 from Leveler.OcrResultLeveler import OcrResultLeveler  # noqa: E402
+from OcrModule.OcrResultJson import dump_ocr_result, load_ocr_result  # noqa: E402
 from OcrModule.OcrSchema import (  # noqa: E402
     OcrResult,
-    OcrResultBlock,
-    OcrResultBlockFigure,
-    OcrResultBlockTableOfContents,
     OcrResultBlockText,
     OcrResultSection,
-    TableOfContentsEntry,
 )
 from UsageCost import PageUsage, format_report  # noqa: E402
 
@@ -164,57 +160,6 @@ class LazyPages(Sequence[Any]):
             return [self[i] for i in range(*index.indices(len(self)))]
         pixmap = self._document[index].get_pixmap(dpi=self._dpi)
         return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
-
-
-def load_block(data: dict[str, Any]) -> OcrResultBlock:
-    """One block of an OcrResult read back from its asdict() JSON."""
-    if data["block_type"] == "section":
-        return OcrResultSection(
-            block_type="section",
-            existing_pages=data["existing_pages"],
-            block_index=data["block_index"],
-            section_content=[load_block(child) for child in data["section_content"]],
-        )
-    if data["block_type"] == "figure":
-        return OcrResultBlockFigure(
-            block_type="figure",
-            existing_pages=data["existing_pages"],
-            block_index=data["block_index"],
-            page_index=data["page_index"],
-            bounding_box=tuple(data["bounding_box"]),
-            caption=data["caption"],
-        )
-    if data["block_type"] == "table_of_contents":
-        return OcrResultBlockTableOfContents(
-            block_type="table_of_contents",
-            existing_pages=data["existing_pages"],
-            block_index=data["block_index"],
-            entries=[load_entry(entry) for entry in data["entries"]],
-        )
-    return OcrResultBlockText(
-        block_type=data["block_type"],
-        existing_pages=data["existing_pages"],
-        block_index=data["block_index"],
-        text=data["text"],
-    )
-
-
-def load_entry(data: dict[str, Any]) -> TableOfContentsEntry:
-    """One table of contents entry read back from its asdict() JSON, with its children."""
-    return TableOfContentsEntry(
-        section_number=data["section_number"],
-        title=data["title"],
-        page_number=data["page_number"],
-        children=[load_entry(child) for child in data["children"]],
-    )
-
-
-def load_ocr_result(path: Path) -> OcrResult:
-    """An OcrResult read back from the JSON TestMdWriter wrote."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    root = load_block(data["root_section"])
-    assert isinstance(root, OcrResultSection)
-    return OcrResult(root_section=root)
 
 
 def heading_levels(section: OcrResultSection, depth: int = 0) -> dict[int, int]:
@@ -330,7 +275,9 @@ def run_one(
     print(f"\n=== {stem} ===", flush=True)
     usage.reset()
 
-    ocr_result = load_ocr_result(INPUT_DIR / f"{stem}.json")
+    ocr_result = load_ocr_result(
+        (INPUT_DIR / f"{stem}.json").read_text(encoding="utf-8")
+    )
     images = LazyPages(SAMPLE_DIR / f"{stem}.pdf", args.dpi)
     truth = load_truth(stem)
 
@@ -345,9 +292,7 @@ def run_one(
     report = f"{usage.summary()}\n{format_report({0: usage.usage})}"
     scored = score(leveled, truth) if truth else "no ground truth"
 
-    (output_dir / f"{stem}.json").write_text(
-        json.dumps(asdict(leveled), ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    (output_dir / f"{stem}.json").write_text(dump_ocr_result(leveled), encoding="utf-8")
     (output_dir / f"{stem}.outline.txt").write_text(
         f"{outline}\n\n{scored}\n", encoding="utf-8"
     )
