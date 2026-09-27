@@ -34,9 +34,6 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-import fitz  # PyMuPDF
-from PIL import Image
-
 # The OCR module is imported as a top-level package (`OcrModule.…`), so the
 # `Uploader` directory has to be on sys.path no matter where this is run from.
 UPLOADER_ROOT = Path(__file__).resolve().parents[4]
@@ -62,6 +59,7 @@ from OcrModule.MdWriter.Transcriber.PageTranscriber import (  # noqa: E402
     Escalation,
     PageTranscriber,
 )
+from Pipeline.PdfPages import LazyPdfPages  # noqa: E402
 from UsageCost import UsageRecorder, format_report  # noqa: E402
 
 SAMPLE_DIR = UPLOADER_ROOT / "Test" / "Manual" / "Ocr" / "Sample"
@@ -180,23 +178,6 @@ def build_reference_reader(name: str) -> ReferenceReader | None:
     return readers.YomitokuReferenceReader()
 
 
-def pdf_to_images(pdf_path: Path, dpi: int, max_pages: int | None) -> list[Any]:
-    """Every page of the PDF rendered to an RGB PIL image."""
-    images = []
-
-    with fitz.open(pdf_path) as document:
-        page_count = (
-            len(document) if max_pages is None else min(len(document), max_pages)
-        )
-        for page_index in range(page_count):
-            pixmap = document[page_index].get_pixmap(dpi=dpi)
-            images.append(
-                Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
-            )
-
-    return images
-
-
 def output_dir_of(args: argparse.Namespace) -> Path:
     """Where the results of this detector and run go."""
     return OUTPUT_DIR / args.detector / (args.run_name or args.model)
@@ -212,7 +193,8 @@ def run_one_pdf(
     print(f"\n=== {pdf_path.name} ===", flush=True)
     recorder.reset()
 
-    images = pdf_to_images(pdf_path, args.dpi, args.max_pages)
+    with LazyPdfPages(pdf_path, args.dpi, args.max_pages) as pages:
+        images = list(pages)
     print(f"rendered {len(images)} page(s) at {args.dpi} DPI", flush=True)
 
     started_at = time.monotonic()

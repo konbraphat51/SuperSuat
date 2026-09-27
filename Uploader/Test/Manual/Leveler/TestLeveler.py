@@ -27,13 +27,9 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, overload
+from typing import Any
 from uuid import UUID
-
-import fitz  # PyMuPDF
-from PIL import Image
 
 # The Leveler and the OCR module are imported as top-level packages, so the
 # `Uploader` directory has to be on sys.path no matter where this is run from.
@@ -48,6 +44,7 @@ from langchain_core.outputs import ChatGeneration, LLMResult  # noqa: E402
 
 from Leveler.OcrResultLeveler import OcrResultLeveler  # noqa: E402
 from OcrModule.OcrResultJson import dump_ocr_result, load_ocr_result  # noqa: E402
+from Pipeline.PdfPages import LazyPdfPages  # noqa: E402
 from OcrModule.OcrSchema import (  # noqa: E402
     OcrResult,
     OcrResultBlockText,
@@ -136,30 +133,6 @@ def _image_count(message: BaseMessage) -> int:
         for part in message.content
         if isinstance(part, dict) and part.get("type") in ("image", "image_url")
     )
-
-
-class LazyPages(Sequence[Any]):
-    """The pages of a PDF, each rendered only when it is read, so that a long
-    document does not hold every page image at once."""
-
-    def __init__(self, pdf_path: Path, dpi: int) -> None:
-        self._document = fitz.open(pdf_path)
-        self._dpi = dpi
-
-    def __len__(self) -> int:
-        return len(self._document)
-
-    @overload
-    def __getitem__(self, index: int) -> Any: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> list[Any]: ...
-
-    def __getitem__(self, index: int | slice) -> Any:
-        if isinstance(index, slice):
-            return [self[i] for i in range(*index.indices(len(self)))]
-        pixmap = self._document[index].get_pixmap(dpi=self._dpi)
-        return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
 
 
 def heading_levels(section: OcrResultSection, depth: int = 0) -> dict[int, int]:
@@ -278,7 +251,7 @@ def run_one(
     ocr_result = load_ocr_result(
         (INPUT_DIR / f"{stem}.json").read_text(encoding="utf-8")
     )
-    images = LazyPages(SAMPLE_DIR / f"{stem}.pdf", args.dpi)
+    images = LazyPdfPages(SAMPLE_DIR / f"{stem}.pdf", args.dpi)
     truth = load_truth(stem)
 
     started_at = time.monotonic()
