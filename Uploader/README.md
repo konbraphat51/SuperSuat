@@ -85,12 +85,24 @@ Layout model weights are downloaded on first use and cached (`~/.cache/huggingfa
 `Leveler` ranks the headings of a finished `OcrResult`, from any pipeline, and nests
 its tree to match: [Leveler/Docs/Leveler.md](Leveler/Docs/Leveler.md).
 
+## Command line
+
+`main.py` imports PDFs into `Uploader/Data`, one folder per document kept by
+`DataStore`, and runs the MdWriter OCR and the Leveler over them, writing JSON Lines
+events to stdout for the GUI to follow: [Docs/Cli.md](Docs/Cli.md).
+
+```bash
+uv run python main.py import path/to/book.pdf
+uv run python main.py ocr <document_id> --max-pages 5
+uv run python main.py level <document_id>
+```
+
 ## Checks
 
 ```bash
 uv run pytest        # unit tests
 uv run mypy          # strict type check of the newer modules
-uv run black --check OcrModule Leveler Test
+uv run black --check OcrModule Leveler Pipeline DataStore Cli Test main.py
 ```
 
 ## Manual tests

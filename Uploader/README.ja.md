@@ -84,12 +84,24 @@ classDiagram
 `Leveler` は、どのパイプラインの出力でも完成した `OcrResult` の見出しにレベルを付け、
 それに合わせて木を入れ子にします: [Leveler/Docs/Leveler.ja.md](Leveler/Docs/Leveler.ja.md)。
 
+## コマンドライン
+
+`main.py` は PDF を `Uploader/Data` に取り込み（文書ごとのフォルダを `DataStore` が管理します）、
+MdWriter OCR と Leveler を実行します。進捗と結果は JSON Lines のイベントとして stdout に書かれ、
+GUI はそれを追います: [Docs/Cli.ja.md](Docs/Cli.ja.md)。
+
+```bash
+uv run python main.py import path/to/book.pdf
+uv run python main.py ocr <document_id> --max-pages 5
+uv run python main.py level <document_id>
+```
+
 ## チェック
 
 ```bash
 uv run pytest        # 単体テスト
 uv run mypy          # 新しいモジュールの厳格な型チェック
-uv run black --check OcrModule Leveler Test
+uv run black --check OcrModule Leveler Pipeline DataStore Cli Test main.py
 ```
 
 ## 手動テスト
