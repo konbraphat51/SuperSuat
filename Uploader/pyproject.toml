@@ -74,6 +74,8 @@ files = [
     "Leveler",
     "Pipeline",
     "DataStore",
+    "Cli",
+    "main.py",
 ]
 
 [[tool.mypy.overrides]]
