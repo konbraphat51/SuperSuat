@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from OcrModule.Blocked.PageParallel import run_parallel
+from OcrModule.Blocked.PageParallel import listening_progress, run_parallel
 
 
 def test_results_come_back_in_input_order():
@@ -54,3 +54,32 @@ def test_one_item_runs_on_the_calling_thread():
     (result,) = run_parallel(lambda item: threading.get_ident(), [0], 4)
 
     assert result == calling_thread
+
+
+@pytest.mark.parametrize("max_parallel", [1, 3])
+def test_a_listener_is_told_of_a_labelled_stage_item_by_item(max_parallel: int):
+    told: list[tuple[str, int, int]] = []
+
+    with listening_progress(lambda *progress: told.append(progress)):
+        run_parallel(lambda item: item, list(range(3)), max_parallel, "writing")
+
+    assert told == [("writing", done, 3) for done in range(4)]
+
+
+def test_a_listener_is_not_told_of_an_unlabelled_stage():
+    told: list[tuple[str, int, int]] = []
+
+    with listening_progress(lambda *progress: told.append(progress)):
+        run_parallel(lambda item: item, list(range(3)), 2)
+
+    assert told == []
+
+
+def test_a_listener_is_not_told_once_its_block_is_left():
+    told: list[tuple[str, int, int]] = []
+
+    with listening_progress(lambda *progress: told.append(progress)):
+        pass
+    run_parallel(lambda item: item, list(range(3)), 2, "writing")
+
+    assert told == []

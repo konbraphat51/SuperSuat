@@ -107,6 +107,10 @@ run on the first failure: what has not started is cancelled and the error is rai
 to the caller. A document read half-way is not a result worth keeping, and stopping
 at once says which page went wrong while the rest has not yet been paid for.
 
+A labelled stage is also reported to whatever listens through `listening_progress()`:
+once as it starts, with nothing done, and once per item. The listeners are process-wide,
+which is how the CLI streams the progress of a run to the GUI.
+
 ## Conventions
 
 Shared by every implementation, and enforced by the base class:

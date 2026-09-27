@@ -1,7 +1,9 @@
 """Running a pipeline stage over several pages, or several blocks, at once."""
 
-from collections.abc import Callable, Iterable, Sequence
+import threading
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from typing import TypeVar
 
 from tqdm import tqdm
@@ -14,6 +16,28 @@ DEFAULT_MAX_PARALLEL_PAGES = 4
 
 Item = TypeVar("Item")
 Result = TypeVar("Result")
+
+ProgressListener = Callable[[str, int, int], None]
+"""Told of a labelled stage's progress: its label, the items done, and the items in all."""
+
+_listeners: list[ProgressListener] = []
+_listeners_lock = threading.Lock()
+
+
+@contextmanager
+def listening_progress(listener: ProgressListener) -> Iterator[None]:
+    """Tells `listener` of every labelled stage run while the block runs.
+
+    Listeners are process-wide, so a stage run from any thread is reported.
+    It is told once as a stage starts, with nothing done, and once per item.
+    """
+    with _listeners_lock:
+        _listeners.append(listener)
+    try:
+        yield
+    finally:
+        with _listeners_lock:
+            _listeners.remove(listener)
 
 
 def run_parallel(
@@ -39,8 +63,8 @@ def run_parallel(
             so whatever it touches has to stand that.
         items: One entry per unit of work, in the order the results are wanted.
         max_parallel: Most items to work on at once.
-        progress_label: What to call this stage in the progress bar, or None
-            to show no bar.
+        progress_label: What to call this stage in the progress bar and to
+            the progress listeners, or None to show no bar and tell no one.
         progress_unit: What one item is called in that bar.
     """
     if max_parallel <= 1 or len(items) <= 1:
@@ -76,7 +100,26 @@ def _tracked(
     if progress_label is None:
         return items
 
-    return tqdm(items, desc=progress_label, total=total, unit=progress_unit)
+    bar = tqdm(items, desc=progress_label, total=total, unit=progress_unit)
+    return _reported(bar, progress_label, total)
+
+
+def _reported(items: Iterable[Item], label: str, total: int) -> Iterator[Item]:
+    """The items as they are, telling the listeners as each one is done with."""
+    _notify(label, 0, total)
+    # an item is done with once the caller asks for the next one
+    for done, item in enumerate(items, start=1):
+        yield item
+        _notify(label, done, total)
+
+
+def _notify(label: str, done: int, total: int) -> None:
+    """Tells every listener of a stage's progress."""
+    with _listeners_lock:
+        listeners = list(_listeners)
+
+    for listener in listeners:
+        listener(label, done, total)
 
 
 def _cancel(executor: ThreadPoolExecutor, futures: list[Future]) -> None:
