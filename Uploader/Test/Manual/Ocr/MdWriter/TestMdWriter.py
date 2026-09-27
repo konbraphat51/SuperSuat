@@ -59,13 +59,17 @@ from OcrModule.MdWriter.Transcriber.PageTranscriber import (  # noqa: E402
     Escalation,
     PageTranscriber,
 )
+from Pipeline.ChatModels import (
+    DEFAULT_REGION,
+    PROVIDERS,
+    build_chat_model,
+)  # noqa: E402
 from Pipeline.PdfPages import LazyPdfPages  # noqa: E402
 from UsageCost import UsageRecorder, format_report  # noqa: E402
 
 SAMPLE_DIR = UPLOADER_ROOT / "Test" / "Manual" / "Ocr" / "Sample"
 OUTPUT_DIR = Path(__file__).resolve().parent / "Output"
 
-PROVIDERS = ("openai", "bedrock")
 DETECTORS = ("doclayout", "yomitoku", "ppstructure")
 REFERENCES = ("none", "yomitoku")
 
@@ -74,7 +78,6 @@ DEFAULT_MODEL_IDS = {
     "bedrock": "qwen.qwen3-vl-235b-a22b",
     "openai": "gpt-5.6-luna",
 }
-DEFAULT_REGION = "us-west-2"
 DEFAULT_DPI = 200
 
 # One answer carries one page, with room left for the model's reasoning.
@@ -99,44 +102,23 @@ def build_model(
     model_id: str,
     reasoning_effort: str | None,
 ) -> Any:
-    """A chat model of the chosen provider, reporting its usage to `recorder`.
-    Imported lazily so that `--help` works without the provider's package."""
-    if args.provider == "openai":
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(
-            model=model_id,
-            use_responses_api=True,
-            max_tokens=args.max_tokens,
-            callbacks=[recorder],
-            **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
-        )
-
-    return build_bedrock_model(args.region, recorder, model_id, args.max_tokens)
+    """A chat model of the chosen provider, reporting its usage to `recorder`."""
+    return build_chat_model(
+        args.provider,
+        model_id,
+        args.max_tokens,
+        reasoning_effort,
+        args.region,
+        [recorder],
+    )
 
 
 def build_bedrock_model(
     region: str, recorder: UsageRecorder, model_id: str, max_tokens: int
 ) -> Any:
-    """A Bedrock chat model, reporting its usage to `recorder`. Imported lazily
-    so that `--help` works without langchain-aws."""
-    from langchain_aws import ChatBedrockConverse
-
-    api_key = os.getenv("AWS_BEDROCK_SHORT_API_KEY") or os.getenv(
-        "AWS_BEARER_TOKEN_BEDROCK"
-    )
-    if api_key:
-        # bearer-token auth never reads the AWS profile, which may be broken locally
-        os.environ["AWS_CONFIG_FILE"] = os.devnull
-        os.environ.pop("AWS_PROFILE", None)
-
-    return ChatBedrockConverse(
-        model=model_id,
-        region_name=region,
-        max_tokens=max_tokens,
-        temperature=0,
-        callbacks=[recorder],
-        **({"bedrock_api_key": api_key} if api_key else {}),
+    """A Bedrock chat model, reporting its usage to `recorder`."""
+    return build_chat_model(
+        "bedrock", model_id, max_tokens, region=region, callbacks=[recorder]
     )
 
 
