@@ -73,6 +73,7 @@ files = [
     "OcrModule/OcrResultJson.py",
     "Leveler",
     "Pipeline",
+    "DataStore",
 ]
 
 [[tool.mypy.overrides]]
